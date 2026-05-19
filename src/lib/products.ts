@@ -7,7 +7,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Dive-In Low Molecular Hyaluronic Serum",
     nameKo: "다이브인 저분자 히알루론산 세럼",
     volume: "100ml",
-    image: "/products/prod-01.svg",
+    image: "/products/prod-01.png",
     category: "skincare",
   },
   {
@@ -16,7 +16,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Ato Barrier 365 Cream",
     nameKo: "아토베리어365 크림",
     volume: "80ml",
-    image: "/products/prod-02.svg",
+    image: "/products/prod-02.png",
     category: "skincare",
   },
   {
@@ -25,7 +25,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Hyaluronic Soothing Cream",
     nameKo: "히알루로닉 수딩크림",
     volume: "80ml",
-    image: "/products/prod-03.svg",
+    image: "/products/prod-03.png",
     category: "skincare",
   },
   {
@@ -34,7 +34,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Mung Bean Low-pH Cleansing Foam",
     nameKo: "녹두 약산성 클렌징폼",
     volume: "200ml",
-    image: "/products/prod-04.svg",
+    image: "/products/prod-04.png",
     category: "skincare",
   },
   {
@@ -43,7 +43,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Aqua Oasis Toner",
     nameKo: "아쿠아 오아시스 토너",
     volume: "300ml",
-    image: "/products/prod-05.svg",
+    image: "/products/prod-05.png",
     category: "skincare",
   },
   {
@@ -52,7 +52,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "PDRN Capsule 100 Serum",
     nameKo: "피디알엔 캡슐 100 세럼",
     volume: "50ml",
-    image: "/products/prod-06.svg",
+    image: "/products/prod-06.png",
     category: "skincare",
   },
   {
@@ -61,7 +61,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Real Hyaluronic Blue 100 Ampoule",
     nameKo: "리얼 히알루로닉 블루100앰플",
     volume: "50ml",
-    image: "/products/prod-07.svg",
+    image: "/products/prod-07.png",
     category: "skincare",
   },
   {
@@ -70,7 +70,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Dive-In Low Molecular Hyaluronic Toner",
     nameKo: "다이브인 저분자 히알루론산 토너",
     volume: "300ml",
-    image: "/products/prod-08.svg",
+    image: "/products/prod-08.png",
     category: "skincare",
   },
   {
@@ -79,7 +79,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Cool Disposable Modeling Cup Pack",
     nameKo: "쿨 일회용 모델링 컵팩",
     volume: "28g",
-    image: "/products/prod-09.svg",
+    image: "/products/prod-09.png",
     category: "skincare",
   },
   {
@@ -88,7 +88,7 @@ export const TOP_PRODUCTS: TopProduct[] = [
     nameEn: "Aqua Squalane Moisture Cream",
     nameKo: "아쿠아 스쿠알란 수분크림",
     volume: "80ml",
-    image: "/products/prod-10.svg",
+    image: "/products/prod-10.png",
     category: "skincare",
   },
 ];
