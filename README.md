@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Medi Da Kos
 
-## Getting Started
+Korean custom ODM brokerage platform for global beauty brand operators. Built with **Next.js**, **TypeScript**, and **Firebase** (Auth + Firestore).
 
-First, run the development server:
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local mock admin (no Firebase required)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+When Firebase env vars are empty, the app runs in **mock mode** (localStorage).
 
-## Learn More
+| Field | Value |
+|-------|--------|
+| Email | `admin@medidakos.com` |
+| Password | `MediDaKos2024!` |
 
-To learn more about Next.js, take a look at the following resources:
+You can also register new accounts or use **Continue with Google** (mock demo user).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Firebase setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Copy `.env.example` to `.env.local` and add your Firebase web app config.
+2. Enable **Email/Password** and **Google** sign-in in Firebase Authentication.
+3. Create Firestore collections (rules as needed):
+   - `cmBriefs/{uid}` — custom & sample briefs
+   - `tracking/{uid}/entries/{entryId}` — shipment tracking
+   - `users/{uid}` — user profiles
+4. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.
 
-## Deploy on Vercel
+## Routes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Path | Description |
+|------|-------------|
+| `/` | Marketing home + hero carousel |
+| `/business` | Korea manufacturing strengths |
+| `/how-it-works` | ODM workflow |
+| `/pricing` | Partnership tiers |
+| `/contact` | Contact form |
+| `/login` | Sign in / register |
+| `/dashboard` | CM Steps 1–6 + Top 10 samples |
+| `/dashboard/orders` | Orders (empty state) |
+| `/dashboard/tracking` | FedEx / DHL / UPS tracking |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Top 10 product images
+
+Replace placeholders in `public/products/prod-01.svg` … `prod-10.svg` with your product photos (same filenames, `.jpg` or `.png` — update paths in `src/lib/products.ts`).
+
+## Design
+
+Clean, water-inspired UI referencing Samsung Biologics–style trust and K-beauty hydration aesthetics. English-only copy throughout.
