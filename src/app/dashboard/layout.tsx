@@ -3,14 +3,27 @@
 import { DashboardGuard } from "@/components/dashboard/DashboardGuard";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardStepProvider, useDashboardStep } from "@/lib/dashboard-step-context";
+import { DashboardBriefProvider } from "@/lib/dashboard-brief-context";
+import { useAuth } from "@/lib/auth-context";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { currentStep } = useDashboardStep();
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar currentStep={currentStep} />
       <main className="flex-1 overflow-y-auto p-6 lg:p-10">{children}</main>
     </div>
+  );
+}
+
+function DashboardBriefWrapper({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <DashboardBriefProvider uid={user.uid}>
+      <DashboardShell>{children}</DashboardShell>
+    </DashboardBriefProvider>
   );
 }
 
@@ -22,7 +35,7 @@ export default function DashboardLayout({
   return (
     <DashboardGuard>
       <DashboardStepProvider>
-        <DashboardShell>{children}</DashboardShell>
+        <DashboardBriefWrapper>{children}</DashboardBriefWrapper>
       </DashboardStepProvider>
     </DashboardGuard>
   );

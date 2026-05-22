@@ -1,67 +1,63 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type {
   CMBrief,
-  PackagingType,
-  ProductCategory,
   FragranceOption,
+  PackagingSelection,
+  ProductCategory,
 } from "@/lib/types";
-import { loadCMBrief, saveCMBrief } from "@/lib/firestore-service";
+import {
+  getPackagingGroups,
+  getPackagingItems,
+} from "@/lib/packaging-options";
+import { submitCustomBrief } from "@/lib/firestore-service";
+import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { Top10Products } from "./Top10Products";
-
-const PACKAGING_OPTIONS: { id: PackagingType; label: string }[] = [
-  { id: "bottle", label: "Bottle" },
-  { id: "tube", label: "Tube" },
-  { id: "jar", label: "Jar" },
-  { id: "closure", label: "Closure" },
-  { id: "makeup", label: "Makeup" },
-  { id: "stick", label: "Stick" },
-  { id: "kolmar-exclusive", label: "Kolmar Exclusive" },
-  { id: "accessory", label: "Accessory" },
-];
 
 const inputClass =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 
 interface Props {
   uid: string;
-  onStepChange?: (step: number) => void;
 }
 
-export function CMWizard({ uid, onStepChange }: Props) {
-  const [brief, setBrief] = useState<CMBrief | null>(null);
+export function CMWizard({ uid }: Props) {
+  const router = useRouter();
+  const { brief, loading, setBrief, persistBrief } = useDashboardBrief();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  const load = useCallback(async () => {
-    const data = await loadCMBrief(uid);
-    setBrief(data);
-    onStepChange?.(data.currentStep);
-  }, [uid, onStepChange]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
   async function persist(next: CMBrief, advance = false) {
     setSaving(true);
-    const updated = {
-      ...next,
-      updatedAt: new Date().toISOString(),
-      currentStep: advance
-        ? Math.min(6, next.currentStep + 1)
-        : next.currentStep,
-    };
-    await saveCMBrief(updated);
-    setBrief(updated);
-    onStepChange?.(updated.currentStep);
+    const updated = await persistBrief(next, advance);
     setSaving(false);
-    setMessage(advance ? "Saved. Continuing to next step." : "Draft saved.");
-    setTimeout(() => setMessage(""), 3000);
+    setMessage(
+      advance
+        ? "Saved. Continuing to next step."
+        : next.status === "submitted"
+          ? "Brief submitted. View it in My Orders."
+          : "Draft saved.",
+    );
+    setTimeout(() => setMessage(""), 4000);
+    return updated;
   }
 
-  if (!brief) {
+  async function handleSubmit() {
+    if (!brief) return;
+    setSaving(true);
+    try {
+      await submitCustomBrief(brief);
+      setBrief({ ...brief, status: "submitted" });
+      setMessage("Brief submitted. View it in My Orders.");
+      setTimeout(() => router.push("/dashboard/orders"), 1500);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading || !brief) {
     return <p className="text-slate-500">Loading your custom brief…</p>;
   }
 
@@ -90,15 +86,16 @@ export function CMWizard({ uid, onStepChange }: Props) {
           <Step1
             value={brief.step1?.category}
             onChange={(category) =>
-              setBrief({ ...brief, step1: { category } })
+              setBrief({ ...brief, step1: { category }, step2: { selections: [] } })
             }
           />
         )}
         {step === 2 && (
           <Step2
-            selected={brief.step2?.packaging ?? []}
-            onChange={(packaging) =>
-              setBrief({ ...brief, step2: { packaging } })
+            category={brief.step1?.category ?? "skincare"}
+            selections={brief.step2?.selections ?? []}
+            onChange={(selections) =>
+              setBrief({ ...brief, step2: { selections } })
             }
           />
         )}
@@ -108,18 +105,11 @@ export function CMWizard({ uid, onStepChange }: Props) {
             onLogo={(logoDataUrl, logoFileName) =>
               setBrief({
                 ...brief,
-                step3: {
-                  ...brief.step3,
-                  logoDataUrl,
-                  logoFileName,
-                },
+                step3: { ...brief.step3, logoDataUrl, logoFileName },
               })
             }
-            onPackaging={(previewPackaging) =>
-              setBrief({
-                ...brief,
-                step3: { ...brief.step3, previewPackaging },
-              })
+            onPreviewGroup={(previewGroup) =>
+              setBrief({ ...brief, step3: { ...brief.step3, previewGroup } })
             }
           />
         )}
@@ -146,9 +136,7 @@ export function CMWizard({ uid, onStepChange }: Props) {
           {step > 1 && (
             <button
               type="button"
-              onClick={() =>
-                persist({ ...brief, currentStep: step - 1 }, false)
-              }
+              onClick={() => persist({ ...brief, currentStep: step - 1 }, false)}
               className="rounded-lg border border-slate-200 px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Back
@@ -174,13 +162,11 @@ export function CMWizard({ uid, onStepChange }: Props) {
           ) : (
             <button
               type="button"
-              disabled={saving}
-              onClick={() =>
-                persist({ ...brief, status: "submitted" }, false)
-              }
+              disabled={saving || brief.status === "submitted"}
+              onClick={handleSubmit}
               className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              Submit brief
+              {brief.status === "submitted" ? "Already submitted" : "Submit brief"}
             </button>
           )}
         </div>
@@ -198,6 +184,19 @@ function Step1({
   value?: ProductCategory;
   onChange: (c: ProductCategory) => void;
 }) {
+  const options: { id: ProductCategory; label: string; desc: string }[] = [
+    {
+      id: "skincare",
+      label: "Skin Care",
+      desc: "Serums, creams, toners, cleansers, and treatments.",
+    },
+    {
+      id: "cosmetic",
+      label: "Cosmetic",
+      desc: "Color cosmetics, makeup, and decorative products.",
+    },
+  ];
+
   return (
     <div>
       <h2 className="text-lg font-medium text-slate-800">
@@ -207,23 +206,19 @@ function Step1({
         Choose the primary category for your custom ODM project.
       </p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {(["skincare", "makeup"] as const).map((cat) => (
+        {options.map((cat) => (
           <button
-            key={cat}
+            key={cat.id}
             type="button"
-            onClick={() => onChange(cat)}
+            onClick={() => onChange(cat.id)}
             className={`rounded-xl border-2 p-6 text-left transition ${
-              value === cat
+              value === cat.id
                 ? "border-sky-500 bg-sky-50"
                 : "border-slate-100 hover:border-sky-200"
             }`}
           >
-            <p className="font-semibold capitalize text-slate-800">{cat}</p>
-            <p className="mt-2 text-sm text-slate-500">
-              {cat === "skincare"
-                ? "Serums, creams, toners, cleansers, and treatments."
-                : "Color cosmetics, bases, and decorative products."}
-            </p>
+            <p className="font-semibold text-slate-800">{cat.label}</p>
+            <p className="mt-2 text-sm text-slate-500">{cat.desc}</p>
           </button>
         ))}
       </div>
@@ -232,39 +227,71 @@ function Step1({
 }
 
 function Step2({
-  selected,
+  category,
+  selections,
   onChange,
 }: {
-  selected: PackagingType[];
-  onChange: (p: PackagingType[]) => void;
+  category: ProductCategory;
+  selections: PackagingSelection[];
+  onChange: (s: PackagingSelection[]) => void;
 }) {
-  function toggle(id: PackagingType) {
-    onChange(
-      selected.includes(id)
-        ? selected.filter((x) => x !== id)
-        : [...selected, id],
+  const groups = getPackagingGroups(category);
+
+  function toggleItem(group: string, item: string) {
+    const existing = selections.find((s) => s.group === group);
+    if (!existing) {
+      onChange([...selections, { group, items: [item] }]);
+      return;
+    }
+    const has = existing.items.includes(item);
+    const newItems = has
+      ? existing.items.filter((i) => i !== item)
+      : [...existing.items, item];
+    if (newItems.length === 0) {
+      onChange(selections.filter((s) => s.group !== group));
+    } else {
+      onChange(
+        selections.map((s) =>
+          s.group === group ? { group, items: newItems } : s,
+        ),
+      );
+    }
+  }
+
+  function isSelected(group: string, item: string) {
+    return selections.some(
+      (s) => s.group === group && s.items.includes(item),
     );
   }
+
   return (
     <div>
-      <h2 className="text-lg font-medium text-slate-800">Packaging types</h2>
+      <h2 className="text-lg font-medium text-slate-800">Packaging options</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Select all packaging formats you are considering (8 types).
+        Select packaging types and formats for your{" "}
+        {category === "skincare" ? "Skin Care" : "Cosmetic"} line.
       </p>
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {PACKAGING_OPTIONS.map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => toggle(opt.id)}
-            className={`rounded-xl border-2 px-4 py-4 text-sm font-medium transition ${
-              selected.includes(opt.id)
-                ? "border-sky-500 bg-sky-50 text-sky-800"
-                : "border-slate-100 text-slate-600 hover:border-sky-200"
-            }`}
-          >
-            {opt.label}
-          </button>
+      <div className="mt-6 space-y-8">
+        {groups.map((group) => (
+          <div key={group}>
+            <h3 className="text-sm font-semibold text-slate-700">{group}</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {getPackagingItems(category, group).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => toggleItem(group, item)}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                    isSelected(group, item)
+                      ? "border-sky-500 bg-sky-50 text-sky-800"
+                      : "border-slate-200 text-slate-600 hover:border-sky-200"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -274,13 +301,13 @@ function Step2({
 function Step3({
   brief,
   onLogo,
-  onPackaging,
+  onPreviewGroup,
 }: {
   brief: CMBrief;
   onLogo: (dataUrl: string, fileName: string) => void;
-  onPackaging: (p: PackagingType) => void;
+  onPreviewGroup: (group: string) => void;
 }) {
-  const packaging = brief.step2?.packaging ?? [];
+  const groups = brief.step2?.selections?.map((s) => s.group) ?? [];
 
   return (
     <div>
@@ -288,7 +315,7 @@ function Step3({
         Logo & packaging preview
       </h2>
       <p className="mt-1 text-sm text-slate-500">
-        Upload your logo and preview it on selected packaging.
+        Upload your logo and preview it on selected packaging groups.
       </p>
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div>
@@ -318,26 +345,26 @@ function Step3({
         </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-700">
-            Preview on packaging
+            Preview on packaging group
           </label>
           <div className="flex flex-wrap gap-2">
-            {packaging.length === 0 ? (
+            {groups.length === 0 ? (
               <p className="text-sm text-slate-400">
                 Select packaging in Step 2 first.
               </p>
             ) : (
-              packaging.map((p) => (
+              groups.map((g) => (
                 <button
-                  key={p}
+                  key={g}
                   type="button"
-                  onClick={() => onPackaging(p)}
-                  className={`rounded-lg border px-3 py-2 text-sm capitalize ${
-                    brief.step3?.previewPackaging === p
+                  onClick={() => onPreviewGroup(g)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    brief.step3?.previewGroup === g
                       ? "border-sky-500 bg-sky-50"
                       : "border-slate-200"
                   }`}
                 >
-                  {p}
+                  {g}
                 </button>
               ))
             )}
@@ -351,7 +378,7 @@ function Step3({
                   className="mx-auto max-h-20 object-contain"
                 />
                 <p className="mt-2 text-xs text-slate-500">
-                  {brief.step3.previewPackaging ?? "packaging"} preview
+                  {brief.step3.previewGroup ?? "packaging"} preview
                 </p>
               </div>
             ) : (

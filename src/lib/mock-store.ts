@@ -1,11 +1,13 @@
 "use client";
 
-import type { CMBrief, TrackingEntry, UserProfile } from "./types";
+import type { CMBrief, Order, SampleRequest, TrackingEntry, UserProfile } from "./types";
 
 const USERS_KEY = "mdk_users";
 const SESSION_KEY = "mdk_session";
 const BRIEFS_KEY = "mdk_cm_briefs";
 const TRACKING_KEY = "mdk_tracking";
+const ORDERS_KEY = "mdk_orders";
+const SAMPLE_REQUESTS_KEY = "mdk_sample_requests";
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -141,4 +143,38 @@ export function mockSaveTracking(uid: string, entries: TrackingEntry[]) {
 export function mockGetTracking(uid: string): TrackingEntry[] {
   const all = read<Record<string, TrackingEntry[]>>(TRACKING_KEY, {});
   return all[uid] ?? [];
+}
+
+export function mockAddSampleRequest(
+  data: Omit<SampleRequest, "id">,
+): SampleRequest {
+  const all = read<SampleRequest[]>(SAMPLE_REQUESTS_KEY, []);
+  const entry: SampleRequest = {
+    ...data,
+    id: `sample-${crypto.randomUUID()}`,
+  };
+  all.push(entry);
+  write(SAMPLE_REQUESTS_KEY, all);
+  return entry;
+}
+
+export function mockAddOrder(order: Order): Order {
+  const all = read<Order[]>(ORDERS_KEY, []);
+  const entry: Order = {
+    ...order,
+    id: order.id || `order-${crypto.randomUUID()}`,
+  };
+  all.push(entry);
+  write(ORDERS_KEY, all);
+  return entry;
+}
+
+export function mockGetOrders(uid: string): Order[] {
+  const all = read<Order[]>(ORDERS_KEY, []);
+  return all
+    .filter((o) => o.uid === uid)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 }

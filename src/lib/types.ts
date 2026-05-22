@@ -1,14 +1,9 @@
-export type ProductCategory = "skincare" | "makeup";
+export type ProductCategory = "skincare" | "cosmetic";
 
-export type PackagingType =
-  | "bottle"
-  | "tube"
-  | "jar"
-  | "closure"
-  | "makeup"
-  | "stick"
-  | "kolmar-exclusive"
-  | "accessory";
+export interface PackagingSelection {
+  group: string;
+  items: string[];
+}
 
 export type FragranceOption =
   | "green-tea"
@@ -44,13 +39,13 @@ export interface CMBriefStep1 {
 }
 
 export interface CMBriefStep2 {
-  packaging: PackagingType[];
+  selections: PackagingSelection[];
 }
 
 export interface CMBriefStep3 {
   logoFileName?: string;
   logoDataUrl?: string;
-  previewPackaging?: PackagingType;
+  previewGroup?: string;
 }
 
 export interface CMBriefStep4 {
@@ -114,4 +109,27 @@ export interface TopProduct {
   volume: string;
   image: string;
   category: ProductCategory;
+}
+
+export interface SampleRequest {
+  id: string;
+  uid: string;
+  sampleProductId: string;
+  sampleProductName: string;
+  sampleQuantity: number;
+  shippingAddress: ShippingAddress;
+  status: "submitted";
+  createdAt: string;
+}
+
+export interface Order {
+  id: string;
+  uid: string;
+  type: "custom" | "sample";
+  status: "submitted" | "in-review" | "in-production" | "shipped";
+  title: string;
+  summary: string;
+  referenceId?: string;
+  createdAt: string;
+  updatedAt: string;
 }

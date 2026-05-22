@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, Mail, Package, Truck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 
 const cmSteps = [
   { step: 1, label: "Category" },
@@ -21,7 +22,17 @@ const links = [
 
 export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { logout } = useAuth();
+  const { navigableSteps, goToStep } = useDashboardBrief();
+
+  async function handleStepClick(step: number) {
+    if (!navigableSteps.includes(step)) return;
+    await goToStep(step);
+    if (pathname !== "/dashboard") {
+      router.push("/dashboard");
+    }
+  }
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-sky-100 bg-white">
@@ -49,32 +60,43 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
           CM Steps 1–6
         </p>
         <ul className="mb-6 space-y-1">
-          {cmSteps.map((s) => (
-            <li key={s.step}>
-              <div
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                  currentStep === s.step
-                    ? "bg-sky-600 text-white"
-                    : currentStep > s.step
-                      ? "text-sky-600"
-                      : "text-slate-500"
-                }`}
-              >
-                <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+          {cmSteps.map((s) => {
+            const canNavigate = navigableSteps.includes(s.step);
+            return (
+              <li key={s.step}>
+                <button
+                  type="button"
+                  disabled={!canNavigate}
+                  onClick={() => handleStepClick(s.step)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-left transition ${
                     currentStep === s.step
-                      ? "bg-white/20"
-                      : currentStep > s.step
-                        ? "bg-sky-100"
-                        : "bg-slate-100"
+                      ? "bg-sky-600 text-white"
+                      : canNavigate
+                        ? "text-sky-600 hover:bg-sky-50"
+                        : "cursor-not-allowed text-slate-400"
                   }`}
+                  title={
+                    canNavigate
+                      ? `View step ${s.step}`
+                      : "Complete and save this step first"
+                  }
                 >
-                  {s.step}
-                </span>
-                {s.label}
-              </div>
-            </li>
-          ))}
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      currentStep === s.step
+                        ? "bg-white/20"
+                        : canNavigate
+                          ? "bg-sky-100"
+                          : "bg-slate-100"
+                    }`}
+                  >
+                    {s.step}
+                  </span>
+                  {s.label}
+                </button>
+              </li>
+            );
+          })}
         </ul>
 
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">

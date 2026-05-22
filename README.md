@@ -27,7 +27,9 @@ You can also register new accounts or use **Continue with Google** (mock demo us
 1. Copy `.env.example` to `.env.local` and add your Firebase web app config.
 2. Enable **Email/Password** and **Google** sign-in in Firebase Authentication.
 3. Create Firestore collections (rules as needed):
-   - `cmBriefs/{uid}` — custom & sample briefs
+   - `cmBriefs/{uid}` — custom manufacturing brief (draft/submitted)
+   - `sampleRequests/{autoId}` — Top 10 sample requests
+   - `orders/{autoId}` — order history (custom + sample), field `uid` for queries
    - `tracking/{uid}/entries/{entryId}` — shipment tracking
    - `users/{uid}` — user profiles
 4. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.

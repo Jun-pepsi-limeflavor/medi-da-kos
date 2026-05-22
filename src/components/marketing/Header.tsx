@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Menu, X } from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 const navLinks = [
@@ -15,8 +15,15 @@ const navLinks = [
 
 export function Header() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+
+  async function handleLogout() {
+    await logout();
+    router.push("/");
+    setOpen(false);
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-sky-100/80 bg-white/85 backdrop-blur-md">
@@ -46,12 +53,22 @@ export function Header() {
 
         <div className="hidden items-center gap-3 md:flex">
           {user ? (
-            <Link
-              href="/dashboard"
-              className="rounded-full bg-sky-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-700"
-            >
-              Dashboard
-            </Link>
+            <>
+              <Link
+                href="/dashboard"
+                className="rounded-full border border-sky-200 px-5 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
+              >
+                Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 rounded-full bg-slate-100 px-5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+              >
+                <LogOut size={16} />
+                Log out
+              </button>
+            </>
           ) : (
             <Link
               href="/login"
@@ -84,13 +101,33 @@ export function Header() {
               {link.label}
             </Link>
           ))}
-          <Link
-            href={user ? "/dashboard" : "/login"}
-            className="mt-3 block rounded-full bg-sky-600 px-4 py-2 text-center text-sm font-medium text-white"
-            onClick={() => setOpen(false)}
-          >
-            {user ? "Dashboard" : "Log in"}
-          </Link>
+          {user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="mt-3 block rounded-full bg-sky-600 px-4 py-2 text-center text-sm font-medium text-white"
+                onClick={() => setOpen(false)}
+              >
+                Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                <LogOut size={16} />
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="mt-3 block rounded-full bg-sky-600 px-4 py-2 text-center text-sm font-medium text-white"
+              onClick={() => setOpen(false)}
+            >
+              Log in
+            </Link>
+          )}
         </div>
       )}
     </header>

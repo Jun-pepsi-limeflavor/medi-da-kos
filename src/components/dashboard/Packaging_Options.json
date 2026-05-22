@@ -1,0 +1,70 @@
+{
+    "Skin Care": {
+      "Bottle": [
+        "Blow Molded",
+        "Glass",
+        "Can",
+        "Airless",
+        "Injection Blow Molded Bottle (SET)",
+        "Tottle (SET)",
+        "Dropper (SET)",
+        "Applicator (SET)",
+        "Dual Container (SET)",
+        "Mixed Container (SET)"
+      ],
+      "Tube": [
+        "PE",
+        "Laminated (ABL/PBL)",
+        "7-layer Laminated",
+        "Aluminum",
+        "Pump",
+        "Applicator"
+      ],
+      "Jar": [
+        "Single Wall Jar",
+        "Double Wall Jar",
+        "Airless",
+        "Glass",
+        "Pad",
+        "Others"
+      ],
+      "Closure": [
+        "Mist Sprayer",
+        "Treatment Pump",
+        "Dispenser Pump",
+        "Foam Pump",
+        "Oil Pump",
+        "Other Pump",
+        "Cap"
+      ],
+      "Stick/Sunstick": [
+        "Circle",
+        "Oval",
+        "Others"
+      ]
+    },
+    "Cosmetic": {
+      "Make Up": [
+        "Cushion",
+        "Powder Compact",
+        "Loose Powder",
+        "Shadow/Blusher (1-hole)",
+        "Shadow/Palette (Multi-hole)",
+        "Lipstick",
+        "Lip Balm Stick",
+        "Lip Gloss",
+        "POT Lips",
+        "Eyeliner",
+        "Mascara",
+        "Eyebrow",
+        "Others"
+      ],
+      "Accessory": [
+        "Puff",
+        "Spatula",
+        "Gua Sha",
+        "Brush",
+        "Others"
+      ]
+    }
+  }
