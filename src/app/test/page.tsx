@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { auth, db, storage } from "@/lib/firebase";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 
@@ -14,7 +14,7 @@ export default function TestPage() {
   const testAuth = async () => {
     try {
       const cred = await signInWithEmailAndPassword(
-        auth, "admin@medidakos.com", "Admin1234!"
+        getFirebaseAuth(), "admin@medidakos.com", "Admin1234!"
       );
       log("Auth", `✅ 로그인 성공 — UID: ${cred.user.uid}`);
     } catch (e: any) {
@@ -25,7 +25,7 @@ export default function TestPage() {
   // 2. Firestore 테스트
   const testFirestore = async () => {
     try {
-      const ref = doc(db, "test", "ping");
+      const ref = doc(getFirebaseDb(), "test", "ping");
       await setDoc(ref, { message: "hello", ts: new Date() });
       const snap = await getDoc(ref);
       log("Firestore", `✅ 저장/읽기 성공 — ${JSON.stringify(snap.data())}`);
@@ -36,7 +36,7 @@ export default function TestPage() {
 
   // 3. 로그아웃
   const testSignOut = async () => {
-    await signOut(auth);
+    await signOut(getFirebaseAuth());
     log("SignOut", "✅ 로그아웃 완료");
   };
 

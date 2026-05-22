@@ -45,6 +45,7 @@ export function getFirebaseAuth(): Auth {
 }
 
 export function getFirebaseDb(): Firestore {
-  if (!db) db = getFirestore(getFirebaseApp());
+  if (!db) db = getFirestore(getFirebaseApp()); 
   return db;
 }
+ 
