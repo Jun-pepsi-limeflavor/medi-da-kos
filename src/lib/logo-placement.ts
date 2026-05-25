@@ -20,80 +20,165 @@ export const SKINCARE_LOGO_CALIBRATION: LogoPlacementCalibration = {
   maxHeightPercent: 7,
 };
 
-/** Lipstick mockup — left tube handle (open lipstick base) */
-export const COSMETIC_HANDLE_ZONE: LogoPlacementCalibration & {
+/**
+ * Lip tint mockup — calibrated with 1603×381 reference logo on clear body.
+ * Tune leftPercent / topPercent / rotateDeg against step3_cosmetic.png.
+ */
+export const COSMETIC_TINT_CALIBRATION: LogoPlacementCalibration & {
   leftPercent: number;
-  rotateYDeg: number;
-  cylinderScaleX: number;
+  rotateDeg: number;
+  /** Minimum drawn width on mockup (%) — keeps 700×541 readable */
+  minDrawnWidthPercent: number;
+  /** Cap for near-square logos (e.g. 225×225) — avoids 22% overflow */
+  maxSquareDrawnWidthPercent: number;
 } = {
-  logoWidth: 1200,
-  logoHeight: 480,
-  leftPercent: 27,
-  topPercent: 62,
-  maxWidthPercent: 9,
-  maxHeightPercent: 11,
-  rotateYDeg: 0,
-  cylinderScaleX: 0.76,
+  logoWidth: 1603,
+  logoHeight: 381,
+  leftPercent: 50,
+  topPercent: 56,
+  maxWidthPercent: 14,
+  maxHeightPercent: 42,
+  rotateDeg: 80,
+  minDrawnWidthPercent: 13,
+  maxSquareDrawnWidthPercent: 15,
 };
 
-/** Lipstick mockup — right tube cap (closed lipstick top) */
-export const COSMETIC_CAP_ZONE: LogoPlacementCalibration & {
-  leftPercent: number;
-  rotateYDeg: number;
-  cylinderScaleX: number;
-} = {
-  logoWidth: 1200,
-  logoHeight: 480,
-  leftPercent: 62,
-  topPercent: 22,
-  maxWidthPercent: 9,
-  maxHeightPercent: 16,
-  rotateYDeg: 0,
-  cylinderScaleX: 0.76,
-};
-
-/** @deprecated Use COSMETIC_HANDLE_ZONE — kept for single-zone fallback */
 export const COSMETIC_LOGO_CALIBRATION: LogoPlacementCalibration =
-  COSMETIC_HANDLE_ZONE;
+  COSMETIC_TINT_CALIBRATION;
 
-export interface CosmeticLogoSlotPlacement {
-  id: "handle" | "cap";
+export interface CosmeticTintPlacement {
   left: string;
   top: string;
   maxWidth: string;
   maxHeight: string;
-  rotateYDeg: number;
-  cylinderScaleX: number;
+  rotateDeg: number;
 }
 
-const COSMETIC_ZONES = [COSMETIC_HANDLE_ZONE, COSMETIC_CAP_ZONE] as const;
+/**
+ * Tint slot: tall box + reference logo 1603×381.
+ * Aspect + absolute pixels + footprint so small uploads (e.g. 200×200) stay readable.
+ */
+export function computeCosmeticTintPlacement(
+  calibration: typeof COSMETIC_TINT_CALIBRATION,
+  logoWidth: number,
+  logoHeight: number,
+): { top: string; maxWidth: string; maxHeight: string } {
+  const {
+    topPercent,
+    maxWidthPercent,
+    maxHeightPercent,
+    minDrawnWidthPercent,
+    maxSquareDrawnWidthPercent,
+    logoWidth: refW,
+    logoHeight: refH,
+  } = calibration;
 
-function zoneToSlot(
-  zone: (typeof COSMETIC_ZONES)[number],
+  const refAspect = refW / refH;
+  const aspect = logoWidth / logoHeight;
+  const isNearSquare = aspect >= 0.82 && aspect <= 1.28;
+
+  if (!Number.isFinite(aspect) || aspect <= 0) {
+    return calibrationToCss(calibration);
+  }
+
+  if (Math.abs(logoWidth - refW) < 2 && Math.abs(logoHeight - refH) < 2) {
+    return calibrationToCss(calibration);
+  }
+
+  const refFootprint = renderedLogoExtents(
+    maxWidthPercent,
+    maxHeightPercent,
+    refAspect,
+  );
+
+  let targetWidthPercent = Math.max(
+    refFootprint.widthPercent,
+    minDrawnWidthPercent,
+    maxWidthPercent,
+  );
+  if (isNearSquare) {
+    targetWidthPercent = Math.min(
+      targetWidthPercent,
+      maxSquareDrawnWidthPercent,
+    );
+  }
+
+  const ratio = aspect / refAspect;
+  const damp = Math.pow(ratio, 0.35);
+
+  let maxW = maxWidthPercent * damp;
+  let maxH = maxHeightPercent / damp;
+
+  const boxAspect = (maxW / maxH) * PREVIEW_ASPECT_WH;
+
+  if (aspect > boxAspect) {
+    const minHeightPercent = (maxW * PREVIEW_ASPECT_WH) / aspect;
+    maxH = Math.max(maxH, minHeightPercent * 1.08);
+  } else {
+    const minWidthPercent = (maxH / PREVIEW_ASPECT_WH) * aspect;
+    maxW = Math.max(maxW, minWidthPercent * 1.05);
+  }
+
+  const aspectDelta = Math.abs(Math.log(aspect) - Math.log(refAspect));
+  const aspectSimilar = aspectDelta < 0.18;
+  const linearScale = Math.sqrt((logoWidth / refW) * (logoHeight / refH));
+
+  if (!aspectSimilar && linearScale < 1) {
+    const pixelCap = isNearSquare ? 2.2 : 3;
+    const pixelBoost = clamp(1 / linearScale, 1, pixelCap);
+    maxW *= pixelBoost;
+    maxH *= pixelBoost;
+  }
+
+  if (!aspectSimilar && aspect < refAspect) {
+    const aspectCap = isNearSquare ? 1.15 : 1.65;
+    const aspectBoost = clamp(Math.pow(refAspect / aspect, 0.3), 1, aspectCap);
+    maxW *= aspectBoost;
+    maxH *= aspectBoost;
+  }
+
+  const cur = renderedLogoExtents(maxW, maxH, aspect);
+  const scaleW = targetWidthPercent / cur.widthPercent;
+  const footprintScale = Math.max(scaleW, 1);
+  maxW *= footprintScale;
+  maxH *= footprintScale;
+
+  const after = renderedLogoExtents(maxW, maxH, aspect);
+  if (after.widthPercent < targetWidthPercent * 0.98) {
+    const fix = targetWidthPercent / after.widthPercent;
+    maxW *= fix;
+    maxH *= fix;
+  }
+
+  const maxWCap = isNearSquare ? maxSquareDrawnWidthPercent : 22;
+  maxW = clamp(maxW, minDrawnWidthPercent * 0.9, maxWCap);
+  const maxHCap = Math.max(maxHeightPercent * 1.3, 48);
+  maxH = clamp(maxH, maxHeightPercent * 0.85, maxHCap);
+
+  return {
+    top: `${topPercent}%`,
+    maxWidth: `${maxW}%`,
+    maxHeight: `${maxH}%`,
+  };
+}
+
+export function getCosmeticTintPlacement(
   logoWidth?: number,
   logoHeight?: number,
-): CosmeticLogoSlotPlacement {
+): CosmeticTintPlacement {
+  const zone = COSMETIC_TINT_CALIBRATION;
   const box =
     logoWidth && logoHeight && logoWidth > 0 && logoHeight > 0
-      ? computeLogoPlacementFromCalibration(zone, logoWidth, logoHeight)
+      ? computeCosmeticTintPlacement(zone, logoWidth, logoHeight)
       : calibrationToCss(zone);
 
   return {
-    id: zone === COSMETIC_HANDLE_ZONE ? "handle" : "cap",
     left: `${zone.leftPercent}%`,
     top: box.top,
     maxWidth: box.maxWidth,
     maxHeight: box.maxHeight,
-    rotateYDeg: zone.rotateYDeg,
-    cylinderScaleX: zone.cylinderScaleX,
+    rotateDeg: zone.rotateDeg,
   };
-}
-
-export function getCosmeticLogoPlacements(
-  logoWidth?: number,
-  logoHeight?: number,
-): CosmeticLogoSlotPlacement[] {
-  return COSMETIC_ZONES.map((zone) => zoneToSlot(zone, logoWidth, logoHeight));
 }
 
 const CALIBRATION_BY_CATEGORY: Record<
@@ -281,8 +366,9 @@ export function computeLogoPlacementFromCalibration(
     refAspect,
   ));
 
-  maxW = clamp(maxW, 10, 42);
-  maxH = clamp(maxH, 4, 16);
+  maxW = clamp(maxW, 6, 42);
+  const maxHCap = Math.max(16, maxHeightPercent * 1.2);
+  maxH = clamp(maxH, 4, maxHCap);
 
   return {
     top: `${topPercent}%`,

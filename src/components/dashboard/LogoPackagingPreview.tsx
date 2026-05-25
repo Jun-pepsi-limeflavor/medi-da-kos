@@ -3,16 +3,16 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { ProductCategory } from "@/lib/types";
-import { CylindricalLogoOverlay } from "./CylindricalLogoOverlay";
+import { TintLogoOverlay } from "./TintLogoOverlay";
 import {
-  getCosmeticLogoPlacements,
+  getCosmeticTintPlacement,
   getLogoPlacement,
   loadImageDimensions,
 } from "@/lib/logo-placement";
 
 const MOCKUPS: Record<ProductCategory, string> = {
   skincare: "/step3_skincare.png",
-  cosmetic: "/step3_cosmetic.png",
+  cosmetic: "/step3_cosmetic2.png",
 };
 
 interface Props {
@@ -46,7 +46,7 @@ export function LogoPackagingPreview({ category, logoDataUrl }: Props) {
   }, [logoDataUrl]);
 
   const isCosmetic = category === "cosmetic";
-  const cosmeticSlots = getCosmeticLogoPlacements(
+  const tintPlace = getCosmeticTintPlacement(
     logoSize?.width,
     logoSize?.height,
   );
@@ -66,14 +66,9 @@ export function LogoPackagingPreview({ category, logoDataUrl }: Props) {
         sizes="(max-width: 768px) 100vw, 400px"
         priority
       />
-      {logoDataUrl && isCosmetic &&
-        cosmeticSlots.map((slot) => (
-          <CylindricalLogoOverlay
-            key={slot.id}
-            logoDataUrl={logoDataUrl}
-            slot={slot}
-          />
-        ))}
+      {logoDataUrl && isCosmetic && (
+        <TintLogoOverlay logoDataUrl={logoDataUrl} placement={tintPlace} />
+      )}
       {logoDataUrl && !isCosmetic && (
         <div
           className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 items-center justify-center"

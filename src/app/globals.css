@@ -24,19 +24,3 @@ body {
 html {
   scroll-behavior: smooth;
 }
-
-/* Lipstick tube — soften logo edges to suggest cylindrical wrap */
-.logo-cylinder-mask {
-  -webkit-mask-image: radial-gradient(
-    ellipse 88% 100% at 50% 50%,
-    #000 42%,
-    #000000c9 68%,
-    transparent 100%
-  );
-  mask-image: radial-gradient(
-    ellipse 88% 100% at 50% 50%,
-    #000 42%,
-    #000000c9 68%,
-    transparent 100%
-  );
-}
