@@ -19,6 +19,7 @@ import type {
   TrackingEntry,
   UserProfile,
 } from "./types";
+import { odmCategory } from "./step1-utils";
 import { getFirebaseDb } from "./firebase";
 import {
   mockGetBrief,
@@ -30,6 +31,7 @@ import {
   mockAddOrder,
 } from "./mock-store";
 import { useMockAuth } from "./firebase";
+import { stripUndefined } from "./firestore-sanitize";
 
 function defaultBrief(uid: string): CMBrief {
   const now = new Date().toISOString();
@@ -55,10 +57,12 @@ export async function loadCMBrief(uid: string): Promise<CMBrief> {
 }
 
 function migrateBrief(brief: CMBrief): CMBrief {
-  const legacy = brief.step2 as { packaging?: string[] } | undefined;
-  if (legacy?.packaging && !brief.step2?.selections) {
-    return {
-      ...brief,
+  let next = { ...brief };
+
+  const legacy = next.step2 as { packaging?: string[] } | undefined;
+  if (legacy?.packaging && !next.step2?.selections) {
+    next = {
+      ...next,
       step2: {
         selections: legacy.packaging.map((p) => ({
           group: p,
@@ -67,15 +71,31 @@ function migrateBrief(brief: CMBrief): CMBrief {
       },
     };
   }
-  const cat = brief.step1?.category as string | undefined;
-  if (cat === "makeup") {
-    return { ...brief, step1: { category: "cosmetic" } };
+
+  if (next.step1 && !next.step1.selection) {
+    const cat = next.step1.category as string | undefined;
+    const selection =
+      cat === "makeup"
+        ? "cosmetic"
+        : cat === "skincare" || cat === "cosmetic"
+          ? cat
+          : undefined;
+    if (selection) {
+      next = {
+        ...next,
+        step1: { ...next.step1, selection: selection as "skincare" | "cosmetic" },
+      };
+    }
   }
-  return brief;
+
+  return next;
 }
 
 export async function saveCMBrief(brief: CMBrief): Promise<void> {
-  const payload = { ...brief, updatedAt: new Date().toISOString() };
+  const payload = stripUndefined({
+    ...brief,
+    updatedAt: new Date().toISOString(),
+  });
   if (useMockAuth()) {
     mockSaveBrief(payload);
     return;
@@ -101,12 +121,15 @@ export async function createOrder(
     return mockAddOrder(full);
   }
 
-  const ref = await addDoc(collection(getFirebaseDb(), "orders"), {
-    ...order,
-    createdAt: now,
-    updatedAt: now,
-    serverCreatedAt: serverTimestamp(),
-  });
+  const ref = await addDoc(
+    collection(getFirebaseDb(), "orders"),
+    stripUndefined({
+      ...order,
+      createdAt: now,
+      updatedAt: now,
+      serverCreatedAt: serverTimestamp(),
+    }),
+  );
 
   return { ...full, id: ref.id };
 }
@@ -153,10 +176,10 @@ export async function saveSampleRequest(
   } else {
     const ref = await addDoc(
       collection(getFirebaseDb(), "sampleRequests"),
-      {
+      stripUndefined({
         ...payload,
         serverCreatedAt: serverTimestamp(),
-      },
+      }),
     );
     sampleRequest = { id: ref.id, ...payload };
   }
@@ -186,7 +209,9 @@ export async function submitCustomBrief(brief: CMBrief): Promise<void> {
     uid: brief.uid,
     type: "custom",
     status: "submitted",
-    title: `Custom ODM — ${submitted.step1?.category === "cosmetic" ? "Cosmetic" : "Skin Care"}`,
+    title: `Custom ODM — ${
+      odmCategory(submitted.step1) === "cosmetic" ? "Cosmetic" : "Skin Care"
+    }`,
     summary: buildCustomOrderSummary(submitted),
     referenceId: brief.uid,
   });
@@ -230,5 +255,8 @@ export async function saveTracking(
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
   if (useMockAuth()) return;
-  await setDoc(doc(getFirebaseDb(), "users", profile.uid), profile);
+  await setDoc(
+    doc(getFirebaseDb(), "users", profile.uid),
+    stripUndefined(profile),
+  );
 }

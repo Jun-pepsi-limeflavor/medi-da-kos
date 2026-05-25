@@ -1,5 +1,8 @@
 export type ProductCategory = "skincare" | "cosmetic";
 
+/** Step 1 choice: ODM category or RnD Agency pathway */
+export type Step1Selection = ProductCategory | "rnd-agency";
+
 export interface PackagingSelection {
   group: string;
   items: string[];
@@ -35,7 +38,11 @@ export interface ShippingAddress {
 }
 
 export interface CMBriefStep1 {
-  category: ProductCategory;
+  /** @deprecated use selection — kept for Firestore migration */
+  category?: ProductCategory;
+  selection: Step1Selection;
+  /** RnD survey answers — structure TBD */
+  rndSurvey?: Record<string, unknown>;
 }
 
 export interface CMBriefStep2 {
@@ -66,6 +73,7 @@ export interface CMBriefStep5 {
 }
 
 export interface CMBriefStep6 {
+  productName?: string;
   vegan: boolean;
   functionalClaims: string[];
   conceptIngredients: string;

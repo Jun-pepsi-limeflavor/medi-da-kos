@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { MOCK_ADMIN } from "@/lib/mock-store";
+import {
+  REDIRECT_AFTER_LOGIN,
+  REDIRECT_AFTER_REGISTER,
+  ROUTES,
+} from "@/lib/routes";
 
 type Mode = "login" | "register";
 
@@ -26,8 +31,9 @@ export function LoginForm() {
   const [country, setCountry] = useState("");
   const [companyName, setCompanyName] = useState("");
 
+  // Already logged in while on /login → send to dashboard (change ROUTES in lib/routes.ts)
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
+    if (!loading && user) router.replace(REDIRECT_AFTER_LOGIN);
   }, [user, loading, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -37,9 +43,10 @@ export function LoginForm() {
     try {
       if (mode === "login") {
         await login(email, password);
+        router.push(REDIRECT_AFTER_LOGIN);
       } else {
-        if (!displayName || !phone || !country || !companyName) {
-          throw new Error("Please fill in all registration fields.");
+        if (!displayName || !phone || !country) {
+          throw new Error("Please fill in all required registration fields.");
         }
         await register({
           email,
@@ -47,10 +54,11 @@ export function LoginForm() {
           displayName,
           phone,
           country,
-          companyName,
+          companyName: companyName.trim(),
         });
+        // Sign up → home (see REDIRECT_AFTER_REGISTER in lib/routes.ts)
+        router.push(REDIRECT_AFTER_REGISTER);
       }
-      router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -63,7 +71,7 @@ export function LoginForm() {
     setSubmitting(true);
     try {
       await loginWithGoogle();
-      router.push("/dashboard");
+      router.push(REDIRECT_AFTER_LOGIN);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed.");
     } finally {
@@ -170,13 +178,13 @@ export function LoginForm() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">
-                Company name *
+                Company name (optional)
               </label>
               <input
                 className={inputClass}
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                required
+                placeholder="Your brand or company"
               />
             </div>
           </>
@@ -254,7 +262,7 @@ export function LoginForm() {
       </p>
 
       <p className="mt-4 text-center text-sm">
-        <Link href="/" className="text-slate-500 hover:text-sky-600">
+        <Link href={ROUTES.home} className="text-slate-500 hover:text-sky-600">
           ← Back to home
         </Link>
       </p>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
@@ -7,17 +8,36 @@ import type {
   FragranceOption,
   PackagingSelection,
   ProductCategory,
+  Step1Selection,
 } from "@/lib/types";
+import { isOdmSelection, odmCategory } from "@/lib/step1-utils";
+import { RndAgencySurveyPlaceholder } from "./RndAgencySurveyPlaceholder";
+import { LogoPackagingPreview } from "./LogoPackagingPreview";
+import {
+  LOGO_UPLOAD_RULES,
+  validateAndReadLogoFile,
+} from "@/lib/logo-upload";
+import {
+  minSampleRequestDate,
+  minTargetLaunchDate,
+} from "@/lib/us-date";
 import {
   getPackagingGroups,
   getPackagingItems,
 } from "@/lib/packaging-options";
 import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
+import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
 import { Top10Products } from "./Top10Products";
 
+const stepContentClass = "min-h-[min(58vh,520px)] py-2";
+const step1ContentClass = "flex min-h-0 flex-1 flex-col py-2";
+const stepTitleClass = "text-2xl font-semibold text-slate-800";
+const stepDescClass = "mt-2 text-base text-slate-500";
+const choiceChipClass =
+  "rounded-xl border-2 px-5 py-3.5 text-sm font-medium transition md:text-base";
 const inputClass =
-  "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+  "w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 
 interface Props {
   uid: string;
@@ -51,7 +71,7 @@ export function CMWizard({ uid }: Props) {
       await submitCustomBrief(brief);
       setBrief({ ...brief, status: "submitted" });
       setMessage("Brief submitted. View it in My Orders.");
-      setTimeout(() => router.push("/dashboard/orders"), 1500);
+      setTimeout(() => router.push(REDIRECT_AFTER_BRIEF_SUBMIT), 1500);
     } finally {
       setSaving(false);
     }
@@ -64,7 +84,13 @@ export function CMWizard({ uid }: Props) {
   const step = brief.currentStep;
 
   return (
-    <div>
+    <div
+      className={
+        step === 1
+          ? "flex min-h-[calc(100vh-5rem)] flex-col"
+          : "flex min-h-[calc(100vh-5rem)] flex-col"
+      }
+    >
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">
@@ -81,18 +107,45 @@ export function CMWizard({ uid }: Props) {
         )}
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+      <div
+        className={`flex flex-1 flex-col rounded-2xl border border-slate-100 bg-white shadow-sm ${
+          step === 1 ? "min-h-0" : ""
+        }`}
+      >
+        <div className="flex flex-1 flex-col p-6 lg:p-10">
         {step === 1 && (
           <Step1
-            value={brief.step1?.category}
-            onChange={(category) =>
-              setBrief({ ...brief, step1: { category }, step2: { selections: [] } })
+            step1={brief.step1}
+            onSelect={(selection) => {
+              const step1: NonNullable<CMBrief["step1"]> = { selection };
+              if (
+                selection === "rnd-agency" &&
+                brief.step1?.rndSurvey
+              ) {
+                step1.rndSurvey = brief.step1.rndSurvey;
+              }
+              setBrief({
+                ...brief,
+                step1,
+                step2: isOdmSelection(selection)
+                  ? { selections: [] }
+                  : brief.step2,
+              });
+            }}
+            onRndSurveyChange={(rndSurvey) =>
+              setBrief({
+                ...brief,
+                step1: {
+                  selection: "rnd-agency",
+                  rndSurvey,
+                },
+              })
             }
           />
         )}
         {step === 2 && (
           <Step2
-            category={brief.step1?.category ?? "skincare"}
+            category={odmCategory(brief.step1)}
             selections={brief.step2?.selections ?? []}
             onChange={(selections) =>
               setBrief({ ...brief, step2: { selections } })
@@ -101,15 +154,13 @@ export function CMWizard({ uid }: Props) {
         )}
         {step === 3 && (
           <Step3
-            brief={brief}
+            category={odmCategory(brief.step1)}
+            logoDataUrl={brief.step3?.logoDataUrl}
             onLogo={(logoDataUrl, logoFileName) =>
               setBrief({
                 ...brief,
                 step3: { ...brief.step3, logoDataUrl, logoFileName },
               })
-            }
-            onPreviewGroup={(previewGroup) =>
-              setBrief({ ...brief, step3: { ...brief.step3, previewGroup } })
             }
           />
         )}
@@ -132,12 +183,12 @@ export function CMWizard({ uid }: Props) {
           />
         )}
 
-        <div className="mt-8 flex flex-wrap gap-3 border-t border-slate-100 pt-6">
+        <div className="mt-auto flex flex-wrap gap-3 border-t border-slate-100 pt-8">
           {step > 1 && (
             <button
               type="button"
               onClick={() => persist({ ...brief, currentStep: step - 1 }, false)}
-              className="rounded-lg border border-slate-200 px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="rounded-xl border border-slate-200 px-6 py-3 text-base font-medium text-slate-600 hover:bg-slate-50"
             >
               Back
             </button>
@@ -146,7 +197,7 @@ export function CMWizard({ uid }: Props) {
             type="button"
             disabled={saving}
             onClick={() => persist(brief, false)}
-            className="rounded-lg border border-sky-200 px-5 py-2 text-sm font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-60"
+            className="rounded-xl border border-sky-200 px-6 py-3 text-base font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-60"
           >
             Save draft
           </button>
@@ -155,7 +206,7 @@ export function CMWizard({ uid }: Props) {
               type="button"
               disabled={saving}
               onClick={() => persist(brief, true)}
-              className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+              className="rounded-xl bg-sky-600 px-6 py-3 text-base font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
             >
               Save & continue
             </button>
@@ -164,64 +215,137 @@ export function CMWizard({ uid }: Props) {
               type="button"
               disabled={saving || brief.status === "submitted"}
               onClick={handleSubmit}
-              className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-xl bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
             >
               {brief.status === "submitted" ? "Already submitted" : "Submit brief"}
             </button>
           )}
         </div>
+        </div>
       </div>
 
-      {step === 1 && <Top10Products uid={uid} />}
+      {step === 1 && <Top10Products uid={uid} compact />}
     </div>
   );
 }
 
-function Step1({
-  value,
-  onChange,
+const STEP1_OPTIONS: {
+  id: Step1Selection;
+  label: string;
+  desc: string;
+  image: string;
+}[] = [
+  {
+    id: "skincare",
+    label: "Skin Care",
+    desc: "Serums, creams, toners, cleansers, and treatments.",
+    image: "/step1_skincare.png",
+  },
+  {
+    id: "cosmetic",
+    label: "Cosmetic",
+    desc: "Color cosmetics, makeup, and decorative products.",
+    image: "/step1_cosmetic.png",
+  },
+  {
+    id: "rnd-agency",
+    label: "RnD Agency",
+    desc: "Partner with our R&D team for formulation and development services.",
+    image: "/step1_RnD.png",
+  },
+];
+
+function CategoryChoiceCard({
+  label,
+  desc,
+  image,
+  selected,
+  onClick,
 }: {
-  value?: ProductCategory;
-  onChange: (c: ProductCategory) => void;
+  label: string;
+  desc: string;
+  image: string;
+  selected: boolean;
+  onClick: () => void;
 }) {
-  const options: { id: ProductCategory; label: string; desc: string }[] = [
-    {
-      id: "skincare",
-      label: "Skin Care",
-      desc: "Serums, creams, toners, cleansers, and treatments.",
-    },
-    {
-      id: "cosmetic",
-      label: "Cosmetic",
-      desc: "Color cosmetics, makeup, and decorative products.",
-    },
-  ];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex h-full min-h-[min(42vh,400px)] flex-col overflow-hidden rounded-2xl border-2 text-left transition ${
+        selected
+          ? "border-sky-500 bg-sky-50/80 shadow-md ring-2 ring-sky-200"
+          : "border-slate-100 bg-white hover:border-sky-200 hover:shadow-sm"
+      }`}
+    >
+      <div className="relative min-h-[min(32vh,280px)] flex-1 w-full overflow-hidden bg-gradient-to-b from-sky-50/80 to-white">
+        <Image
+          src={image}
+          alt={label}
+          fill
+          className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
+          sizes="(max-width: 768px) 100vw, (max-width: 1536px) 50vw, 33vw"
+          priority
+        />
+        <div
+          className={`absolute inset-0 transition ${
+            selected
+              ? "bg-sky-600/15"
+              : "bg-transparent group-hover:bg-slate-900/5"
+          }`}
+          aria-hidden
+        />
+      </div>
+      <div className="shrink-0 border-t border-slate-100/80 bg-white px-6 py-5">
+        <p className="text-xl font-semibold text-slate-800">{label}</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-500">{desc}</p>
+      </div>
+    </button>
+  );
+}
+
+function Step1({
+  step1,
+  onSelect,
+  onRndSurveyChange,
+}: {
+  step1?: CMBrief["step1"];
+  onSelect: (selection: Step1Selection) => void;
+  onRndSurveyChange: (data: Record<string, unknown>) => void;
+}) {
+  const selection = step1?.selection ?? step1?.category;
+  const showRndSurvey = selection === "rnd-agency";
 
   return (
-    <div>
-      <h2 className="text-lg font-medium text-slate-800">
-        Select product category
-      </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Choose the primary category for your custom ODM project.
-      </p>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {options.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => onChange(cat.id)}
-            className={`rounded-xl border-2 p-6 text-left transition ${
-              value === cat.id
-                ? "border-sky-500 bg-sky-50"
-                : "border-slate-100 hover:border-sky-200"
-            }`}
-          >
-            <p className="font-semibold text-slate-800">{cat.label}</p>
-            <p className="mt-2 text-sm text-slate-500">{cat.desc}</p>
-          </button>
+    <div className={step1ContentClass}>
+      <div className="shrink-0">
+        <h2 className={stepTitleClass}>Select product category</h2>
+        <p className={stepDescClass}>
+          Choose your pathway — ODM manufacturing or RnD Agency services.
+        </p>
+      </div>
+
+      <div className="mt-6 grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3 2xl:gap-6">
+        {STEP1_OPTIONS.map((opt) => (
+          <CategoryChoiceCard
+            key={opt.id}
+            label={opt.label}
+            desc={opt.desc}
+            image={opt.image}
+            selected={selection === opt.id}
+            onClick={() => onSelect(opt.id)}
+          />
         ))}
       </div>
+
+      {showRndSurvey && (
+        <div className="mt-6 shrink-0">
+          <RndAgencySurveyPlaceholder
+            value={step1?.rndSurvey}
+            onChange={onRndSurveyChange}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -231,10 +355,23 @@ function Step2({
   selections,
   onChange,
 }: {
-  category: ProductCategory;
+  category?: ProductCategory;
   selections: PackagingSelection[];
   onChange: (s: PackagingSelection[]) => void;
 }) {
+  if (!category) {
+    return (
+      <div className={stepContentClass}>
+        <h2 className={stepTitleClass}>Packaging options</h2>
+        <p className={stepDescClass}>
+          Packaging selection applies to Skin Care and Cosmetic ODM paths. Complete
+          your RnD Agency survey in Step 1, or switch to an ODM category to
+          continue here.
+        </p>
+      </div>
+    );
+  }
+
   const groups = getPackagingGroups(category);
 
   function toggleItem(group: string, item: string) {
@@ -265,23 +402,23 @@ function Step2({
   }
 
   return (
-    <div>
-      <h2 className="text-lg font-medium text-slate-800">Packaging options</h2>
-      <p className="mt-1 text-sm text-slate-500">
+    <div className={stepContentClass}>
+      <h2 className={stepTitleClass}>Packaging options</h2>
+      <p className={stepDescClass}>
         Select packaging types and formats for your{" "}
         {category === "skincare" ? "Skin Care" : "Cosmetic"} line.
       </p>
-      <div className="mt-6 space-y-8">
+      <div className="mt-8 space-y-10">
         {groups.map((group) => (
           <div key={group}>
-            <h3 className="text-sm font-semibold text-slate-700">{group}</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <h3 className="text-lg font-semibold text-slate-700">{group}</h3>
+            <div className="mt-4 flex flex-wrap gap-3">
               {getPackagingItems(category, group).map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => toggleItem(group, item)}
-                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  className={`${choiceChipClass} ${
                     isSelected(group, item)
                       ? "border-sky-500 bg-sky-50 text-sky-800"
                       : "border-slate-200 text-slate-600 hover:border-sky-200"
@@ -299,96 +436,97 @@ function Step2({
 }
 
 function Step3({
-  brief,
+  category,
+  logoDataUrl,
   onLogo,
-  onPreviewGroup,
 }: {
-  brief: CMBrief;
+  category?: ProductCategory;
+  logoDataUrl?: string;
   onLogo: (dataUrl: string, fileName: string) => void;
-  onPreviewGroup: (group: string) => void;
 }) {
-  const groups = brief.step2?.selections?.map((s) => s.group) ?? [];
+  const [uploadError, setUploadError] = useState("");
+
+  async function handleLogoFile(file: File | undefined) {
+    if (!file) return;
+    setUploadError("");
+    const result = await validateAndReadLogoFile(file);
+    if (!result.ok) {
+      setUploadError(result.error);
+      return;
+    }
+    onLogo(result.dataUrl, file.name);
+  }
+
+  if (!category) {
+    return (
+      <div className={stepContentClass}>
+        <h2 className={stepTitleClass}>Logo & packaging preview</h2>
+        <p className={stepDescClass}>
+          Select Skin Care or Cosmetic in Step 1 to preview your logo on packaging.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h2 className="text-lg font-medium text-slate-800">
-        Logo & packaging preview
-      </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Upload your logo and preview it on selected packaging groups.
+    <div className={stepContentClass}>
+      <h2 className={stepTitleClass}>Logo & packaging preview</h2>
+      <p className={stepDescClass}>
+        Upload your logo as PNG (transparent background recommended). Preview on
+        the {category === "skincare" ? "Skin Care" : "Cosmetic"} tube mockup.
       </p>
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 grid flex-1 gap-10 lg:grid-cols-2 lg:items-start">
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
+          <label className="mb-3 block text-base font-medium text-slate-700">
             Upload logo
           </label>
           <input
             type="file"
-            accept="image/*"
-            className="text-sm"
+            accept={LOGO_UPLOAD_RULES.acceptMime}
+            className="text-base"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = () =>
-                onLogo(reader.result as string, file.name);
-              reader.readAsDataURL(file);
+              void handleLogoFile(e.target.files?.[0]);
+              e.target.value = "";
             }}
           />
-          {brief.step3?.logoDataUrl && (
+          <p className="mt-2 text-sm text-slate-500">
+            Allowed: PNG, JPG, WebP, SVG · Min {LOGO_UPLOAD_RULES.minWidth}×
+            {LOGO_UPLOAD_RULES.minHeight}px · Max 5MB
+          </p>
+          {uploadError && (
+            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {uploadError}
+            </p>
+          )}
+          {logoDataUrl && (
             <img
-              src={brief.step3.logoDataUrl}
-              alt="Logo preview"
-              className="mt-4 max-h-24 object-contain"
+              src={logoDataUrl}
+              alt="Logo thumbnail"
+              className="mt-4 max-h-20 rounded-lg border border-slate-100 bg-white object-contain p-2"
             />
           )}
         </div>
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Preview on packaging group
+          <label className="mb-3 block text-base font-medium text-slate-700">
+            Packaging preview
           </label>
-          <div className="flex flex-wrap gap-2">
-            {groups.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                Select packaging in Step 2 first.
-              </p>
-            ) : (
-              groups.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => onPreviewGroup(g)}
-                  className={`rounded-lg border px-3 py-2 text-sm ${
-                    brief.step3?.previewGroup === g
-                      ? "border-sky-500 bg-sky-50"
-                      : "border-slate-200"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))
-            )}
-          </div>
-          <div className="mt-4 flex h-48 items-center justify-center rounded-xl border-2 border-dashed border-sky-100 bg-gradient-to-br from-sky-50 to-white">
-            {brief.step3?.logoDataUrl ? (
-              <div className="text-center">
-                <img
-                  src={brief.step3.logoDataUrl}
-                  alt=""
-                  className="mx-auto max-h-20 object-contain"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  {brief.step3.previewGroup ?? "packaging"} preview
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">Logo preview area</p>
-            )}
-          </div>
+          <LogoPackagingPreview category={category} logoDataUrl={logoDataUrl} />
         </div>
       </div>
     </div>
   );
+}
+
+function normalizeHexInput(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "#7dd3fc";
+  const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  if (/^#[0-9A-Fa-f]{6}$/.test(withHash)) return withHash;
+  if (/^#[0-9A-Fa-f]{3}$/.test(withHash)) {
+    const h = withHash.slice(1);
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`;
+  }
+  return raw;
 }
 
 function Step4({
@@ -398,6 +536,9 @@ function Step4({
   value?: CMBrief["step4"];
   onChange: (v: NonNullable<CMBrief["step4"]>) => void;
 }) {
+  const minSample = minSampleRequestDate();
+  const minLaunch = minTargetLaunchDate();
+
   const v = value ?? {
     volume: "",
     unit: "ml" as const,
@@ -409,15 +550,19 @@ function Step4({
   const set = (patch: Partial<typeof v>) => onChange({ ...v, ...patch });
 
   return (
-    <div>
-      <h2 className="text-lg font-medium text-slate-800">Volume, MOQ & timeline</h2>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+    <div className={stepContentClass}>
+      <h2 className={stepTitleClass}>Volume, MOQ & timeline</h2>
+      <p className={stepDescClass}>
+        Dates use US Eastern time. Sample requests from 2 weeks out; launch from
+        6 weeks out.
+      </p>
+      <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:gap-8">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Volume</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Volume</label>
           <input className={inputClass} value={v.volume} onChange={(e) => set({ volume: e.target.value })} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Unit</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Unit</label>
           <select className={inputClass} value={v.unit} onChange={(e) => set({ unit: e.target.value as "ml" | "g" | "oz" })}>
             <option value="ml">ml</option>
             <option value="g">g</option>
@@ -425,19 +570,51 @@ function Step4({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">MOQ</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">MOQ</label>
           <input className={inputClass} value={v.moq} onChange={(e) => set({ moq: e.target.value })} placeholder="e.g. 3,000 units" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Sample request date</label>
-          <input type="date" className={inputClass} value={v.sampleRequestDate} onChange={(e) => set({ sampleRequestDate: e.target.value })} />
+          <label className="mb-2 block text-sm font-medium text-slate-600">
+            Sample request date
+          </label>
+          <input
+            type="date"
+            className={inputClass}
+            min={minSample}
+            value={v.sampleRequestDate}
+            onChange={(e) => {
+              const d = e.target.value;
+              set({
+                sampleRequestDate: d && d < minSample ? minSample : d,
+              });
+            }}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Earliest: {minSample} (US Eastern, 2 weeks from today)
+          </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Target launch date</label>
-          <input type="date" className={inputClass} value={v.targetLaunchDate} onChange={(e) => set({ targetLaunchDate: e.target.value })} />
+          <label className="mb-2 block text-sm font-medium text-slate-600">
+            Target launch date
+          </label>
+          <input
+            type="date"
+            className={inputClass}
+            min={minLaunch}
+            value={v.targetLaunchDate}
+            onChange={(e) => {
+              const d = e.target.value;
+              set({
+                targetLaunchDate: d && d < minLaunch ? minLaunch : d,
+              });
+            }}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Earliest: {minLaunch} (US Eastern, 6 weeks from today)
+          </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Shipping country</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Shipping country</label>
           <input className={inputClass} value={v.shippingCountry} onChange={(e) => set({ shippingCountry: e.target.value })} />
         </div>
       </div>
@@ -462,11 +639,11 @@ function Step5({
   const set = (patch: Partial<typeof v>) => onChange({ ...v, ...patch });
 
   return (
-    <div>
-      <h2 className="text-lg font-medium text-slate-800">Formula preferences</h2>
-      <div className="mt-6 space-y-4">
+    <div className={stepContentClass}>
+      <h2 className={stepTitleClass}>Formula preferences</h2>
+      <div className="mt-8 max-w-2xl space-y-6">
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Fragrance</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Fragrance</label>
           <select className={inputClass} value={v.fragrance} onChange={(e) => set({ fragrance: e.target.value as FragranceOption })}>
             <option value="green-tea">Green tea</option>
             <option value="hypoallergenic">Hypoallergenic</option>
@@ -475,19 +652,40 @@ function Step5({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Color</label>
-          <input type="color" className="h-10 w-20 cursor-pointer rounded border border-slate-200" value={v.colorHex} onChange={(e) => set({ colorHex: e.target.value })} />
+          <label className="mb-2 block text-sm font-medium text-slate-600">
+            Color
+          </label>
+          <div className="flex flex-wrap items-center gap-4">
+            <input
+              type="color"
+              className="h-12 w-24 shrink-0 cursor-pointer rounded-lg border border-slate-200"
+              value={v.colorHex}
+              onChange={(e) => set({ colorHex: e.target.value })}
+              aria-label="Color picker"
+            />
+            <input
+              type="text"
+              className={`${inputClass} max-w-[10rem] font-mono`}
+              placeholder="#7DD3FC"
+              value={v.colorHex}
+              onChange={(e) => set({ colorHex: normalizeHexInput(e.target.value) })}
+              spellCheck={false}
+            />
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            Use the swatch or enter a hex code (e.g. #FF5733).
+          </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Viscosity</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Viscosity</label>
           <input className={inputClass} value={v.viscosity} onChange={(e) => set({ viscosity: e.target.value })} placeholder="e.g. light gel" />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Texture (optional)</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Texture (optional)</label>
           <input className={inputClass} value={v.textureNotes ?? ""} onChange={(e) => set({ textureNotes: e.target.value })} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Finish (optional)</label>
+          <label className="mb-2 block text-sm font-medium text-slate-600">Finish (optional)</label>
           <input className={inputClass} value={v.finishNotes ?? ""} onChange={(e) => set({ finishNotes: e.target.value })} />
         </div>
       </div>
@@ -503,6 +701,7 @@ function Step6({
   onChange: (v: NonNullable<CMBrief["step6"]>) => void;
 }) {
   const v = value ?? {
+    productName: "",
     vegan: false,
     functionalClaims: [] as string[],
     conceptIngredients: "",
@@ -513,24 +712,35 @@ function Step6({
   const certs = ["FDA", "EU CPNP", "Halal", "Vegan Society", "ISO 22716"];
 
   return (
-    <div>
-      <h2 className="text-lg font-medium text-slate-800">Compliance & certifications</h2>
-      <div className="mt-6 space-y-4">
-        <label className="flex items-center gap-2 text-sm">
+    <div className={stepContentClass}>
+      <h2 className={stepTitleClass}>Compliance & certifications</h2>
+      <div className="mt-8 max-w-3xl space-y-6">
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-600">
+            Product name
+          </label>
+          <input
+            className={inputClass}
+            value={v.productName ?? ""}
+            onChange={(e) => set({ productName: e.target.value })}
+            placeholder="e.g. xx Eye Cream"
+          />
+        </div>
+        <label className="flex items-center gap-3 text-base">
           <input type="checkbox" checked={v.vegan} onChange={(e) => set({ vegan: e.target.checked })} />
           Vegan formulation required
         </label>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Concept / hero ingredients</label>
-          <textarea className={inputClass} rows={3} value={v.conceptIngredients} onChange={(e) => set({ conceptIngredients: e.target.value })} />
+          <label className="mb-2 block text-sm font-medium text-slate-600">Concept / hero ingredients</label>
+          <textarea className={inputClass} rows={4} value={v.conceptIngredients} onChange={(e) => set({ conceptIngredients: e.target.value })} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Restricted ingredients</label>
-          <textarea className={inputClass} rows={2} value={v.restrictedIngredients} onChange={(e) => set({ restrictedIngredients: e.target.value })} />
+          <label className="mb-2 block text-sm font-medium text-slate-600">Restricted ingredients</label>
+          <textarea className={inputClass} rows={3} value={v.restrictedIngredients} onChange={(e) => set({ restrictedIngredients: e.target.value })} />
         </div>
         <div>
-          <p className="mb-2 text-xs font-medium text-slate-600">International certifications</p>
-          <div className="flex flex-wrap gap-2">
+          <p className="mb-3 text-sm font-medium text-slate-600">International certifications</p>
+          <div className="flex flex-wrap gap-3">
             {certs.map((c) => (
               <button
                 key={c}
@@ -542,7 +752,7 @@ function Step6({
                       : [...v.internationalCertifications, c],
                   })
                 }
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`${choiceChipClass} rounded-full ${
                   v.internationalCertifications.includes(c)
                     ? "border-sky-500 bg-sky-50 text-sky-700"
                     : "border-slate-200 text-slate-600"

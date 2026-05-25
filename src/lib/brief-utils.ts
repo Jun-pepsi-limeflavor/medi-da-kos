@@ -1,17 +1,14 @@
 import type { CMBrief } from "./types";
+import { getStep1Selection } from "./step1-utils";
 
 export function stepHasContent(brief: CMBrief, step: number): boolean {
   switch (step) {
     case 1:
-      return Boolean(brief.step1?.category);
+      return Boolean(getStep1Selection(brief.step1));
     case 2:
       return (brief.step2?.selections?.length ?? 0) > 0;
     case 3:
-      return Boolean(
-        brief.step3?.logoDataUrl ||
-          brief.step3?.logoFileName ||
-          brief.step3?.previewGroup,
-      );
+      return Boolean(brief.step3?.logoDataUrl || brief.step3?.logoFileName);
     case 4:
       return Boolean(
         brief.step4?.volume ||
@@ -22,7 +19,8 @@ export function stepHasContent(brief: CMBrief, step: number): boolean {
       return Boolean(brief.step5?.viscosity || brief.step5?.fragrance);
     case 6:
       return Boolean(
-        brief.step6?.conceptIngredients ||
+        brief.step6?.productName ||
+          brief.step6?.conceptIngredients ||
           brief.step6?.internationalCertifications?.length ||
           brief.step6?.vegan,
       );
