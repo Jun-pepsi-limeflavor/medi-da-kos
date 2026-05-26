@@ -3,87 +3,156 @@ import { HeroCarousel } from "@/components/marketing/HeroCarousel";
 import {
   Droplets,
   Factory,
-  Globe,
   ShieldCheck,
   Sparkles,
-  Workflow,
+  Truck,
 } from "lucide-react";
+
+const SKY_TAG_CLASS = "bg-sky-50 text-sky-700";
+const SKY_METRIC_CLASS = "text-sky-600";
+
+/** 3 on top (2 cols each); bottom 2 span 3 cols — outer edges align with row above */
+const ADVANTAGE_GRID_CLASS = [
+  "lg:col-span-2 lg:col-start-1",
+  "lg:col-span-2 lg:col-start-3",
+  "lg:col-span-2 lg:col-start-5",
+  "lg:col-span-3 lg:col-start-1",
+  "lg:col-span-3 lg:col-start-4",
+] as const;
+
+const ADVANTAGES = [
+  {
+    icon: Sparkles,
+    tag: "Cost efficiency",
+    headline: "30%+ lower cost than domestic production",
+    body: "Factory-direct pricing with margins domestic production can't match — more profit, every order.",
+    metrics: [
+      { value: "30%+", label: "avg. cost savings" },
+      { value: "Factory-direct", label: "pricing model" },
+    ],
+  },
+  {
+    icon: Truck,
+    tag: "On-time delivery",
+    headline: "Your launch timeline is non-negotiable. So is ours.",
+    body: "Strict lead-time commitments tracked from production kick-off to freight. Your launch schedule, protected.",
+    metrics: [
+      { value: "On-time", label: "every production run" },
+      { value: "Real-time", label: "order tracking" },
+    ],
+  },
+  {
+    icon: Factory,
+    tag: "Minimum order",
+    headline: "Serious minimums for serious brands — starting at 3,000 units.",
+    body: "Purpose-built for volume. Get the pricing leverage and production priority that only comes with real scale.",
+    metrics: [
+      { value: "3,000", label: "MOQ per SKU" },
+      { value: "Volume-tier", label: "pricing available" },
+    ],
+  },
+  {
+    icon: Droplets,
+    tag: "Custom R&D",
+    headline: "Bring a concept. We'll build the formula.",
+    body: "Share your vision — texture, efficacy, ingredient story. Our R&D team handles formulation from scratch.",
+    metrics: [
+      { value: "Concept-in", label: "formula-out" },
+      { value: "Full-service", label: "R&D support" },
+    ],
+  },
+  {
+    icon: ShieldCheck,
+    tag: "Regulatory compliance",
+    headline: "Sell anywhere. Every certification, covered.",
+    body: "From US and EU market entry to Halal and vegan consumer segments — we manufacture to the exact standards your market demands. No reformulation surprises.",
+    certs: ["FDA", "EU CPNP", "ISO 22716", "Halal", "Vegan Society"],
+  },
+  
+] as const;
 
 export default function HomePage() {
   return (
     <>
       <HeroCarousel />
 
-      <section className="bg-white py-20">
+      <section className="bg-gradient-to-b from-sky-50/40 via-white to-white pb-16 pt-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm font-semibold uppercase tracking-widest text-sky-600">
+          
+          <h2 className="mx-auto mt-4 max-w-2xl text-center text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
             Why Medi Da Kos
-          </p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-center text-3xl font-semibold text-slate-800">
-            Full custom ODM — beyond private label
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-slate-600">
-            Unlike catalog-only platforms, we broker true custom manufacturing
-            with Korea&apos;s leading cosmetic ODM partners.
+          <p className="mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-slate-600">
+           Manufacture at scale. Deliver on time. Keep your margins.
           </p>
-          <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                icon: Factory,
-                title: "Advanced K-Beauty Manufacturing",
-                text: "GMP-certified facilities with pharmaceutical-grade QC and scalable production.",
-              },
-              {
-                icon: Droplets,
-                title: "Hydration-First Formulation",
-                text: "Science-led textures and active systems tailored to your brand positioning.",
-              },
-              {
-                icon: ShieldCheck,
-                title: "Trusted & Transparent",
-                text: "End-to-end visibility from brief to bulk production with dedicated account care.",
-              },
-              {
-                icon: Globe,
-                title: "Global Shipping Ready",
-                text: "Sample and bulk logistics via FedEx, DHL, UPS with full tracking support.",
-              },
-              {
-                icon: Sparkles,
-                title: "Competitive Quality–Price",
-                text: "Direct factory relationships that deliver premium products at strong margins.",
-              },
-              {
-                icon: Workflow,
-                title: "6-Step Digital Brief",
-                text: "Structured CM workflow from category to compliance — save drafts anytime.",
-              },
-            ].map((item) => (
+          <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-6">
+            {ADVANTAGES.map((item, index) => (
               <div
-                key={item.title}
-                className="rounded-2xl border border-sky-50 bg-gradient-to-b from-sky-50/50 to-white p-6"
+                key={item.tag}
+                className={`flex h-full flex-col rounded-3xl border border-sky-100/90 bg-white/75 p-8 shadow-sm shadow-sky-100/40 backdrop-blur-sm transition hover:border-sky-200/80 hover:shadow-md hover:shadow-sky-100/50 ${ADVANTAGE_GRID_CLASS[index]}`}
               >
-                <item.icon className="h-8 w-8 text-sky-600" />
-                <h3 className="mt-4 font-semibold text-slate-800">{item.title}</h3>
-                <p className="mt-2 text-sm text-slate-600">{item.text}</p>
+                <span className="inline-flex w-fit rounded-2xl bg-sky-50/90 p-3 ring-1 ring-sky-100/80">
+                  <item.icon className="h-7 w-7 text-sky-500" />
+                </span>
+                <span
+                  className={`mt-5 inline-block w-fit rounded-lg px-2.5 py-1 text-[11px] font-medium ${SKY_TAG_CLASS}`}
+                >
+                  {item.tag}
+                </span>
+                <h3 className="mt-2 text-[15px] font-medium leading-snug text-slate-800">
+                  {item.headline}
+                </h3>
+                <p className="mt-1.5 flex-1 text-xs leading-relaxed text-slate-600">
+                  {item.body}
+                </p>
+                {"metrics" in item && item.metrics ? (
+                  <div className="mt-4 flex gap-[18px] border-t border-sky-100/90 pt-4">
+                    {item.metrics.map((metric) => (
+                      <div key={metric.label} className="flex flex-col gap-0.5">
+                        <span
+                          className={`text-lg font-medium leading-none ${SKY_METRIC_CLASS}`}
+                        >
+                          {metric.value}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {metric.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {"certs" in item && item.certs ? (
+                  <div className="mt-4 flex flex-wrap gap-1.5 border-t border-sky-100/90 pt-4">
+                    {item.certs.map((cert) => (
+                      <span
+                        key={cert}
+                        className="rounded-lg border border-sky-100 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700"
+                      >
+                        {cert}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-gradient-to-b from-sky-950 to-sky-900 py-20 text-white">
+      <section className="bg-gradient-to-br from-sky-100/50 via-sky-50/40 to-white pb-24 pt-20">
         <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-semibold">Ready to build your line?</h2>
-          <p className="mx-auto mt-4 max-w-xl text-sky-100">
-            Start your custom manufacturing brief or request samples from our
-            top-selling Korean formulas.
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
+            Ready to manufacture smarter?
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
+            Tell us what you&apos;re building. We&apos;ll handle the rest — from
+            formulation to finished product, on time and on budget.
           </p>
           <Link
             href="/login"
-            className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-sky-900 shadow-lg hover:bg-sky-50"
+            className="mt-10 inline-block rounded-full bg-sky-500/90 px-10 py-3.5 text-sm font-semibold text-white shadow-md shadow-sky-200/50 transition hover:bg-sky-600"
           >
-            Get started — it&apos;s free
+            Request a Custom Quote
           </Link>
         </div>
       </section>

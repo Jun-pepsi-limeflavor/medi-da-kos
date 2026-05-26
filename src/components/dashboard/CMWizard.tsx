@@ -306,6 +306,7 @@ function CategoryChoiceCard({
           src={image}
           alt={label}
           fill
+          unoptimized
           className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
           sizes="(max-width: 768px) 100vw, (max-width: 1536px) 50vw, 33vw"
           priority
@@ -455,13 +456,14 @@ function Step2({
           className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4"
           role="list"
         >
-          {groups.map((group) => (
+          {groups.map((group, index) => (
             <li key={group} className="min-w-0">
               <PackagingGroupButton
                 label={group}
                 imageSrc={getPackagingGroupImage(group)}
                 selected={isGroupSelected(group)}
                 onClick={() => selectGroup(group)}
+                priority={index < 3}
               />
             </li>
           ))}
@@ -947,14 +949,14 @@ function Step6({
         Help us align your brief with regulatory and brand requirements before
         development begins.
       </p>
-      <div className="mt-8 grid items-start gap-6 lg:grid-cols-2 lg:gap-8">
+      <div className="mt-8 grid items-start gap-8 lg:grid-cols-2 lg:gap-8">
         <section className={`${wizardPanelClass} min-w-0`}>
           <h3 className={wizardSectionTitleClass}>Your brief</h3>
           <p className={wizardSectionDescClass}>
             Complete each field in order. Select all certifications that apply.
           </p>
-          <div className="mt-5 flex flex-col gap-4">
-            <div>
+          <div className="mt-10 flex flex-col gap-6">
+            <div className="space-y-2">
               <label className={wizardLabelClass}>Product name</label>
               <input
                 className={wizardInputClass}
@@ -964,7 +966,7 @@ function Step6({
               />
             </div>
 
-            <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm transition hover:border-sky-300">
+            <label className="flex cursor-pointer items-center gap-8 rounded-xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm transition hover:border-sky-300">
               <input
                 type="checkbox"
                 className="h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
@@ -976,7 +978,7 @@ function Step6({
               </span>
             </label>
 
-            <div className="border-t border-sky-100/90 pt-4">
+            <div className="border-t border-sky-100/90 pt-4 mt-10 ">
               <label className={wizardLabelClass}>Concept / hero ingredients</label>
               <textarea
                 className={wizardTextareaClass}
@@ -986,7 +988,7 @@ function Step6({
               />
             </div>
 
-            <div>
+            <div className="mt-10">
               <label className={wizardLabelClass}>Restricted ingredients</label>
               <textarea
                 className={wizardTextareaClass}
@@ -998,7 +1000,7 @@ function Step6({
               />
             </div>
 
-            <div className="border-t border-sky-100/90 pt-4">
+            <div className="border-t border-sky-100/90 pt-4 mt-10">
               <label className={wizardLabelClass}>
                 International certifications
               </label>

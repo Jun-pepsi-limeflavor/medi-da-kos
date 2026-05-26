@@ -2,14 +2,15 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="border-t border-sky-100 bg-slate-50">
+    <footer className="border-t border-sky-100/70 bg-sky-50/30">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 md:grid-cols-4">
             <div className="md:col-span-2">
-            <p className="text-lg font-semibold text-slate-800">Medi Da Kos</p>
+            <p className="font-serif text-lg font-semibold text-slate-800">
+              Medi Da Kos
+            </p>
             <p className="mt-2 max-w-md text-sm text-slate-600">
-              Korea&apos;s custom ODM brokerage platform connecting global beauty
-              brands with advanced Korean manufacturing partners.
+            Beauty production from Republic of Korea<br></br>Built around your timeline and your margins
             </p>
           </div>
           <div>

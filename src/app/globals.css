@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fcff;
+  --background: #f6fbff;
   --foreground: #0f172a;
-  --sky-primary: #0284c7;
-  --sky-light: #e0f2fe;
-  --cyan-accent: #06b6d4;
+  --sky-primary: #38bdf8;
+  --sky-light: #e8f6fc;
+  --cyan-accent: #7dd3fc;
 }
 
 @theme inline {
@@ -13,6 +13,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-noto-serif), ui-serif, Georgia, serif;
 }
 
 body {

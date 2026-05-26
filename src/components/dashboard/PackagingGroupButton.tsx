@@ -7,6 +7,8 @@ interface Props {
   imageSrc: string;
   selected: boolean;
   onClick: () => void;
+  /** First visible row — eager load for LCP (Next.js `priority`) */
+  priority?: boolean;
 }
 
 /**
@@ -17,6 +19,7 @@ export function PackagingGroupButton({
   imageSrc,
   selected,
   onClick,
+  priority = false,
 }: Props) {
   return (
     <button
@@ -34,8 +37,10 @@ export function PackagingGroupButton({
           src={imageSrc}
           alt=""
           fill
-          className="object-cover object-[center_42%] scale-[1.12] transition duration-500 ease-out group-hover:scale-[1.2]"
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 280px, 320px"
+          unoptimized
+          priority={priority}
+          className="object-cover object-[center_70%] scale-[1.0] transition duration-500 ease-out group-hover:scale-[1.2]"
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
         />
         <div
           className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/25 to-slate-900/5"

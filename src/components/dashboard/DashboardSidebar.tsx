@@ -37,7 +37,7 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-sky-100 bg-white">
       <div className="border-b border-sky-50 px-5 py-5">
-        <Link href="/" className="text-lg font-semibold text-slate-800">
+        <Link href="/" className="text-lg font-serif font-semibold text-slate-800">
           Medi Da Kos
         </Link>
         <p className="mt-1 text-xs text-slate-500">Custom ODM Dashboard</p>
