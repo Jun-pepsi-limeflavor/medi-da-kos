@@ -138,6 +138,8 @@ export interface Order {
   title: string;
   summary: string;
   referenceId?: string;
+  /** CM brief fields at submit time (logo binary omitted) */
+  briefSnapshot?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BookOpen, Info, Upload } from "lucide-react";
 import type {
   CMBrief,
   FragranceOption,
@@ -38,8 +39,19 @@ const stepTitleClass = "text-2xl font-semibold text-slate-800";
 const stepDescClass = "mt-2 text-base text-slate-500";
 const choiceChipClass =
   "rounded-xl border-2 px-5 py-3.5 text-sm font-medium transition md:text-base";
-const inputClass =
-  "w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+const wizardPanelClass =
+  "rounded-2xl border border-sky-200/80 bg-gradient-to-b from-sky-50 to-white p-5 shadow-sm sm:p-6";
+const wizardSectionTitleClass = "text-lg font-semibold text-slate-800";
+const wizardSectionDescClass = "mt-1 text-sm leading-relaxed text-slate-600";
+const wizardLabelClass = "mb-2.5 block text-base font-semibold text-slate-700";
+const wizardInputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-base text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 md:py-4 md:text-lg";
+const wizardTextareaClass = `${wizardInputClass} min-h-[8.5rem] resize-y leading-relaxed`;
+const wizardHintClass = "mt-2 text-sm text-slate-500";
+const wizardExamplePanelClass =
+  "rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6";
+const wizardExampleBadgeClass =
+  "inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-800";
 
 interface Props {
   uid: string;
@@ -47,7 +59,8 @@ interface Props {
 
 export function CMWizard({ uid }: Props) {
   const router = useRouter();
-  const { brief, loading, setBrief, persistBrief } = useDashboardBrief();
+  const { brief, loading, setBrief, persistBrief, refreshBrief } =
+    useDashboardBrief();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -69,11 +82,19 @@ export function CMWizard({ uid }: Props) {
   async function handleSubmit() {
     if (!brief) return;
     setSaving(true);
+    setMessage("");
     try {
       await submitCustomBrief(brief);
-      setBrief({ ...brief, status: "submitted" });
-      setMessage("Brief submitted. View it in My Orders.");
-      setTimeout(() => router.push(REDIRECT_AFTER_BRIEF_SUBMIT), 1500);
+      await refreshBrief();
+      setMessage("Brief submitted. Redirecting to My Orders…");
+      setTimeout(() => router.push(REDIRECT_AFTER_BRIEF_SUBMIT), 1200);
+    } catch (err) {
+      const text =
+        err instanceof Error
+          ? err.message
+          : "Submission failed. Please try again.";
+      setMessage(text);
+      setTimeout(() => setMessage(""), 8000);
     } finally {
       setSaving(false);
     }
@@ -215,11 +236,11 @@ export function CMWizard({ uid }: Props) {
           ) : (
             <button
               type="button"
-              disabled={saving || brief.status === "submitted"}
+              disabled={saving}
               onClick={handleSubmit}
               className="rounded-xl bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
             >
-              {brief.status === "submitted" ? "Already submitted" : "Submit brief"}
+              Submit brief
             </button>
           )}
         </div>
@@ -491,6 +512,7 @@ function Step3({
   logoDataUrl?: string;
   onLogo: (dataUrl: string, fileName: string) => void;
 }) {
+  const uploadInputId = useId();
   const [uploadError, setUploadError] = useState("");
 
   async function handleLogoFile(file: File | undefined) {
@@ -524,39 +546,72 @@ function Step3({
       </p>
       <div className="mt-8 grid flex-1 gap-10 lg:grid-cols-2 lg:items-start">
         <div>
-          <label className="mb-3 block text-base font-medium text-slate-700">
-            Upload logo
-          </label>
+          <p className="mb-3 text-base font-medium text-slate-700">Upload logo</p>
           <input
+            id={uploadInputId}
             type="file"
             accept={LOGO_UPLOAD_RULES.acceptMime}
-            className="text-base"
+            className="sr-only"
             onChange={(e) => {
               void handleLogoFile(e.target.files?.[0]);
               e.target.value = "";
             }}
           />
-          <p className="mt-2 text-sm text-slate-500">
-            Allowed: PNG, JPG, WebP, SVG · Min {LOGO_UPLOAD_RULES.minWidth}×
-            {LOGO_UPLOAD_RULES.minHeight}px · Max 5MB
+          <label
+            htmlFor={uploadInputId}
+            className="group flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed border-sky-300 bg-gradient-to-b from-sky-50 to-white px-6 py-10 text-center shadow-sm transition hover:border-sky-500 hover:from-sky-50/90 hover:shadow-md focus-within:ring-2 focus-within:ring-sky-200 focus-within:ring-offset-2"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-sky-100">
+              <Upload className="h-7 w-7 text-sky-600" aria-hidden />
+            </span>
+            <span className="mt-5 text-lg font-semibold text-slate-800">
+              {logoDataUrl ? "Choose a different logo" : "Upload your brand logo"}
+            </span>
+            <span className="mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+              Click here to select a file from your computer. For the cleanest
+              preview, use a PNG with a transparent background.
+            </span>
+            <span className="mt-6 inline-flex items-center rounded-full bg-sky-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition group-hover:bg-sky-700">
+              Choose file
+            </span>
+          </label>
+          <p className="mt-3 text-sm text-slate-500">
+            Accepted formats: PNG, JPG, WebP, or SVG · At least{" "}
+            {LOGO_UPLOAD_RULES.minWidth}×{LOGO_UPLOAD_RULES.minHeight} pixels · Up
+            to 5MB
           </p>
           {uploadError && (
-            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-100">
               {uploadError}
             </p>
           )}
           {logoDataUrl && (
-            <img
-              src={logoDataUrl}
-              alt="Logo thumbnail"
-              className="mt-4 max-h-20 rounded-lg border border-slate-100 bg-white object-contain p-2"
-            />
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <img
+                src={logoDataUrl}
+                alt="Uploaded logo preview"
+                className="h-14 w-14 shrink-0 rounded-lg border border-slate-100 bg-slate-50 object-contain p-1"
+              />
+              <p className="text-sm font-medium text-slate-700">
+                Logo ready — see packaging preview on the right.
+              </p>
+            </div>
           )}
         </div>
         <div>
-          <label className="mb-3 block text-base font-medium text-slate-700">
+          <p className="mb-3 text-base font-medium text-slate-700">
             Packaging preview
-          </label>
+          </p>
+          <div className="mb-4 flex gap-3 rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden />
+            <div>
+              <p className="font-semibold">Illustrative preview only</p>
+              <p className="mt-1 leading-relaxed text-amber-900/90">
+                This mockup shows an approximate placement of your logo. The final
+                product may look different from this preview.
+              </p>
+            </div>
+          </div>
           <LogoPackagingPreview category={category} logoDataUrl={logoDataUrl} />
         </div>
       </div>
@@ -603,67 +658,109 @@ function Step4({
         Dates use US Eastern time. Sample requests from 2 weeks out; launch from
         6 weeks out.
       </p>
-      <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:gap-8">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Volume</label>
-          <input className={inputClass} value={v.volume} onChange={(e) => set({ volume: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Unit</label>
-          <select className={inputClass} value={v.unit} onChange={(e) => set({ unit: e.target.value as "ml" | "g" | "oz" })}>
-            <option value="ml">ml</option>
-            <option value="g">g</option>
-            <option value="oz">oz</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">MOQ</label>
-          <input className={inputClass} value={v.moq} onChange={(e) => set({ moq: e.target.value })} placeholder="e.g. 3,000 units" />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">
-            Sample request date
-          </label>
-          <input
-            type="date"
-            className={inputClass}
-            min={minSample}
-            value={v.sampleRequestDate}
-            onChange={(e) => {
-              const d = e.target.value;
-              set({
-                sampleRequestDate: d && d < minSample ? minSample : d,
-              });
-            }}
-          />
-          <p className="mt-1 text-xs text-slate-400">
-            Earliest: {minSample} (US Eastern, 2 weeks from today)
+      <div className="mt-8 space-y-6">
+        <section className={wizardPanelClass}>
+          <h3 className={wizardSectionTitleClass}>Product volume & MOQ</h3>
+          <p className={wizardSectionDescClass}>
+            Tell us the size you have in mind and your minimum order quantity.
           </p>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">
-            Target launch date
-          </label>
-          <input
-            type="date"
-            className={inputClass}
-            min={minLaunch}
-            value={v.targetLaunchDate}
-            onChange={(e) => {
-              const d = e.target.value;
-              set({
-                targetLaunchDate: d && d < minLaunch ? minLaunch : d,
-              });
-            }}
-          />
-          <p className="mt-1 text-xs text-slate-400">
-            Earliest: {minLaunch} (US Eastern, 6 weeks from today)
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className={wizardLabelClass}>Volume</label>
+              <input
+                className={wizardInputClass}
+                value={v.volume}
+                onChange={(e) => set({ volume: e.target.value })}
+                placeholder="e.g. 50"
+              />
+            </div>
+            <div>
+              <label className={wizardLabelClass}>Unit</label>
+              <select
+                className={wizardInputClass}
+                value={v.unit}
+                onChange={(e) =>
+                  set({ unit: e.target.value as "ml" | "g" | "oz" })
+                }
+              >
+                <option value="ml">ml</option>
+                <option value="g">g</option>
+                <option value="oz">oz</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={wizardLabelClass}>MOQ (minimum order quantity)</label>
+              <input
+                className={wizardInputClass}
+                value={v.moq}
+                onChange={(e) => set({ moq: e.target.value })}
+                placeholder="e.g. 3,000 units"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className={wizardPanelClass}>
+          <h3 className={wizardSectionTitleClass}>Timeline</h3>
+          <p className={wizardSectionDescClass}>
+            Pick dates that work for your team. We apply US Eastern time for
+            scheduling.
           </p>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Shipping country</label>
-          <input className={inputClass} value={v.shippingCountry} onChange={(e) => set({ shippingCountry: e.target.value })} />
-        </div>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className={wizardLabelClass}>Sample request date</label>
+              <input
+                type="date"
+                className={wizardInputClass}
+                min={minSample}
+                value={v.sampleRequestDate}
+                onChange={(e) => {
+                  const d = e.target.value;
+                  set({
+                    sampleRequestDate: d && d < minSample ? minSample : d,
+                  });
+                }}
+              />
+              <p className={wizardHintClass}>
+                Earliest available: {minSample} (at least 2 weeks from today)
+              </p>
+            </div>
+            <div>
+              <label className={wizardLabelClass}>Target launch date</label>
+              <input
+                type="date"
+                className={wizardInputClass}
+                min={minLaunch}
+                value={v.targetLaunchDate}
+                onChange={(e) => {
+                  const d = e.target.value;
+                  set({
+                    targetLaunchDate: d && d < minLaunch ? minLaunch : d,
+                  });
+                }}
+              />
+              <p className={wizardHintClass}>
+                Earliest available: {minLaunch} (at least 6 weeks from today)
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className={wizardPanelClass}>
+          <h3 className={wizardSectionTitleClass}>Shipping destination</h3>
+          <p className={wizardSectionDescClass}>
+            Where should samples and production shipments be sent?
+          </p>
+          <div className="mt-6">
+            <label className={wizardLabelClass}>Country</label>
+            <input
+              className={wizardInputClass}
+              value={v.shippingCountry}
+              onChange={(e) => set({ shippingCountry: e.target.value })}
+              placeholder="e.g. United States"
+            />
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -688,53 +785,138 @@ function Step5({
   return (
     <div className={stepContentClass}>
       <h2 className={stepTitleClass}>Formula preferences</h2>
-      <div className="mt-8 max-w-2xl space-y-6">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Fragrance</label>
-          <select className={inputClass} value={v.fragrance} onChange={(e) => set({ fragrance: e.target.value as FragranceOption })}>
-            <option value="green-tea">Green tea</option>
-            <option value="hypoallergenic">Hypoallergenic</option>
-            <option value="unscented">Unscented</option>
-            <option value="fragrance-free">Fragrance-free</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">
-            Color
-          </label>
-          <div className="flex flex-wrap items-center gap-4">
-            <input
-              type="color"
-              className="h-12 w-24 shrink-0 cursor-pointer rounded-lg border border-slate-200"
-              value={v.colorHex}
-              onChange={(e) => set({ colorHex: e.target.value })}
-              aria-label="Color picker"
-            />
-            <input
-              type="text"
-              className={`${inputClass} max-w-[10rem] font-mono`}
-              placeholder="#7DD3FC"
-              value={v.colorHex}
-              onChange={(e) => set({ colorHex: normalizeHexInput(e.target.value) })}
-              spellCheck={false}
-            />
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Use the swatch or enter a hex code (e.g. #FF5733).
+      <p className={stepDescClass}>
+        Share how you want the product to feel, look, and smell. Optional fields
+        help our lab narrow the direction faster.
+      </p>
+      <div className="mt-8 max-w-3xl space-y-6">
+        <section className={wizardPanelClass}>
+          <h3 className={wizardSectionTitleClass}>Scent & color</h3>
+          <p className={wizardSectionDescClass}>
+            Choose a fragrance profile and a target shade for your formula.
           </p>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Viscosity</label>
-          <input className={inputClass} value={v.viscosity} onChange={(e) => set({ viscosity: e.target.value })} placeholder="e.g. light gel" />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Texture (optional)</label>
-          <input className={inputClass} value={v.textureNotes ?? ""} onChange={(e) => set({ textureNotes: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Finish (optional)</label>
-          <input className={inputClass} value={v.finishNotes ?? ""} onChange={(e) => set({ finishNotes: e.target.value })} />
-        </div>
+          <div className="mt-6 space-y-5">
+            <div>
+              <label className={wizardLabelClass}>Fragrance</label>
+              <select
+                className={wizardInputClass}
+                value={v.fragrance}
+                onChange={(e) =>
+                  set({ fragrance: e.target.value as FragranceOption })
+                }
+              >
+                <option value="green-tea">Green tea</option>
+                <option value="hypoallergenic">Hypoallergenic</option>
+                <option value="unscented">Unscented</option>
+                <option value="fragrance-free">Fragrance-free</option>
+              </select>
+            </div>
+            <div>
+              <label className={wizardLabelClass}>Color</label>
+              <div className="flex flex-col gap-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
+                <input
+                  type="color"
+                  className="h-16 w-full max-w-[8rem] shrink-0 cursor-pointer rounded-xl border-2 border-slate-200 bg-white"
+                  value={v.colorHex}
+                  onChange={(e) => set({ colorHex: e.target.value })}
+                  aria-label="Color picker"
+                />
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="text"
+                    className={`${wizardInputClass} font-mono`}
+                    placeholder="#7DD3FC"
+                    value={v.colorHex}
+                    onChange={(e) =>
+                      set({ colorHex: normalizeHexInput(e.target.value) })
+                    }
+                    spellCheck={false}
+                  />
+                  <p className={wizardHintClass}>
+                    Tap the swatch or type a hex code (for example, #FF5733).
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className={wizardPanelClass}>
+          <h3 className={wizardSectionTitleClass}>Texture & finish</h3>
+          <p className={wizardSectionDescClass}>
+            Describe the sensory experience you are aiming for on skin.
+          </p>
+          <div className="mt-6 space-y-5">
+            <div>
+              <label className={wizardLabelClass}>Viscosity</label>
+              <input
+                className={wizardInputClass}
+                value={v.viscosity}
+                onChange={(e) => set({ viscosity: e.target.value })}
+                placeholder="e.g. light gel, rich cream"
+              />
+            </div>
+            <div>
+              <label className={wizardLabelClass}>
+                Texture <span className="font-normal text-slate-500">(optional)</span>
+              </label>
+              <input
+                className={wizardInputClass}
+                value={v.textureNotes ?? ""}
+                onChange={(e) => set({ textureNotes: e.target.value })}
+                placeholder="e.g. silky, fast-absorbing"
+              />
+            </div>
+            <div>
+              <label className={wizardLabelClass}>
+                Finish <span className="font-normal text-slate-500">(optional)</span>
+              </label>
+              <input
+                className={wizardInputClass}
+                value={v.finishNotes ?? ""}
+                onChange={(e) => set({ finishNotes: e.target.value })}
+                placeholder="e.g. natural glow, matte"
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Step6ExampleCard({
+  title,
+  description,
+  tips,
+  example,
+}: {
+  title: string;
+  description: string;
+  tips?: string;
+  example: string;
+}) {
+  return (
+    <div className={wizardExamplePanelClass}>
+      <span className={wizardExampleBadgeClass}>
+        <BookOpen className="h-3.5 w-3.5" aria-hidden />
+        Writing guide
+      </span>
+      <h4 className="mt-4 text-base font-semibold text-slate-800">{title}</h4>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{description}</p>
+      {tips && (
+        <p className="mt-3 text-sm leading-relaxed text-slate-500">
+          <span className="font-medium text-slate-700">Tip: </span>
+          {tips}
+        </p>
+      )}
+      <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/60 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+          Example
+        </p>
+        <p className="mt-1.5 text-sm italic leading-relaxed text-slate-700">
+          {example}
+        </p>
       </div>
     </div>
   );
@@ -761,55 +943,128 @@ function Step6({
   return (
     <div className={stepContentClass}>
       <h2 className={stepTitleClass}>Compliance & certifications</h2>
-      <div className="mt-8 max-w-3xl space-y-6">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">
-            Product name
-          </label>
-          <input
-            className={inputClass}
-            value={v.productName ?? ""}
-            onChange={(e) => set({ productName: e.target.value })}
-            placeholder="e.g. xx Eye Cream"
-          />
-        </div>
-        <label className="flex items-center gap-3 text-base">
-          <input type="checkbox" checked={v.vegan} onChange={(e) => set({ vegan: e.target.checked })} />
-          Vegan formulation required
-        </label>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Concept / hero ingredients</label>
-          <textarea className={inputClass} rows={4} value={v.conceptIngredients} onChange={(e) => set({ conceptIngredients: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-600">Restricted ingredients</label>
-          <textarea className={inputClass} rows={3} value={v.restrictedIngredients} onChange={(e) => set({ restrictedIngredients: e.target.value })} />
-        </div>
-        <div>
-          <p className="mb-3 text-sm font-medium text-slate-600">International certifications</p>
-          <div className="flex flex-wrap gap-3">
-            {certs.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() =>
-                  set({
-                    internationalCertifications: v.internationalCertifications.includes(c)
-                      ? v.internationalCertifications.filter((x) => x !== c)
-                      : [...v.internationalCertifications, c],
-                  })
+      <p className={stepDescClass}>
+        Help us align your brief with regulatory and brand requirements before
+        development begins.
+      </p>
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-2 lg:gap-8">
+        <section className={`${wizardPanelClass} min-w-0`}>
+          <h3 className={wizardSectionTitleClass}>Your brief</h3>
+          <p className={wizardSectionDescClass}>
+            Complete each field in order. Select all certifications that apply.
+          </p>
+          <div className="mt-5 flex flex-col gap-4">
+            <div>
+              <label className={wizardLabelClass}>Product name</label>
+              <input
+                className={wizardInputClass}
+                value={v.productName ?? ""}
+                onChange={(e) => set({ productName: e.target.value })}
+                placeholder="e.g. Radiance Revive Eye Cream"
+              />
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm transition hover:border-sky-300">
+              <input
+                type="checkbox"
+                className="h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                checked={v.vegan}
+                onChange={(e) => set({ vegan: e.target.checked })}
+              />
+              <span className="text-base font-medium text-slate-700">
+                Vegan formulation required
+              </span>
+            </label>
+
+            <div className="border-t border-sky-100/90 pt-4">
+              <label className={wizardLabelClass}>Concept / hero ingredients</label>
+              <textarea
+                className={wizardTextareaClass}
+                value={v.conceptIngredients}
+                onChange={(e) => set({ conceptIngredients: e.target.value })}
+                placeholder="e.g. niacinamide 5%, centella, peptide complex"
+              />
+            </div>
+
+            <div>
+              <label className={wizardLabelClass}>Restricted ingredients</label>
+              <textarea
+                className={wizardTextareaClass}
+                value={v.restrictedIngredients}
+                onChange={(e) =>
+                  set({ restrictedIngredients: e.target.value })
                 }
-                className={`${choiceChipClass} rounded-full ${
-                  v.internationalCertifications.includes(c)
-                    ? "border-sky-500 bg-sky-50 text-sky-700"
-                    : "border-slate-200 text-slate-600"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
+                placeholder="e.g. no parabens, no synthetic fragrance"
+              />
+            </div>
+
+            <div className="border-t border-sky-100/90 pt-4">
+              <label className={wizardLabelClass}>
+                International certifications
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {certs.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() =>
+                      set({
+                        internationalCertifications:
+                          v.internationalCertifications.includes(c)
+                            ? v.internationalCertifications.filter(
+                                (x) => x !== c,
+                              )
+                            : [...v.internationalCertifications, c],
+                      })
+                    }
+                    className={`${choiceChipClass} rounded-full px-5 py-3 text-sm md:text-base ${
+                      v.internationalCertifications.includes(c)
+                        ? "border-sky-500 bg-white text-sky-800 shadow-sm ring-2 ring-sky-100"
+                        : "border-slate-200/90 bg-white/80 text-slate-600 hover:border-sky-200"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <aside className="flex min-w-0 flex-col gap-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:sr-only">
+            Writing examples
+          </p>
+          <Step6ExampleCard
+            title="Product name & category"
+            description="Share your working or final product name, the product type, and where it will be used."
+            tips="Include the format (cream, serum, toner, etc.) and application area (eye, face, body). If you plan claims such as anti-aging or brightening, mention them here so we can plan stability and testing accordingly."
+            example="Radiance Revive Eye Cream — face / eye area; anti-aging and brightening claims"
+          />
+          <Step6ExampleCard
+            title="Vegan formulation"
+            description="Let us know if the formula must be 100% vegan: no animal-derived ingredients and no animal testing."
+            example="Required — brand is fully vegan; no beeswax, lanolin, or carmine."
+          />
+          <Step6ExampleCard
+            title="Concept / hero ingredients"
+            description="List the actives you want to feature in marketing and on-pack storytelling."
+            tips="If you have a target percentage or a preferred supplier or origin, include that. We will verify concentrations against regulatory limits for your target markets."
+            example="Caffeine 2% (de-puffing), green tea extract, low–molecular-weight hyaluronic acid"
+          />
+          <Step6ExampleCard
+            title="Restricted ingredients (free-from)"
+            description="List ingredients that must not be used—based on your brand standards or retailer requirements."
+            tips="Common requests include excluding parabens, sulfates, phthalates, synthetic fragrance, or phenoxyethanol. Note any regional rules, such as PFAS restrictions in select US states."
+            example="No parabens, silicones, or synthetic dyes. Must meet Clean at Sephora requirements."
+          />
+          <Step6ExampleCard
+            title="International certifications"
+            description="Choose the compliance marks you need for the countries where you plan to sell."
+            tips="Select every mark that applies today or that you expect to need before launch. Our team can advise if you are unsure which are required for your category."
+            example="FDA (United States), EU CPNP (Europe), ISO 22716 (GMP). Halal certification for GCC launch."
+          />
+        </aside>
       </div>
     </div>
   );

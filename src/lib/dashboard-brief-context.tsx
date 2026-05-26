@@ -71,6 +71,7 @@ export function DashboardBriefProvider({
     async (next: CMBrief, advance = false) => {
       const updated = {
         ...next,
+        status: "draft" as const,
         updatedAt: new Date().toISOString(),
         currentStep: advance
           ? Math.min(6, next.currentStep + 1)

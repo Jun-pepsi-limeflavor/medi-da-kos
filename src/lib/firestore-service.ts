@@ -10,6 +10,7 @@ import {
   query,
   where,
   serverTimestamp,
+  deleteField,
 } from "firebase/firestore";
 import type {
   CMBrief,
@@ -19,7 +20,7 @@ import type {
   TrackingEntry,
   UserProfile,
 } from "./types";
-import { odmCategory } from "./step1-utils";
+import { getStep1Selection, odmCategory } from "./step1-utils";
 import { getFirebaseDb } from "./firebase";
 import {
   mockGetBrief,
@@ -33,30 +34,99 @@ import {
 import { useMockAuth } from "./firebase";
 import { stripUndefined } from "./firestore-sanitize";
 
-function defaultBrief(uid: string): CMBrief {
+export function createDefaultCMBrief(
+  uid: string,
+  preserveCreatedAt?: string,
+): CMBrief {
   const now = new Date().toISOString();
   return {
     uid,
     currentStep: 1,
     requestType: "custom",
     status: "draft",
-    createdAt: now,
+    createdAt: preserveCreatedAt ?? now,
     updatedAt: now,
   };
 }
 
+/** Strip large logo payload — keep filename for orders / archives */
+export function briefSnapshotForStorage(brief: CMBrief): Record<string, unknown> {
+  const { step3, ...rest } = brief;
+  const snapshot: Record<string, unknown> = {
+    ...rest,
+    status: "submitted",
+    updatedAt: new Date().toISOString(),
+  };
+  if (step3) {
+    snapshot.step3 = {
+      logoFileName: step3.logoFileName,
+    };
+  }
+  return stripUndefined(snapshot);
+}
+
+/** Clear wizard fields in Firestore so a new order starts fresh (drops large step3 logo). */
+export async function resetCMBriefDraft(
+  uid: string,
+  preserveCreatedAt?: string,
+): Promise<CMBrief> {
+  const fresh = createDefaultCMBrief(uid, preserveCreatedAt);
+  if (useMockAuth()) {
+    mockSaveBrief(fresh);
+    return fresh;
+  }
+
+  await setDoc(
+    doc(getFirebaseDb(), "cmBriefs", uid),
+    {
+      uid: fresh.uid,
+      currentStep: 1,
+      requestType: "custom",
+      status: "draft",
+      createdAt: fresh.createdAt,
+      updatedAt: fresh.updatedAt,
+      step1: deleteField(),
+      step2: deleteField(),
+      step3: deleteField(),
+      step4: deleteField(),
+      step5: deleteField(),
+      step6: deleteField(),
+      sampleProductId: deleteField(),
+      sampleProductName: deleteField(),
+      sampleQuantity: deleteField(),
+      shippingAddress: deleteField(),
+      serverUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  return fresh;
+}
+
 export async function loadCMBrief(uid: string): Promise<CMBrief> {
   if (useMockAuth()) {
-    return mockGetBrief(uid) ?? defaultBrief(uid);
+    const stored = mockGetBrief(uid);
+    if (!stored) return createDefaultCMBrief(uid);
+    if (stored.status === "submitted") {
+      return resetCMBriefDraft(uid, stored.createdAt);
+    }
+    return migrateBrief(stored);
   }
   const ref = doc(getFirebaseDb(), "cmBriefs", uid);
   const snap = await getDoc(ref);
-  if (!snap.exists()) return defaultBrief(uid);
-  const data = snap.data() as CMBrief;
-  return migrateBrief(data);
+  if (!snap.exists()) return createDefaultCMBrief(uid);
+  const raw = snap.data() as CMBrief;
+  if (raw.status === "submitted") {
+    return resetCMBriefDraft(uid, raw.createdAt);
+  }
+  return migrateBrief(raw);
 }
 
 function migrateBrief(brief: CMBrief): CMBrief {
+  if (brief.status === "submitted") {
+    return createDefaultCMBrief(brief.uid, brief.createdAt);
+  }
+
   let next = { ...brief };
 
   const legacy = next.step2 as { packaging?: string[] } | undefined;
@@ -196,25 +266,36 @@ export async function saveSampleRequest(
   return sampleRequest;
 }
 
-export async function submitCustomBrief(brief: CMBrief): Promise<void> {
+export async function submitCustomBrief(brief: CMBrief): Promise<Order> {
+  if (!getStep1Selection(brief.step1)) {
+    throw new Error("Complete Step 1 before submitting your brief.");
+  }
+
   const submitted: CMBrief = {
     ...brief,
     requestType: "custom",
     status: "submitted",
     updatedAt: new Date().toISOString(),
   };
-  await saveCMBrief(submitted);
 
-  await createOrder({
+  const category = odmCategory(submitted.step1);
+  const submissionRef = `custom-${brief.uid}-${Date.now()}`;
+
+  const order = await createOrder({
     uid: brief.uid,
     type: "custom",
     status: "submitted",
     title: `Custom ODM — ${
-      odmCategory(submitted.step1) === "cosmetic" ? "Cosmetic" : "Skin Care"
+      category === "cosmetic" ? "Cosmetic" : "Skin Care"
     }`,
     summary: buildCustomOrderSummary(submitted),
-    referenceId: brief.uid,
+    referenceId: submissionRef,
+    briefSnapshot: briefSnapshotForStorage(submitted),
   });
+
+  await resetCMBriefDraft(brief.uid, brief.createdAt);
+
+  return order;
 }
 
 function buildCustomOrderSummary(brief: CMBrief): string {

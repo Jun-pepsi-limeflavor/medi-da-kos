@@ -9,7 +9,7 @@
  * │ After log in                │ LoginForm.tsx → router.push after login   │
  * │ Already logged in on /login │ LoginForm.tsx → useEffect router.replace │
  * │ After sample request        │ Top10Products.tsx → onSuccess router.push │
- * │ After CM brief submit       │ CMWizard.tsx → handleSubmit router.push   │
+ * │ After CM brief submit       │ CMWizard.tsx → reset brief, router.push   │
  * └─────────────────────────────┴──────────────────────────────────────────┘
  *
  * Next.js navigation:
@@ -33,5 +33,5 @@ export const REDIRECT_AFTER_LOGIN = ROUTES.dashboard;
 /** Where to send the user after submitting a Top 10 sample request */
 export const REDIRECT_AFTER_SAMPLE_REQUEST = ROUTES.orders;
 
-/** Where to send the user after submitting the CM brief (step 6) */
+/** After CM brief submit — brief is reset; user lands on My Orders */
 export const REDIRECT_AFTER_BRIEF_SUBMIT = ROUTES.orders;
