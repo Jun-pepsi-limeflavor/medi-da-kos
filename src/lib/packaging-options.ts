@@ -23,3 +23,14 @@ export function getPackagingItems(
   const key = categoryToPackagingKey(category);
   return PACKAGING_OPTIONS[key]?.[group] ?? [];
 }
+
+/** Maps JSON group name → public filename stem (case-sensitive). */
+const PACKAGING_GROUP_IMAGE_STEM: Record<string, string> = {
+  "Stick/Sunstick": "Stick:Sunstick",
+};
+
+/** e.g. Bottle → /step2_Bottle.png */
+export function getPackagingGroupImage(group: string): string {
+  const stem = PACKAGING_GROUP_IMAGE_STEM[group] ?? group;
+  return `/step2_${stem}.png`;
+}

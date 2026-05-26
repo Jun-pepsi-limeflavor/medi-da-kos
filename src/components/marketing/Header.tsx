@@ -29,9 +29,6 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-sky-100/80 bg-white/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-cyan-600 text-sm font-bold text-white">
-            MD
-          </span>
           <span className="text-lg font-semibold tracking-tight text-slate-800">
             Medi Da Kos
           </span>

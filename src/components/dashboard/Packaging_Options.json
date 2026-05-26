@@ -1,46 +1,36 @@
 {
     "Skin Care": {
       "Bottle": [
-        "Blow Molded",
-        "Glass",
-        "Can",
-        "Airless",
-        "Injection Blow Molded Bottle (SET)",
-        "Tottle (SET)",
-        "Dropper (SET)",
-        "Applicator (SET)",
-        "Dual Container (SET)",
-        "Mixed Container (SET)"
+      "Blow Molded",
+      "Glass",
+      "can",
+      "airless",
+      "injection Blow Molded Bottle (SET)",
+      "Tottle(SET)",
+      "Dropper(SET)"
       ],
       "Tube": [
         "PE",
         "Laminated (ABL/PBL)",
-        "7-layer Laminated",
-        "Aluminum",
         "Pump",
         "Applicator"
       ],
       "Jar": [
         "Single Wall Jar",
         "Double Wall Jar",
-        "Airless",
         "Glass",
-        "Pad",
-        "Others"
+        "Pad"
       ],
       "Closure": [
         "Mist Sprayer",
         "Treatment Pump",
         "Dispenser Pump",
         "Foam Pump",
-        "Oil Pump",
-        "Other Pump",
-        "Cap"
+        "Oil Pump"
       ],
       "Stick/Sunstick": [
         "Circle",
-        "Oval",
-        "Others"
+        "Oval"      
       ]
     },
     "Cosmetic": {
@@ -63,8 +53,7 @@
         "Puff",
         "Spatula",
         "Gua Sha",
-        "Brush",
-        "Others"
+        "Brush"
       ]
     }
   }

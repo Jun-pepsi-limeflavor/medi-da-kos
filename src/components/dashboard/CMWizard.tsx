@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   CMBrief,
@@ -22,9 +22,11 @@ import {
   minTargetLaunchDate,
 } from "@/lib/us-date";
 import {
+  getPackagingGroupImage,
   getPackagingGroups,
   getPackagingItems,
 } from "@/lib/packaging-options";
+import { PackagingGroupButton } from "./PackagingGroupButton";
 import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
@@ -373,29 +375,43 @@ function Step2({
   }
 
   const groups = getPackagingGroups(category);
+  const activeSelection = selections[0];
+  const activeGroup = activeSelection?.group;
+
+  useEffect(() => {
+    if (selections.length > 1) {
+      onChange([selections[selections.length - 1]!]);
+    }
+  }, [selections, onChange]);
+
+  function isGroupSelected(group: string) {
+    return activeGroup === group;
+  }
+
+  /** Single mid-category only — new pick replaces the previous one. */
+  function selectGroup(group: string) {
+    if (activeGroup === group) {
+      onChange([]);
+      return;
+    }
+    onChange([{ group, items: [] }]);
+  }
 
   function toggleItem(group: string, item: string) {
-    const existing = selections.find((s) => s.group === group);
+    const existing =
+      activeSelection?.group === group ? activeSelection : undefined;
     if (!existing) {
-      onChange([...selections, { group, items: [item] }]);
+      onChange([{ group, items: [item] }]);
       return;
     }
     const has = existing.items.includes(item);
     const newItems = has
       ? existing.items.filter((i) => i !== item)
       : [...existing.items, item];
-    if (newItems.length === 0) {
-      onChange(selections.filter((s) => s.group !== group));
-    } else {
-      onChange(
-        selections.map((s) =>
-          s.group === group ? { group, items: newItems } : s,
-        ),
-      );
-    }
+    onChange([{ group, items: newItems }]);
   }
 
-  function isSelected(group: string, item: string) {
+  function isItemSelected(group: string, item: string) {
     return selections.some(
       (s) => s.group === group && s.items.includes(item),
     );
@@ -405,31 +421,62 @@ function Step2({
     <div className={stepContentClass}>
       <h2 className={stepTitleClass}>Packaging options</h2>
       <p className={stepDescClass}>
-        Select packaging types and formats for your{" "}
-        {category === "skincare" ? "Skin Care" : "Cosmetic"} line.
+        Choose one packaging category for your{" "}
+        {category === "skincare" ? "Skin Care" : "Cosmetic"} line. Formats and
+        types below are optional.
       </p>
-      <div className="mt-8 space-y-10">
-        {groups.map((group) => (
-          <div key={group}>
-            <h3 className="text-lg font-semibold text-slate-700">{group}</h3>
-            <div className="mt-4 flex flex-wrap gap-3">
-              {getPackagingItems(category, group).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => toggleItem(group, item)}
-                  className={`${choiceChipClass} ${
-                    isSelected(group, item)
-                      ? "border-sky-500 bg-sky-50 text-sky-800"
-                      : "border-slate-200 text-slate-600 hover:border-sky-200"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
+
+      <div className="mt-8">
+        <p className="mb-4 text-xs font-medium uppercase tracking-wide text-slate-400">
+          Category
+        </p>
+        <ul
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4"
+          role="list"
+        >
+          {groups.map((group) => (
+            <li key={group} className="min-w-0">
+              <PackagingGroupButton
+                label={group}
+                imageSrc={getPackagingGroupImage(group)}
+                selected={isGroupSelected(group)}
+                onClick={() => selectGroup(group)}
+              />
+            </li>
+          ))}
+        </ul>
+
+        {activeGroup && (
+          <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50/40 p-5 sm:p-6">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Optional formats & types
+            </p>
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-slate-700">
+                {activeGroup}
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  optional
+                </span>
+              </h3>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {getPackagingItems(category, activeGroup).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => toggleItem(activeGroup, item)}
+                    className={`${choiceChipClass} ${
+                      isItemSelected(activeGroup, item)
+                        ? "border-sky-500 bg-sky-50 text-sky-800"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-sky-200"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
