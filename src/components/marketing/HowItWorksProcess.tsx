@@ -116,7 +116,7 @@ export function HowItWorksProcess() {
   }
 
   return (
-    <section className="mx-auto max-w-5xl px-4 pb-20 sm:px-6 lg:px-8 mt-10 ">
+    <section className="mx-auto max-w-5xl px-4 pb-20 sm:px-6 lg:px-8  ">
       <h2 className="mt-20 text-2xl font-semibold text-slate-800 sm:text-3xl">
         The process
       </h2>

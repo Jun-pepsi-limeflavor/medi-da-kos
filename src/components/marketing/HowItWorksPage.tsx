@@ -115,47 +115,9 @@ export function HowItWorksPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-12">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-800">
-              Korean manufacturing network
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              Korea is a top global cosmetics exporter. Partner factories are
-              GMP-certified (ISO 22716) and MFDS-registered. We match you by
-              category and MOQ — you don&apos;t vet factories yourself.
-            </p>
-            <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
-              <li>· Shipped to brands in 30+ countries</li>
-              <li>· Batch COA on every production run</li>
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">
-              Certifications we can support
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Not limited to a fixed list — we align factories to your brief.
-              Examples:
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {CERTIFICATIONS.map((cert) => (
-                <span
-                  key={cert}
-                  className="rounded-lg border border-sky-100 bg-sky-50/80 px-2.5 py-1 text-xs font-medium text-sky-800"
-                >
-                  {cert}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
+      <section className="mt-10 mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
         <h2 className="text-xl font-semibold text-slate-800">FAQ</h2>
-        <dl className="mt-6 space-y-4">
+        <dl className="mt-4 space-y-4">
           {FAQ.map((item) => (
             <div key={item.q}>
               <dt className="text-sm font-semibold text-slate-800">{item.q}</dt>
