@@ -17,18 +17,18 @@ export function Footer() {
             <p className="text-sm font-semibold text-slate-800">Platform</p>
             <ul className="mt-3 space-y-2 text-sm text-slate-600">
               <li>
-                <Link href="/business" className="hover:text-sky-600">
-                  Business
+                <Link href="/about-us" className="hover:text-sky-600">
+                  About Us
                 </Link>
               </li>
               <li>
-                <Link href="/how-it-works" className="hover:text-sky-600">
-                  How It Works
+                <Link href="/process" className="hover:text-sky-600">
+                  Process
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="hover:text-sky-600">
-                  Pricing
+                <Link href="/compare" className="hover:text-sky-600">
+                  Compare
                 </Link>
               </li>
             </ul>

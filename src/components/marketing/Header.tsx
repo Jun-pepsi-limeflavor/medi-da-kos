@@ -7,10 +7,9 @@ import { LogOut, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const navLinks = [
-  { href: "/business", label: "Business" },
-  { href: "/how-it-works", label: "How It Works" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/contact", label: "Contact" },
+  { href: "/about-us", label: "About Us" },
+  { href: "/process", label: "Process" },
+  { href: "/compare", label: "Compare" },
 ];
 
 /** Home: header appears after user scrolls past the first ~12% of the viewport */

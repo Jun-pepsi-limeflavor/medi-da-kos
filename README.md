@@ -39,10 +39,9 @@ You can also register new accounts or use **Continue with Google** (mock demo us
 | Path | Description |
 |------|-------------|
 | `/` | Marketing home + hero carousel |
-| `/business` | Korea manufacturing strengths |
-| `/how-it-works` | ODM workflow |
-| `/pricing` | Partnership tiers |
-| `/contact` | Contact form |
+| `/about-us` | Company & manufacturing network |
+| `/process` | ODM workflow (brief → delivery) |
+| `/compare` | Unit economics & lead-time benchmarks |
 | `/login` | Sign in / register |
 | `/dashboard` | CM Steps 1–6 + Top 10 samples |
 | `/dashboard/orders` | Orders (empty state) |
