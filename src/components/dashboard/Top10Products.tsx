@@ -32,7 +32,7 @@ export function Top10Products({ uid, compact = false }: Props) {
           {TOP_PRODUCTS.map((product) => (
             <article
               key={product.id}
-              className="w-[calc((100%-3rem)/5)] min-w-[148px] max-w-[220px] shrink-0 snap-start cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition hover:border-sky-200 hover:shadow-md sm:min-w-[160px]"
+              className="w-[calc((100%-3rem)/5)] min-w-[148px] max-w-[220px] shrink-0 snap-start cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white/85 shadow-sm shadow-sky-100/25 transition hover:border-sky-200 hover:shadow-md hover:shadow-sky-100/40 sm:min-w-[160px]"
               onClick={() => setSelected(product)}
               onKeyDown={(e) => e.key === "Enter" && setSelected(product)}
               role="button"
@@ -51,7 +51,7 @@ export function Top10Products({ uid, compact = false }: Props) {
                     target.style.display = "none";
                   }}
                 />
-                <span className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-xs font-bold text-white shadow-sm">
+                <span className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-sky-500/90 text-xs font-bold text-white shadow-sm shadow-sky-100/70">
                   {product.rank}
                 </span>
               </div>
@@ -97,7 +97,7 @@ export function Top10Products({ uid, compact = false }: Props) {
         {TOP_PRODUCTS.map((product) => (
           <article
             key={product.id}
-            className="group cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition hover:border-sky-200 hover:shadow-md"
+            className="group cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white/85 shadow-sm shadow-sky-100/25 transition hover:border-sky-200 hover:shadow-md hover:shadow-sky-100/40"
             onClick={() => setSelected(product)}
             onKeyDown={(e) => e.key === "Enter" && setSelected(product)}
             role="button"
@@ -116,7 +116,7 @@ export function Top10Products({ uid, compact = false }: Props) {
                   target.style.display = "none";
                 }}
               />
-              <span className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-xs font-bold text-white shadow-sm">
+              <span className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-sky-500/90 text-xs font-bold text-white shadow-sm shadow-sky-100/70">
                 {product.rank}
               </span>
             </div>

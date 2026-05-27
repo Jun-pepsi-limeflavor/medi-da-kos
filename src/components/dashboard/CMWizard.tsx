@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Info, Upload } from "lucide-react";
 import type {
   CMBrief,
-  FragranceOption,
   PackagingSelection,
   ProductCategory,
   Step1Selection,
@@ -40,7 +39,7 @@ const stepDescClass = "mt-2 text-base text-slate-500";
 const choiceChipClass =
   "rounded-xl border-2 px-5 py-3.5 text-sm font-medium transition md:text-base";
 const wizardPanelClass =
-  "rounded-2xl border border-sky-200/80 bg-gradient-to-b from-sky-50 to-white p-5 shadow-sm sm:p-6";
+  "rounded-xl border border-sky-100/80 bg-gradient-to-b from-sky-50/65 via-white to-white/95 p-5 shadow-sm shadow-sky-100/40 sm:p-6";
 const wizardSectionTitleClass = "text-lg font-semibold text-slate-800";
 const wizardSectionDescClass = "mt-1 text-sm leading-relaxed text-slate-600";
 const wizardLabelClass = "mb-2.5 block text-base font-semibold text-slate-700";
@@ -49,9 +48,9 @@ const wizardInputClass =
 const wizardTextareaClass = `${wizardInputClass} min-h-[8.5rem] resize-y leading-relaxed`;
 const wizardHintClass = "mt-2 text-sm text-slate-500";
 const wizardExamplePanelClass =
-  "rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6";
+  "rounded-xl border border-sky-100/70 bg-white/85 p-5 shadow-sm shadow-sky-100/30 backdrop-blur-sm sm:p-6";
 const wizardExampleBadgeClass =
-  "inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-800";
+  "inline-flex items-center gap-1.5 rounded-full bg-sky-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700";
 
 interface Props {
   uid: string;
@@ -117,7 +116,7 @@ export function CMWizard({ uid }: Props) {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">
-            Custom Manufacturing Brief
+            Product Manufacturing Brief
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             Step {step} of 6 — complete each section to build your ODM request.
@@ -131,7 +130,7 @@ export function CMWizard({ uid }: Props) {
       </div>
 
       <div
-        className={`flex flex-1 flex-col rounded-2xl border border-slate-100 bg-white shadow-sm ${
+        className={`flex flex-1 flex-col rounded-xl border border-sky-100/70 bg-white/85 shadow-sm shadow-sky-100/30 backdrop-blur-sm ${
           step === 1 ? "min-h-0" : ""
         }`}
       >
@@ -211,7 +210,7 @@ export function CMWizard({ uid }: Props) {
             <button
               type="button"
               onClick={() => persist({ ...brief, currentStep: step - 1 }, false)}
-              className="rounded-xl border border-slate-200 px-6 py-3 text-base font-medium text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200/90 bg-white/80 px-6 py-3 text-base font-medium text-slate-600 transition hover:bg-sky-50/60"
             >
               Back
             </button>
@@ -220,7 +219,7 @@ export function CMWizard({ uid }: Props) {
             type="button"
             disabled={saving}
             onClick={() => persist(brief, false)}
-            className="rounded-xl border border-sky-200 px-6 py-3 text-base font-medium text-sky-700 hover:bg-sky-50 disabled:opacity-60"
+            className="rounded-lg border border-sky-200/90 bg-white/80 px-6 py-3 text-base font-medium text-sky-700 transition hover:bg-sky-50/70 disabled:opacity-60"
           >
             Save draft
           </button>
@@ -229,7 +228,7 @@ export function CMWizard({ uid }: Props) {
               type="button"
               disabled={saving}
               onClick={() => persist(brief, true)}
-              className="rounded-xl bg-sky-600 px-6 py-3 text-base font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+              className="rounded-lg bg-sky-500/90 px-6 py-3 text-base font-semibold text-white shadow-sm shadow-sky-100/80 transition hover:bg-sky-600 disabled:opacity-60"
             >
               Save & continue
             </button>
@@ -238,7 +237,7 @@ export function CMWizard({ uid }: Props) {
               type="button"
               disabled={saving}
               onClick={handleSubmit}
-              className="rounded-xl bg-slate-900 px-6 py-3 text-base font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-lg bg-sky-500/90 px-6 py-3 text-base font-semibold text-white shadow-sm shadow-sky-100/80 transition hover:bg-sky-600 disabled:opacity-60"
             >
               Submit brief
             </button>
@@ -272,8 +271,8 @@ const STEP1_OPTIONS: {
   },
   {
     id: "rnd-agency",
-    label: "RnD Agency",
-    desc: "Partner with our R&D team for formulation and development services.",
+    label: "R&D Agency",
+    desc: "From concept to formula — our R&D lab handles the full development process.",
     image: "/step1_RnD.png",
   },
 ];
@@ -314,8 +313,8 @@ function CategoryChoiceCard({
         <div
           className={`absolute inset-0 transition ${
             selected
-              ? "bg-sky-600/15"
-              : "bg-transparent group-hover:bg-slate-900/5"
+              ? "bg-sky-500/12"
+              : "bg-transparent group-hover:bg-sky-900/8"
           }`}
           aria-hidden
         />
@@ -444,8 +443,7 @@ function Step2({
       <h2 className={stepTitleClass}>Packaging options</h2>
       <p className={stepDescClass}>
         Choose one packaging category for your{" "}
-        {category === "skincare" ? "Skin Care" : "Cosmetic"} line. Formats and
-        types below are optional.
+        {category === "skincare" ? "Skin Care" : "Cosmetic"} line. Formats and types below are optional
       </p>
 
       <div className="mt-8">
@@ -561,7 +559,7 @@ function Step3({
           />
           <label
             htmlFor={uploadInputId}
-            className="group flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed border-sky-300 bg-gradient-to-b from-sky-50 to-white px-6 py-10 text-center shadow-sm transition hover:border-sky-500 hover:from-sky-50/90 hover:shadow-md focus-within:ring-2 focus-within:ring-sky-200 focus-within:ring-offset-2"
+            className="group flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed border-sky-300/90 bg-gradient-to-b from-sky-50/70 to-white px-6 py-10 text-center shadow-sm shadow-sky-100/40 transition hover:border-sky-400 hover:from-sky-50/85 hover:shadow-md focus-within:ring-2 focus-within:ring-sky-200/70 focus-within:ring-offset-2"
           >
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-sky-100">
               <Upload className="h-7 w-7 text-sky-600" aria-hidden />
@@ -573,7 +571,7 @@ function Step3({
               Click here to select a file from your computer. For the cleanest
               preview, use a PNG with a transparent background.
             </span>
-            <span className="mt-6 inline-flex items-center rounded-full bg-sky-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition group-hover:bg-sky-700">
+            <span className="mt-6 inline-flex items-center rounded-full bg-sky-500/90 px-6 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-100/70 transition group-hover:bg-sky-600">
               Choose file
             </span>
           </label>
@@ -588,7 +586,7 @@ function Step3({
             </p>
           )}
           {logoDataUrl && (
-            <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="mt-4 flex items-center gap-3 rounded-lg border border-sky-100/80 bg-white/85 p-3 shadow-sm shadow-sky-100/30">
               <img
                 src={logoDataUrl}
                 alt="Uploaded logo preview"
@@ -604,7 +602,7 @@ function Step3({
           <p className="mb-3 text-base font-medium text-slate-700">
             Packaging preview
           </p>
-          <div className="mb-4 flex gap-3 rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <div className="mb-4 flex gap-3 rounded-lg border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden />
             <div>
               <p className="font-semibold">Illustrative preview only</p>
@@ -657,8 +655,7 @@ function Step4({
     <div className={stepContentClass}>
       <h2 className={stepTitleClass}>Volume, MOQ & timeline</h2>
       <p className={stepDescClass}>
-        Dates use US Eastern time. Sample requests from 2 weeks out; launch from
-        6 weeks out.
+      All dates are based on US Eastern Time. Sample requests require at least 2 weeks' lead time; target launch at least 6 weeks out.
       </p>
       <div className="mt-8 space-y-6">
         <section className={wizardPanelClass}>
@@ -691,7 +688,7 @@ function Step4({
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className={wizardLabelClass}>MOQ (minimum order quantity)</label>
+              <label className={wizardLabelClass}>Minimum Order Quantity (MOQ)</label>
               <input
                 className={wizardInputClass}
                 value={v.moq}
@@ -768,6 +765,41 @@ function Step4({
   );
 }
 
+const STEP5_DEFAULTS: NonNullable<CMBrief["step5"]> = {
+  fragranceNotes: "",
+  unscented: false,
+  fragranceFree: false,
+  colorHex: "#7dd3fc",
+  viscosity: "",
+  textureNotes: "",
+  finishNotes: "",
+};
+
+/** Maps legacy dropdown `fragrance` values from older drafts */
+function normalizeStep5(value?: CMBrief["step5"]): NonNullable<CMBrief["step5"]> {
+  if (!value) return { ...STEP5_DEFAULTS };
+
+  const legacy = value as CMBrief["step5"] & { fragrance?: string };
+  const base = { ...STEP5_DEFAULTS, ...value };
+
+  if (legacy.fragrance && base.fragranceNotes === "") {
+    switch (legacy.fragrance) {
+      case "unscented":
+        return { ...base, unscented: true };
+      case "fragrance-free":
+        return { ...base, fragranceFree: true };
+      case "green-tea":
+        return { ...base, fragranceNotes: "Green tea" };
+      case "hypoallergenic":
+        return { ...base, fragranceNotes: "Hypoallergenic / low-irritation scent" };
+      default:
+        return base;
+    }
+  }
+
+  return base;
+}
+
 function Step5({
   value,
   onChange,
@@ -775,13 +807,7 @@ function Step5({
   value?: CMBrief["step5"];
   onChange: (v: NonNullable<CMBrief["step5"]>) => void;
 }) {
-  const v = value ?? {
-    fragrance: "unscented" as FragranceOption,
-    colorHex: "#7dd3fc",
-    viscosity: "",
-    textureNotes: "",
-    finishNotes: "",
-  };
+  const v = normalizeStep5(value);
   const set = (patch: Partial<typeof v>) => onChange({ ...v, ...patch });
 
   return (
@@ -795,23 +821,63 @@ function Step5({
         <section className={wizardPanelClass}>
           <h3 className={wizardSectionTitleClass}>Scent & color</h3>
           <p className={wizardSectionDescClass}>
-            Choose a fragrance profile and a target shade for your formula.
+            Describe the scent direction you want, or mark exclusion options below.
+            Then choose a target shade for your formula.
           </p>
           <div className="mt-6 space-y-5">
             <div>
               <label className={wizardLabelClass}>Fragrance</label>
-              <select
+              <input
                 className={wizardInputClass}
-                value={v.fragrance}
-                onChange={(e) =>
-                  set({ fragrance: e.target.value as FragranceOption })
-                }
-              >
-                <option value="green-tea">Green tea</option>
-                <option value="hypoallergenic">Hypoallergenic</option>
-                <option value="unscented">Unscented</option>
-                <option value="fragrance-free">Fragrance-free</option>
-              </select>
+                value={v.fragranceNotes ?? ""}
+                disabled={v.fragranceFree}
+                onChange={(e) => set({ fragranceNotes: e.target.value })}
+                placeholder="e.g. light floral, clean musk, or leave blank if none"
+              />
+              <p className={wizardHintClass}>
+                Share notes, base accords, or references. Leave blank if you have
+                no scent direction yet.
+              </p>
+              <div className="mt-4 space-y-3">
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-sky-100/80 bg-white/85 px-4 py-3.5 shadow-sm shadow-sky-100/30 transition hover:border-sky-200">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                    checked={Boolean(v.unscented)}
+                    onChange={(e) => set({ unscented: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block text-base font-medium text-slate-700">
+                      Unscented
+                    </span>
+                    <span className="mt-0.5 block text-sm leading-relaxed text-slate-500">
+                      No noticeable scent; masking fragrance may still be used in
+                      the formula.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-sky-100/80 bg-white/85 px-4 py-3.5 shadow-sm shadow-sky-100/30 transition hover:border-sky-200">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                    checked={Boolean(v.fragranceFree)}
+                    onChange={(e) =>
+                      set({
+                        fragranceFree: e.target.checked,
+                        ...(e.target.checked ? { fragranceNotes: "" } : {}),
+                      })
+                    }
+                  />
+                  <span>
+                    <span className="block text-base font-medium text-slate-700">
+                      Fragrance-free
+                    </span>
+                    <span className="mt-0.5 block text-sm leading-relaxed text-slate-500">
+                      No fragrance ingredients in the formula.
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
             <div>
               <label className={wizardLabelClass}>Color</label>
@@ -844,13 +910,13 @@ function Step5({
         </section>
 
         <section className={wizardPanelClass}>
-          <h3 className={wizardSectionTitleClass}>Texture & finish</h3>
+          <h3 className={wizardSectionTitleClass}>Consistency & finish</h3>
           <p className={wizardSectionDescClass}>
             Describe the sensory experience you are aiming for on skin.
           </p>
           <div className="mt-6 space-y-5">
             <div>
-              <label className={wizardLabelClass}>Viscosity</label>
+              <label className={wizardLabelClass}>Consistency</label>
               <input
                 className={wizardInputClass}
                 value={v.viscosity}
@@ -860,7 +926,7 @@ function Step5({
             </div>
             <div>
               <label className={wizardLabelClass}>
-                Texture <span className="font-normal text-slate-500">(optional)</span>
+              Skin feel <span className="font-normal text-slate-500">(optional)</span>
               </label>
               <input
                 className={wizardInputClass}
@@ -877,7 +943,7 @@ function Step5({
                 className={wizardInputClass}
                 value={v.finishNotes ?? ""}
                 onChange={(e) => set({ finishNotes: e.target.value })}
-                placeholder="e.g. natural glow, matte"
+                placeholder="e.g. matte, natural glow, dewy"
               />
             </div>
           </div>
@@ -966,7 +1032,7 @@ function Step6({
               />
             </div>
 
-            <label className="flex cursor-pointer items-center gap-8 rounded-xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm transition hover:border-sky-300">
+            <label className="flex cursor-pointer items-center gap-8 rounded-lg border border-sky-100/80 bg-white/85 px-5 py-3.5 shadow-sm shadow-sky-100/30 transition hover:border-sky-300">
               <input
                 type="checkbox"
                 className="h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
@@ -979,7 +1045,7 @@ function Step6({
             </label>
 
             <div className="border-t border-sky-100/90 pt-4 mt-10 ">
-              <label className={wizardLabelClass}>Concept / hero ingredients</label>
+              <label className={wizardLabelClass}>Key / Hero Ingredients</label>
               <textarea
                 className={wizardTextareaClass}
                 value={v.conceptIngredients}
@@ -1049,7 +1115,7 @@ function Step6({
             example="Required — brand is fully vegan; no beeswax, lanolin, or carmine."
           />
           <Step6ExampleCard
-            title="Concept / hero ingredients"
+            title="Key / Hero Ingredients"
             description="List the actives you want to feature in marketing and on-pack storytelling."
             tips="If you have a target percentage or a preferred supplier or origin, include that. We will verify concentrations against regulatory limits for your target markets."
             example="Caffeine 2% (de-puffing), green tea extract, low–molecular-weight hyaluronic acid"

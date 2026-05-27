@@ -8,12 +8,6 @@ export interface PackagingSelection {
   items: string[];
 }
 
-export type FragranceOption =
-  | "green-tea"
-  | "hypoallergenic"
-  | "unscented"
-  | "fragrance-free";
-
 export interface UserProfile {
   uid: string;
   email: string;
@@ -65,7 +59,12 @@ export interface CMBriefStep4 {
 }
 
 export interface CMBriefStep5 {
-  fragrance: FragranceOption;
+  /** Desired scent direction (free text for R&D) */
+  fragranceNotes?: string;
+  /** No perceptible scent; masking fragrance may still be used */
+  unscented?: boolean;
+  /** No fragrance ingredients in the formula */
+  fragranceFree?: boolean;
   colorHex: string;
   viscosity: string;
   textureNotes?: string;

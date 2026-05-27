@@ -15,7 +15,7 @@ export function RndAgencySurveyPlaceholder({ value, onChange }: Props) {
 
   return (
     <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-6 lg:p-8">
-      <h3 className="text-xl font-semibold text-slate-800">RnD Agency intake</h3>
+      <h3 className="text-xl font-semibold text-slate-800">R&D Agency intake</h3>
       <p className="mt-2 text-base text-slate-600">
         Your custom survey will be connected here. For now, you can save draft
         notes below — we will map this to the full questionnaire you provide
@@ -28,7 +28,7 @@ export function RndAgencySurveyPlaceholder({ value, onChange }: Props) {
         <textarea
           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
           rows={5}
-          placeholder="Describe your RnD goals, timeline, and requirements…"
+          placeholder="Describe your R&D goals, timeline, and requirements…"
           value={notes}
           onChange={(e) =>
             onChange({ ...value, notes: e.target.value, _placeholder: true })
@@ -36,7 +36,7 @@ export function RndAgencySurveyPlaceholder({ value, onChange }: Props) {
         />
       </div>
       <p className="mt-4 text-sm text-violet-700/80">
-        CM Steps 2–6 apply to Skin Care / Cosmetic ODM paths. RnD workflow steps
+        Brief Steps 2–6 apply to Skin Care / Cosmetic ODM paths. R&D workflow steps
         will be added when your survey spec is ready.
       </p>
     </div>

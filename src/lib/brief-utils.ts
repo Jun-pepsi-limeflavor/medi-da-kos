@@ -16,7 +16,12 @@ export function stepHasContent(brief: CMBrief, step: number): boolean {
           brief.step4?.shippingCountry,
       );
     case 5:
-      return Boolean(brief.step5?.viscosity || brief.step5?.fragrance);
+      return Boolean(
+        brief.step5?.viscosity?.trim() ||
+          brief.step5?.fragranceNotes?.trim() ||
+          brief.step5?.unscented ||
+          brief.step5?.fragranceFree,
+      );
     case 6:
       return Boolean(
         brief.step6?.productName ||

@@ -10,7 +10,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { currentStep } = useDashboardStep();
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-gradient-to-br from-sky-50/60 via-white to-sky-100/30">
       <DashboardSidebar currentStep={currentStep} />
       <main className="flex-1 overflow-y-auto p-6 lg:p-10">{children}</main>
     </div>

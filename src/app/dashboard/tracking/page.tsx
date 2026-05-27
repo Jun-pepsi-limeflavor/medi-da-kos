@@ -25,7 +25,7 @@ export default function TrackingPage() {
       </p>
 
       {entries.length === 0 ? (
-        <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-20">
+        <div className="mt-12 flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-100/90 bg-white/85 py-20">
           <Truck className="h-12 w-12 text-slate-300" />
           <p className="mt-4 font-medium text-slate-600">No tracking entries</p>
           <p className="mt-2 text-sm text-slate-400">
@@ -33,9 +33,9 @@ export default function TrackingPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-8 overflow-hidden rounded-xl border border-slate-100 bg-white">
+        <div className="mt-8 overflow-hidden rounded-lg border border-sky-100/80 bg-white/85 shadow-sm shadow-sky-100/25">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50">
+            <thead className="border-b border-sky-100/80 bg-sky-50/60">
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-600">Carrier</th>
                 <th className="px-4 py-3 font-medium text-slate-600">Tracking #</th>
@@ -45,7 +45,7 @@ export default function TrackingPage() {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b border-slate-50">
+                <tr key={e.id} className="border-b border-sky-50/80">
                   <td className="px-4 py-3">{e.carrier}</td>
                   <td className="px-4 py-3 font-mono text-xs">{e.trackingNumber}</td>
                   <td className="px-4 py-3">{e.description}</td>

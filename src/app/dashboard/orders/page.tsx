@@ -29,7 +29,7 @@ export default function OrdersPage() {
       {loading ? (
         <p className="mt-12 text-slate-500">Loading orders…</p>
       ) : orders.length === 0 ? (
-        <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-20">
+        <div className="mt-12 flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-100/90 bg-white/85 py-20">
           <Package className="h-12 w-12 text-slate-300" />
           <p className="mt-4 font-medium text-slate-600">No orders yet</p>
           <p className="mt-2 max-w-sm text-center text-sm text-slate-400">
@@ -38,7 +38,7 @@ export default function OrdersPage() {
           </p>
           <Link
             href="/dashboard"
-            className="mt-6 rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+            className="mt-6 rounded-lg bg-sky-500/90 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-100/70 transition hover:bg-sky-600"
           >
             Go to CM Brief
           </Link>
@@ -48,7 +48,7 @@ export default function OrdersPage() {
           {orders.map((order) => (
             <article
               key={order.id}
-              className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm"
+              className="rounded-lg border border-sky-100/80 bg-white/85 p-5 shadow-sm shadow-sky-100/30"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>

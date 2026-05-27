@@ -56,8 +56,8 @@ export function SampleRequestModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-900/20 p-4 backdrop-blur-[3px]">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-sky-100/80 bg-white/90 shadow-xl shadow-sky-100/40">
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">
@@ -140,7 +140,7 @@ export function SampleRequestModal({
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-lg bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+              className="flex-1 rounded-lg bg-sky-500/90 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-100/70 transition hover:bg-sky-600 disabled:opacity-60"
             >
               {submitting ? "Submitting…" : "Submit sample request"}
             </button>

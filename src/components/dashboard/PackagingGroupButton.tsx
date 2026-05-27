@@ -26,13 +26,13 @@ export function PackagingGroupButton({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`group relative w-full overflow-hidden rounded-2xl border-2 text-left transition duration-300 ${
+      className={`group relative w-full overflow-hidden rounded-xl border-2 text-left transition duration-300 ${
         selected
-          ? "border-sky-500 shadow-lg shadow-sky-200/50 ring-2 ring-sky-200"
+          ? "border-sky-400 shadow-md shadow-sky-100/70 ring-1 ring-sky-200/70"
           : "border-slate-200/90 bg-white hover:border-sky-200 hover:shadow-md"
       }`}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-slate-100 to-sky-50/80 sm:aspect-[5/4] sm:min-h-[7.75rem]">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-sky-100/70 to-sky-50/40 sm:aspect-[5/4] sm:min-h-[7.75rem]">
         <Image
           src={imageSrc}
           alt=""
@@ -43,14 +43,14 @@ export function PackagingGroupButton({
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
         />
         <div
-          className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/25 to-slate-900/5"
+          className="absolute inset-0 bg-gradient-to-t from-slate-900/45 via-slate-900/10 to-transparent"
           aria-hidden
         />
         <div
           className={`absolute inset-0 transition duration-300 ${
             selected
-              ? "bg-sky-500/25 mix-blend-multiply"
-              : "bg-transparent group-hover:bg-slate-900/10"
+              ? "bg-sky-400/18 mix-blend-multiply"
+              : "bg-transparent group-hover:bg-sky-900/6"
           }`}
           aria-hidden
         />

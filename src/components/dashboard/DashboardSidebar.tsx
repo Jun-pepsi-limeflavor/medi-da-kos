@@ -10,7 +10,7 @@ const cmSteps = [
   { step: 1, label: "Category" },
   { step: 2, label: "Packaging" },
   { step: 3, label: "Branding" },
-  { step: 4, label: "Specs & MOQ" },
+  { step: 4, label: "Quantity & Specs" },
   { step: 5, label: "Formula" },
   { step: 6, label: "Compliance" },
 ];
@@ -35,12 +35,12 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-sky-100 bg-white">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-sky-100/70 bg-white/80 backdrop-blur-sm">
       <div className="border-b border-sky-50 px-5 py-5">
         <Link href="/" className="text-lg font-serif font-semibold text-slate-800">
           Medi Da Kos
         </Link>
-        <p className="mt-1 text-xs text-slate-500">Custom ODM Dashboard</p>
+        <p className="mt-1 text-xs text-slate-500">Your Manufacturing Dashboard</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
@@ -48,16 +48,16 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
           href="/dashboard"
           className={`mb-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
             pathname === "/dashboard"
-              ? "bg-sky-50 text-sky-700"
-              : "text-slate-600 hover:bg-slate-50"
+              ? "bg-sky-100/70 text-sky-700"
+              : "text-slate-600 hover:bg-sky-50/60"
           }`}
         >
           <LayoutDashboard size={18} />
-          CM Brief
+          Product Brief
         </Link>
 
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          CM Steps 1–6
+        Brief Steps 1–6
         </p>
         <ul className="mb-6 space-y-1">
           {cmSteps.map((s) => {
@@ -70,9 +70,9 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
                   onClick={() => handleStepClick(s.step)}
                   className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-left transition ${
                     currentStep === s.step
-                      ? "bg-sky-600 text-white"
+                      ? "bg-sky-500/85 text-white shadow-sm shadow-sky-100/80"
                       : canNavigate
-                        ? "text-sky-600 hover:bg-sky-50"
+                        ? "text-sky-700 hover:bg-sky-50/70"
                         : "cursor-not-allowed text-slate-400"
                   }`}
                   title={
@@ -86,7 +86,7 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
                       currentStep === s.step
                         ? "bg-white/20"
                         : canNavigate
-                          ? "bg-sky-100"
+                          ? "bg-sky-100/80"
                           : "bg-slate-100"
                     }`}
                   >
@@ -100,7 +100,7 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
         </ul>
 
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Manage
+          Orders
         </p>
         <ul className="space-y-1">
           {links.map((link) => {
@@ -111,8 +111,8 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
                   href={link.href}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
                     pathname === link.href
-                      ? "bg-sky-50 text-sky-700"
-                      : "text-slate-600 hover:bg-slate-50"
+                      ? "bg-sky-100/70 text-sky-700"
+                      : "text-slate-600 hover:bg-sky-50/60"
                   }`}
                 >
                   <Icon size={18} />
@@ -127,7 +127,7 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
       <div className="border-t border-sky-50 p-4">
         <a
           href="mailto:contact@techasset.co.kr"
-          className="mb-3 flex items-center gap-2 text-xs text-slate-500 hover:text-sky-600"
+          className="mb-3 flex items-center gap-2 text-xs text-slate-500 transition hover:text-sky-600"
         >
           <Mail size={14} />
           contact@techasset.co.kr
@@ -135,7 +135,7 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
         <button
           type="button"
           onClick={() => logout().then(() => (window.location.href = "/"))}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-sky-50/60"
         >
           <LogOut size={18} />
           Log out
