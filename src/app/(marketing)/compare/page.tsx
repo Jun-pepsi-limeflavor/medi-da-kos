@@ -115,9 +115,7 @@ export default function ComparePage() {
                   {COMPARISON_ROWS.map((row) => (
                     <tr
                       key={row.label}
-                      className={`border-b border-sky-50 last:border-0 ${
-                        row.highlight ? "bg-sky-50/30" : ""
-                      }`}
+                      className="border-b border-sky-50 last:border-0"
                     >
                       <td className="px-4 py-3.5 font-medium text-slate-800 sm:px-6">
                         {row.label}
