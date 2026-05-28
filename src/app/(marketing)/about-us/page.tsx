@@ -318,11 +318,6 @@ export default function AboutUsPage() {
             >
               Start Your Product Brief
             </Link>
-            <p className="mt-4 text-sm text-slate-500">
-              <Link href="/contact" className="hover:text-slate-700">
-                Have questions first? {"\u2192"} Talk to our team
-              </Link>
-            </p>
           </div>
         </div>
       </section>
