@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * Mid-category list card — cropped hero image (Step 1 feel), label on gradient.
+ * Step 2 category card tuned for 2:3 source images.
  */
 export function PackagingGroupButton({
   label,
@@ -32,15 +32,14 @@ export function PackagingGroupButton({
           : "border-slate-200/90 bg-white hover:border-sky-200 hover:shadow-md"
       }`}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-sky-100/70 to-sky-50/40 sm:aspect-[5/4] sm:min-h-[7.75rem]">
+      <div className="relative aspect-[2/3] w-full overflow-hidden bg-gradient-to-br from-sky-100/70 to-sky-50/40">
         <Image
           src={imageSrc}
           alt=""
           fill
-          unoptimized
           priority={priority}
-          className="object-cover object-[center_70%] scale-[1.0] transition duration-500 ease-out group-hover:scale-[1.2]"
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
+          className="object-cover object-center scale-[1.06] transition duration-500 ease-out group-hover:scale-[1.16]"
+          sizes="(max-width: 640px) 46vw, (max-width: 1024px) 30vw, 18vw"
         />
         <div
           className="absolute inset-0 bg-gradient-to-t from-slate-900/45 via-slate-900/10 to-transparent"

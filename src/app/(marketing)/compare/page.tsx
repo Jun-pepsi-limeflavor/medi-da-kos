@@ -6,43 +6,36 @@ const COMPARISON_ROWS = [
     label: "Estimated serum unit cost",
     colA: "$5–15",
     colB: "$1.20–8",
-    highlight: false,
   },
   {
     label: "Unit economics at scale",
     colA: "Varies by partner & volume",
-    colB: "Often favorable with Korean ODM",
-    highlight: false,
+    colB: "Structurally lower at volume",
   },
   {
-    label: "MOQ (minimum order quantity)",
+    label: "Minimum order quantity",  // "MOQ (minimum order quantity)" → 풀어쓰기
     colA: "500–2,000 units",
     colB: "3,000–10,000 units",
-    highlight: false,
   },
   {
     label: "Custom formula capability",
-    colA: "Available",
+    colA: "Varies by facility",  // "Available" → 더 정직하고 구체적
     colB: "Core focus",
-    highlight: false,
   },
   {
     label: "Typical production lead time",
     colA: "6–12 weeks",
     colB: "4–8 weeks",
-    highlight: false,
   },
   {
     label: "Certifications & compliance",
     colA: "Varies by facility",
-    colB: "Matched to your markets (e.g. FDA, GMP, Halal, Vegan)",
-    highlight: false,
+    colB: "ISO 22716, FDA, EU CPNP, Halal, Vegan — matched to your markets",
   },
   {
     label: "K-beauty positioning",
-    colA: "Optional",
+    colA: "Not applicable",  // "Optional" → 더 명확
     colB: "Built into partner network",
-    highlight: false,
   },
 ] as const;
 
@@ -56,9 +49,9 @@ const CERT_EXAMPLES = [
 ] as const;
 
 const HIGHLIGHTS = [
-  { value: "Free", label: "Platform & brief access" },
+  { value: "Free", label: "No upfront cost to submit your brief" },
   { value: "$1.20–8", label: "Typical serum unit range" },
-  { value: "4–8 wks", label: "Common production window" },
+  { value: "4–8 wks", label: "Typical production lead time" },
 ] as const;
 
 export default function ComparePage() {
@@ -69,7 +62,7 @@ export default function ComparePage() {
           Compare
         </p>
         <h1 className="mx-auto mt-3 max-w-2xl text-center text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
-          Unit economics &amp; lead times at a glance
+          "See how Medi Da Kos stacks up — cost, lead time, and capability"
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-center text-base leading-relaxed text-slate-600">
           Platform access is free. Below are typical industry benchmarks for
@@ -94,14 +87,11 @@ export default function ComparePage() {
         <div className="mx-auto mt-16 max-w-4xl">
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-slate-800">
-              How options often compare
+             Medi Da Kos vs. typical contract manufacturing
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
               Reference ranges for custom skincare — not a guarantee of savings.
-              Many brands choose Korean ODM for unit economics, lead time, and
-              formulation depth; others prioritize lower MOQ or closer oversight
-              with regional partners. We help you evaluate what fits your launch
-              plan.
+              We help you find the right fit for your formula, timeline, and budget.
             </p>
           </div>
 
@@ -145,11 +135,11 @@ export default function ComparePage() {
             </div>
           </div>
 
-          <div className="mt-8">
-            <p className="text-sm font-semibold text-slate-800">
+          <div className="mt-16">
+          <h2 className="text-xl font-semibold text-slate-800">
               Certifications we can support
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
+            </h2>
+            <p className="mt-6 text-sm text-slate-600">
               Requirements vary by product and market. We match you to
               manufacturers that can meet your brief — examples include:
             </p>
@@ -163,13 +153,13 @@ export default function ComparePage() {
                 </span>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-500">
               Additional marks or regional filings may be available — confirm
               with your PM during brief review.
             </p>
           </div>
 
-          <div className="mt-6 space-y-3 rounded-xl border border-sky-100/80 bg-sky-50/40 px-5 py-4 text-sm leading-relaxed text-slate-600">
+          <div className="mt-8 space-y-3 rounded-xl border border-sky-100/80 bg-sky-50/40 px-5 py-4 text-sm leading-relaxed text-slate-600">
             <p>
               <span className="font-semibold text-slate-800">Import duty: </span>
               Under agreements such as KORUS FTA, many cosmetic categories may
@@ -185,7 +175,7 @@ export default function ComparePage() {
           </div>
         </div>
 
-        <div className="mt-14 text-center">
+        <div className="mt-20 text-center">
           <Link
             href="/login"
             className="inline-flex items-center gap-2 rounded-full bg-sky-500/90 px-8 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-200/50 transition hover:bg-sky-600"
@@ -194,8 +184,8 @@ export default function ComparePage() {
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
           <p className="mt-4 text-sm text-slate-500">
-            MOQ for custom formulation typically starts at 3,000 units. Sample
-            fees apply per SKU.
+          MOQ for custom formulation starts at 3,000 units per SKU. 
+          Sample fees are quoted per project.
           </p>
         </div>
       </div>

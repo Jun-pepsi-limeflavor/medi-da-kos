@@ -62,7 +62,6 @@ export function LogoPackagingPreview({ category, logoDataUrl }: Props) {
         src={mockup}
         alt={`${category} packaging mockup`}
         fill
-        unoptimized
         className="object-contain object-center"
         sizes="(max-width: 768px) 100vw, 400px"
         priority

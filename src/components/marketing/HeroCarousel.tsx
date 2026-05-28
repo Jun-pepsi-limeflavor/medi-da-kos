@@ -73,7 +73,6 @@ export function HeroCarousel() {
             src={slide.src}
             alt=""
             fill
-            unoptimized
             className="object-cover object-center"
             priority={i === 0}
             sizes="100vw"

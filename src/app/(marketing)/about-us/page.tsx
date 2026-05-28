@@ -34,7 +34,6 @@ export default function AboutUsPage() {
           src="/About_Us1.png"
           alt=""
           fill
-          unoptimized
           priority
           className="object-cover object-center"
           sizes="100vw"

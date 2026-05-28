@@ -43,7 +43,6 @@ export function Top10Products({ uid, compact = false }: Props) {
                   src={product.image}
                   alt={product.nameEn}
                   fill
-                  unoptimized
                   className="object-cover"
                   sizes="(max-width: 1280px) 20vw, 200px"
                   onError={(e) => {
@@ -108,7 +107,6 @@ export function Top10Products({ uid, compact = false }: Props) {
                 src={product.image}
                 alt={product.nameEn}
                 fill
-                unoptimized
                 className="object-cover"
                 sizes="(max-width: 640px) 50vw, 20vw"
                 onError={(e) => {

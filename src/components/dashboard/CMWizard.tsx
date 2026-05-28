@@ -305,7 +305,6 @@ function CategoryChoiceCard({
           src={image}
           alt={label}
           fill
-          unoptimized
           className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
           sizes="(max-width: 768px) 100vw, (max-width: 1536px) 50vw, 33vw"
           priority
@@ -451,7 +450,7 @@ function Step2({
           Category
         </p>
         <ul
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5"
           role="list"
         >
           {groups.map((group, index) => (

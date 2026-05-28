@@ -2,48 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { HowItWorksProcess } from "./HowItWorksProcess";
+import { ProcessFaqAccordion } from "./ProcessFaqAccordion";
 
 const TIMELINE = [
   { label: "Brief submitted", time: "Day 1" },
   { label: "Sample review", time: "2 weeks" },
   { label: "PI · PO · Escrow", time: "After approval" },
   { label: "Freight delivery", time: "Post-production" },
-] as const;
-
-const CERTIFICATIONS = [
-  "FDA (MoCRA)",
-  "EU CPNP",
-  "ISO 22716",
-  "Halal",
-  "Vegan Society",
-  "Cruelty-free",
-] as const;
-
-const FAQ = [
-  {
-    q: "Do I need to visit Korea?",
-    a: "No. Your PM and the platform handle everything. Samples and documents ship to you.",
-  },
-  {
-    q: "What if I don't approve the first sample?",
-    a: "Most brands go through 2–3 rounds. Your PM coordinates revisions until you sign off.",
-  },
-  {
-    q: "Can I own the formula IP?",
-    a: "IP terms are set in your contract before R&D starts. Your PM will explain options upfront.",
-  },
-  {
-    q: "What's the MOQ?",
-    a: "Typically from 3,000 units per SKU, depending on format. Your brief sets the target MOQ for matching.",
-  },
-  {
-    q: "How do you talk to the factory?",
-    a: "You don't. Your PM handles all factory communication in English.",
-  },
-  {
-    q: "What certifications can you support?",
-    a: "It depends on your product and target markets. We match manufacturers that can meet your requirements — commonly including FDA (MoCRA), EU CPNP, ISO 22716 GMP, Halal, Vegan, and cruelty-free positioning, among others.",
-  },
 ] as const;
 
 export function HowItWorksPage() {
@@ -56,7 +21,6 @@ export function HowItWorksPage() {
             src="/how_it_works_hero.png"
             alt="Medi Da Kos manufacturing process"
             fill
-            unoptimized
             priority
             className="object-cover object-center brightness-[1.12] contrast-[1.04] saturate-[1.15] hue-rotate-[-6deg]"
             sizes="100vw"
@@ -115,19 +79,7 @@ export function HowItWorksPage() {
         </div>
       </section>
 
-      <section className="mt-10 mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
-        <h2 className="text-xl font-semibold text-slate-800">FAQ</h2>
-        <dl className="mt-4 space-y-4">
-          {FAQ.map((item) => (
-            <div key={item.q}>
-              <dt className="text-sm font-semibold text-slate-800">{item.q}</dt>
-              <dd className="mt-1 text-sm leading-relaxed text-slate-600">
-                {item.a}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      <ProcessFaqAccordion />
 
       <section className="border-t border-sky-100/80 bg-sky-50/30 py-14">
         <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
