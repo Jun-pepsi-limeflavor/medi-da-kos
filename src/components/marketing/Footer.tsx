@@ -37,10 +37,10 @@ export function Footer() {
             <p className="text-sm font-semibold text-slate-800">Contact</p>
             <p className="mt-3 text-sm text-slate-600">
               <a
-                href="mailto:contact@techasset.co.kr"
+                href="mailto:contact@medidakos.io"
                 className="hover:text-sky-600"
               >
-                contact@techasset.co.kr
+                contact@medidakos.io
               </a>
             </p>
           </div>

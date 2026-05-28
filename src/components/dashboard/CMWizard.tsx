@@ -1005,7 +1005,13 @@ function Step6({
     internationalCertifications: [] as string[],
   };
   const set = (patch: Partial<typeof v>) => onChange({ ...v, ...patch });
-  const certs = ["FDA", "EU CPNP", "Halal", "Vegan Society", "ISO 22716"];
+  const certs = ["FDA (MoCRA)",
+  "EU CPNP",
+  "ISO 22716 GMP",
+  "MFDS",
+  "Halal",
+  "Vegan Society",
+  "Leaping Bunny"];
 
   return (
     <div className={stepContentClass}>
@@ -1069,7 +1075,7 @@ function Step6({
               <label className={wizardLabelClass}>
                 International certifications
               </label>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-2 flex f lex-wrap gap-2">
                 {certs.map((c) => (
                   <button
                     key={c}
@@ -1084,7 +1090,7 @@ function Step6({
                             : [...v.internationalCertifications, c],
                       })
                     }
-                    className={`${choiceChipClass} rounded-full px-5 py-3 text-sm md:text-base ${
+                    className={`${choiceChipClass} rounded-full px-5 py-3 tex-xs md:text-base ${
                       v.internationalCertifications.includes(c)
                         ? "border-sky-500 bg-white text-sky-800 shadow-sm ring-2 ring-sky-100"
                         : "border-slate-200/90 bg-white/80 text-slate-600 hover:border-sky-200"

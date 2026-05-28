@@ -10,7 +10,7 @@ const HERO_COPY = {
   title: "Scale smarter.",
   subTitle2: "Manufacture with confidence.",
   subtitle:
-    "Reduce production costs by 30% or more — without compromising on quality. Connect directly to certified Korean beauty manufacturers who deliver at scale, on spec, and on schedule.",
+    "Reduce production costs by 40% or more — without compromising on quality. Connect directly to certified Korean beauty manufacturers who deliver at scale, on spec, and on schedule.",
   primaryCta: "Request a Custom Quote",
   primaryHref: "/login",
 };
@@ -106,12 +106,12 @@ export function HeroCarousel() {
               {HERO_COPY.eyebrow}
             </p>
             <h1
-              className={`text-6xl font-semibold leading-[1.02] tracking-tight transition-colors duration-700 sm:text-7xl sm:leading-[1.02] lg:text-[3.75rem] ${headlineColorClass(lightText)}`}
+              className={`text-6xl font-serif font-semibold leading-[1.02] tracking-tight transition-colors duration-700 sm:text-7xl sm:leading-[1.02] lg:text-[3.75rem] ${headlineColorClass(lightText)}`}
             >
               {HERO_COPY.title}
             </h1>
             <h2
-              className={`mt-1 max-w-none text-[1.75rem] font-semibold leading-[1.08] tracking-tight transition-colors duration-700 sm:text-4xl sm:leading-[1.08] lg:text-[2.5rem] lg:whitespace-nowrap ${headlineColorClass(lightText)}`}
+              className={`mt-1 max-w-none font-serif text-[1.75rem] font-semibold leading-[1.08] tracking-tight transition-colors duration-700 sm:text-4xl sm:leading-[1.08] lg:text-[2.5rem] lg:whitespace-nowrap ${headlineColorClass(lightText)}`}
             >
               {HERO_COPY.subTitle2}
             </h2>

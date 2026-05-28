@@ -61,7 +61,7 @@ export default function ComparePage() {
         <p className="text-center text-sm font-semibold uppercase tracking-[0.18em] text-sky-500">
           Compare
         </p>
-        <h1 className="mx-auto mt-3 max-w-2xl text-center text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
+        <h1 className="mx-auto mt-3 max-w-2xl font-serif text-center text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
           "See how Medi Da Kos stacks up — cost, lead time, and capability"
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-center text-base leading-relaxed text-slate-600">

@@ -24,10 +24,10 @@ const ADVANTAGES = [
   {
     icon: Sparkles,
     tag: "Cost efficiency",
-    headline: "30%+ lower cost than domestic production",
+    headline: "40%+ lower cost than domestic production",
     body: "Factory-direct pricing with margins domestic production can't match — more profit, every order.",
     metrics: [
-      { value: "30%+", label: "avg. cost savings" },
+      { value: "40%+", label: "avg. cost savings" },
       { value: "Factory-direct", label: "pricing model" },
     ],
   },
@@ -66,7 +66,13 @@ const ADVANTAGES = [
     tag: "Regulatory compliance",
     headline: "Sell anywhere. Every certification, covered.",
     body: "From US and EU market entry to Halal and vegan consumer segments — we manufacture to the exact standards your market demands. No reformulation surprises.",
-    certs: ["FDA", "EU CPNP", "ISO 22716", "Halal", "Vegan Society"],
+    certs: ["FDA (MoCRA)",
+  "EU CPNP",
+  "ISO 22716 GMP",
+  "MFDS",
+  "Halal",
+  "Vegan Society",
+  "Leaping Bunny"],
   },
   
 ] as const;
@@ -79,7 +85,7 @@ export default function HomePage() {
       <section className="bg-gradient-to-b from-sky-50/40 via-white to-white pb-16 pt-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           
-          <h2 className="mx-auto mt-4 max-w-2xl text-center text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
+          <h2 className="mx-auto mt-4 font-serif max-w-2xl text-center text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
             Why Medi Da Kos
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-slate-600">

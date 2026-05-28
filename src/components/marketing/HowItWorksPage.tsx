@@ -50,7 +50,7 @@ export function HowItWorksPage() {
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-600 drop-shadow-[0_1px_4px_rgba(255,255,255,0.95)]">
                 Process
               </p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-800 drop-shadow-[0_1px_8px_rgba(255,255,255,0.95)] sm:text-4xl">
+              <h1 className="mt-3 text-3xl font-semibold font-serif tracking-tight text-slate-800 drop-shadow-[0_1px_8px_rgba(255,255,255,0.95)] sm:text-4xl">
                 From brief to delivery
               </h1>
               <p className="mt-4 text-base leading-relaxed text-slate-700 drop-shadow-[0_1px_6px_rgba(255,255,255,0.9)]">
