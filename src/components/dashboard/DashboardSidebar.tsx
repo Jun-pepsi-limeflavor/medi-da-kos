@@ -126,11 +126,11 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
 
       <div className="border-t border-sky-50 p-4">
         <a
-          href="mailto:contact@medidakos.io"
+          href="mailto:contact@medidakos.com"
           className="mb-3 flex items-center gap-2 text-xs text-slate-500 transition hover:text-sky-600"
         >
           <Mail size={14} />
-          contact@medidakos.io
+          contact@medidakos.com
         </a>
         <button
           type="button"

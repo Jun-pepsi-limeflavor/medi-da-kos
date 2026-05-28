@@ -293,7 +293,7 @@ export default function AboutUsPage() {
                 Your PM is accountable from brief to delivery.
               </p>
               <p className="mt-4 text-sm text-slate-500">
-                Operational inquiries: contact@medidakos.io
+                Operational inquiries: contact@medidakos.com
               </p>
             </div>
           </section>
