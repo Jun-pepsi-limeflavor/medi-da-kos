@@ -21,9 +21,8 @@ export function GoogleAnalytics({ gaId }: GoogleAnalyticsProps) {
   useEffect(() => {
     if (!gaId || typeof window.gtag !== "function") return;
 
-    window.gtag("event", "page_view", {
+    window.gtag("config", gaId, {
       page_path: pathname,
-      page_title: document.title,
     });
   }, [gaId, pathname]);
 
@@ -41,7 +40,7 @@ export function GoogleAnalytics({ gaId }: GoogleAnalyticsProps) {
           function gtag(){dataLayer.push(arguments);}
           window.gtag = gtag;
           gtag('js', new Date());
-          gtag('config', '${gaId}', { send_page_view: false });
+          gtag('config', '${gaId}');
         `}
       </Script>
     </>
