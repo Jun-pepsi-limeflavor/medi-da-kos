@@ -5,7 +5,7 @@ const organizationSchema = {
   "@type": "Organization",
   name: "Medidakos",
   url: SITE_URL,
-  logo: `${SITE_URL}/og-image.png`,
+  logo: `${SITE_URL}/icon-192.png`,
   description:
     "Korean cosmetics OEM/ODM platform connecting US beauty brands with GMP-certified Korean manufacturers.",
   areaServed: ["US", "CA", "GB", "AU"],
