@@ -1,5 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HeroCarousel } from "@/components/marketing/HeroCarousel";
+import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Korean Cosmetics OEM & ODM Manufacturing Platform for US Brands",
+  description:
+    "Medidakos connects US beauty brands with GMP-certified Korean OEM/ODM manufacturers. Custom formulation, low MOQ, direct US freight — brief to first sample in 5 weeks. Get a free quote.",
+  alternates: {
+    canonical: SITE_URL,
+  },
+  openGraph: {
+    title:
+      "Korean Cosmetics OEM & ODM Manufacturing Platform for US Brands | Medidakos",
+    description:
+      "Connect with GMP-certified Korean OEM/ODM manufacturers. Custom formulas, low MOQ, direct US freight. Brief to first sample in 5 weeks.",
+    url: SITE_URL,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for US Beauty Brands",
+      },
+    ],
+  },
+};
 import {
   Droplets,
   Factory,

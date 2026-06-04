@@ -25,9 +25,21 @@ const HERO_COPY_LEFT_PX = 0;
 const HERO_COPY_OFFSET_Y_PX = -60;
 
 const HERO_SLIDES = [
-  { src: "/medidakos_main1.png", lightText: false },
-  { src: "/medidakos_main2.png", lightText: true },
-  { src: "/medidakos_main3.png", lightText: false },
+  {
+    src: "/medidakos_main1.png",
+    lightText: false,
+    alt: "Korean OEM ODM cosmetics manufacturer — GMP-certified production facility in Korea",
+  },
+  {
+    src: "/medidakos_main2.png",
+    lightText: true,
+    alt: "Custom K-beauty skincare formulation for US indie beauty brands — sampling stage",
+  },
+  {
+    src: "/medidakos_main3.png",
+    lightText: false,
+    alt: "ISO 22716 GMP certified Korean beauty manufacturer — export-ready packaging for US market",
+  },
 ] as const;
 
 function headlineColorClass(lightText: boolean) {
@@ -71,7 +83,7 @@ export function HeroCarousel() {
         >
           <Image
             src={slide.src}
-            alt=""
+            alt={slide.alt}
             fill
             className="object-cover object-center"
             priority={i === 0}

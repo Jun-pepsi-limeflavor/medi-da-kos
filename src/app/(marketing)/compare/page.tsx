@@ -1,5 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Korean OEM/ODM vs US Contract Manufacturing — Cost, MOQ & Lead Time",
+  description:
+    "Compare Korean OEM/ODM vs US contract manufacturing for beauty brands: unit cost, MOQ, lead time, and GMP certification coverage. See why US indie brands choose Korean manufacturers.",
+  alternates: {
+    canonical: `${SITE_URL}/compare`,
+  },
+  openGraph: {
+    title:
+      "Korean OEM/ODM vs US Contract Manufacturing — Cost, MOQ & Lead Time | Medidakos",
+    description:
+      "Compare Korean OEM/ODM vs US contract manufacturing: unit cost, MOQ, lead time, and GMP certification. See why US indie brands choose Korea.",
+    url: `${SITE_URL}/compare`,
+    images: [
+      {
+        url: "/og-compare.png",
+        width: 1200,
+        height: 630,
+        alt: "Medidakos — Korean OEM/ODM vs US Contract Manufacturing",
+      },
+    ],
+  },
+};
 
 const COMPARISON_ROWS = [
   {

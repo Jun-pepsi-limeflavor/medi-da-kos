@@ -1,31 +1,33 @@
-// app/sitemap.ts
-import { MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  const lastModified = new Date();
+
   return [
     {
-      url: "https://medidakos.com",
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 1,
+      url: SITE_URL,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 1.0,
     },
     {
-      url: "https://medidakos.com/about-us",
-      lastModified: new Date(),
+      url: `${SITE_URL}/compare`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE_URL}/process`,
+      lastModified,
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
-      url: "https://medidakos.com/process",
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: "https://medidakos.com/compare",
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.7,
+      url: `${SITE_URL}/about-us`,
+      lastModified,
+      changeFrequency: "yearly",
+      priority: 0.6,
     },
   ];
 }

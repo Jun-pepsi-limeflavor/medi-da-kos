@@ -1,7 +1,33 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { SplitHeroBrand } from "@/components/marketing/SplitHeroBrand";
+import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "About Us — Vetted Korean OEM/ODM Manufacturer Network for US Brands",
+  description:
+    "Medidakos operates a pre-vetted network of ISO 22716 GMP-certified Korean OEM/ODM manufacturers with US export experience. English-speaking PMs, MFDS-registered facilities, direct US freight.",
+  alternates: {
+    canonical: `${SITE_URL}/about-us`,
+  },
+  openGraph: {
+    title:
+      "About Medidakos — Vetted Korean OEM/ODM Manufacturer Network for US Brands",
+    description:
+      "Pre-vetted ISO 22716 GMP-certified Korean OEM/ODM manufacturers. English-speaking PMs, MFDS-registered facilities, US export experience.",
+    url: `${SITE_URL}/about-us`,
+    images: [
+      {
+        url: "/og-about-us.png",
+        width: 1200,
+        height: 630,
+        alt: "Medidakos — Vetted Korean OEM/ODM Manufacturer Network for US Beauty Brands",
+      },
+    ],
+  },
+};
 
 const NETWORK_STATS = [
   // TODO: replace with verified figure
@@ -93,7 +119,7 @@ export default function AboutUsPage() {
       <section className="relative -mt-16 h-[100dvh] min-h-[600px] w-full overflow-hidden bg-sky-50">
         <Image
           src="/About_Us1.png"
-          alt=""
+          alt="Pre-vetted Korean OEM/ODM manufacturing facility — MFDS-registered, ISO 22716 GMP certified"
           fill
           priority
           className="object-cover object-center"

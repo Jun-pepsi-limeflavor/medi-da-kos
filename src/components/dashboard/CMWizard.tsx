@@ -256,24 +256,31 @@ const STEP1_OPTIONS: {
   label: string;
   desc: string;
   image: string;
+  imageAlt: string;
 }[] = [
   {
     id: "skincare",
     label: "Skin Care",
     desc: "Serums, creams, toners, cleansers, and treatments.",
     image: "/step1_skincare.png",
+    imageAlt:
+      "Korean OEM/ODM skincare formulation — serum, cream, and toner for US beauty brands",
   },
   {
     id: "cosmetic",
     label: "Cosmetic",
     desc: "Color cosmetics, makeup, and decorative products.",
     image: "/step1_cosmetic.png",
+    imageAlt:
+      "Korean OEM/ODM color cosmetics manufacturing — makeup and decorative beauty products for US market",
   },
   {
     id: "rnd-agency",
     label: "R&D Agency",
     desc: "From concept to formula — our R&D lab handles the full development process.",
     image: "/step1_RnD.png",
+    imageAlt:
+      "Korean cosmetics R&D and custom formulation development — ISO 22716 GMP certified",
   },
 ];
 
@@ -281,12 +288,14 @@ function CategoryChoiceCard({
   label,
   desc,
   image,
+  imageAlt,
   selected,
   onClick,
 }: {
   label: string;
   desc: string;
   image: string;
+  imageAlt: string;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -303,7 +312,7 @@ function CategoryChoiceCard({
       <div className="relative min-h-[min(32vh,280px)] flex-1 w-full overflow-hidden bg-gradient-to-b from-sky-50/80 to-white">
         <Image
           src={image}
-          alt={label}
+          alt={imageAlt}
           fill
           className="object-cover object-center transition duration-500 group-hover:scale-[1.03]"
           sizes="(max-width: 768px) 100vw, (max-width: 1536px) 50vw, 33vw"
@@ -354,6 +363,7 @@ function Step1({
             label={opt.label}
             desc={opt.desc}
             image={opt.image}
+            imageAlt={opt.imageAlt}
             selected={selection === opt.id}
             onClick={() => onSelect(opt.id)}
           />
