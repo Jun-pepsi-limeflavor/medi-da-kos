@@ -36,6 +36,11 @@ export function LoginForm() {
     if (!loading && user) router.replace(REDIRECT_AFTER_LOGIN);
   }, [user, loading, router]);
 
+  // Reset free-sample popup so it re-appears on next page visit after login
+  useEffect(() => {
+    sessionStorage.removeItem("mdk_free_sample_popup_seen");
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");

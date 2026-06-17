@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HeroCarousel } from "@/components/marketing/HeroCarousel";
+import { FreeSamplePopup } from "@/components/marketing/FreeSamplePopup";
 import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -106,6 +107,7 @@ const ADVANTAGES = [
 export default function HomePage() {
   return (
     <>
+      <FreeSamplePopup />
       <HeroCarousel />
 
       <section className="bg-gradient-to-b from-sky-50/40 via-white to-white pb-16 pt-24">
