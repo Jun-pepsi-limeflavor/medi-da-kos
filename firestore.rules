@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // users/{uid}: 본인만 읽기/쓰기
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // cmBriefs/{uid}: 본인만 읽기/쓰기 (setDoc/merge 사용)
+    match /cmBriefs/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // orders/{orderId}: 본인 uid로만 생성, 본인 것만 읽기
+    match /orders/{orderId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read:   if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // sampleRequests/{requestId}: orders와 동일 패턴
+    match /sampleRequests/{requestId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read:   if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // tracking/{uid}/entries/{entryId}: 본인 subcollection만 접근
+    match /tracking/{uid} {
+      allow read, write: if false;
+
+      match /entries/{entryId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // test/{docId}: 로그인 사용자만
+    match /test/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 그 외 모든 경로 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
