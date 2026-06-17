@@ -30,6 +30,7 @@ import { PackagingGroupButton } from "./PackagingGroupButton";
 import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
+import { trackConversionEvent } from "@/lib/analytics";
 import { Top10Products } from "./Top10Products";
 
 const stepContentClass = "min-h-[min(58vh,520px)] py-2";
@@ -84,6 +85,7 @@ export function CMWizard({ uid }: Props) {
     setMessage("");
     try {
       await submitCustomBrief(brief);
+      trackConversionEvent("conversion_event_submit_lead_form_1", { value: 1 });
       await refreshBrief();
       setMessage("Brief submitted. Redirecting to My Orders…");
       setTimeout(() => router.push(REDIRECT_AFTER_BRIEF_SUBMIT), 1200);
