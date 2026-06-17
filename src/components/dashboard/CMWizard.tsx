@@ -85,7 +85,7 @@ export function CMWizard({ uid }: Props) {
     setMessage("");
     try {
       await submitCustomBrief(brief);
-      trackConversionEvent("conversion_event_submit_lead_form_1", { value: 1 });
+      trackConversionEvent("conversion_event_submit_lead_form", { value: 1 });
       await refreshBrief();
       setMessage("Brief submitted. Redirecting to My Orders…");
       setTimeout(() => router.push(REDIRECT_AFTER_BRIEF_SUBMIT), 1200);
