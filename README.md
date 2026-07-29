@@ -32,7 +32,9 @@ You can also register new accounts or use **Continue with Google** (mock demo us
    - `orders/{autoId}` — order history (custom + sample), field `uid` for queries
    - `tracking/{uid}/entries/{entryId}` — shipment tracking
    - `users/{uid}` — user profiles
-4. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.
+   - `mail/{docId}` — email queue (written by Cloud Functions; Trigger Email extension sends)
+4. Deploy Cloud Functions and configure `functions/.env` (`ADMIN_EMAILS`). See [Firebase collections & mail](docs/firebase-collections-and-mail.md).
+5. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.
 
 ## Routes
 
@@ -54,3 +56,7 @@ Replace placeholders in `public/products/prod-01.svg` … `prod-10.svg` with you
 ## Design
 
 Clean, water-inspired UI referencing Samsung Biologics–style trust and K-beauty hydration aesthetics. English-only copy throughout.
+
+## Documentation
+
+- [Firebase collections & email notifications](docs/firebase-collections-and-mail.md) — when each collection is written, mail triggers, and email templates
