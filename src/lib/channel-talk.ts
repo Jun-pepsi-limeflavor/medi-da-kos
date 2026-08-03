@@ -11,8 +11,7 @@ import {
   type Profile,
   type User,
 } from "@channel.io/channel-web-sdk-loader";
-import { briefStepPage, getBriefStepLabel, isCMBriefStep } from "./brief-steps";
-import { trackBriefStep } from "./analytics";
+import { getBriefStepLabel, isValidBriefStep } from "./brief-steps";
 import type { UserProfile } from "./types";
 
 export const CHANNEL_TALK_GA_PROFILE_KEY = "gaClientId";
@@ -21,16 +20,7 @@ let bootedMemberId: string | null = null;
 let bootedAnonymous = false;
 let lastBootError: string | null = null;
 let lastBootUser: User | null = null;
-let pendingBriefStep: { step: number; stepLabel: string } | null = null;
-let lastSyncedBriefStep: {
-  step: number;
-  stepLabel: string;
-  page: string;
-  source: "dwell" | "pending";
-  syncedAt: number;
-} | null = null;
-
-const SYNC_DEDUPE_MS = 5_000;
+let pendingBriefStep: { step: number; label: string } | null = null;
 
 async function fetchMemberHash(memberId: string): Promise<string | undefined> {
   try {
@@ -99,92 +89,76 @@ function logBootFailure(mode: "member" | "anonymous", error: unknown) {
   }
 }
 
+function flushPendingBriefStep(): void {
+  if (!pendingBriefStep || !isChannelTalkBooted()) return;
+  const { step, label } = pendingBriefStep;
+  pendingBriefStep = null;
+  applyBriefStepSync(step, label);
+}
+
 export function isChannelTalkBooted(): boolean {
   return Boolean(bootedMemberId || bootedAnonymous) && !lastBootError;
 }
 
-function flushPendingBriefStep(): void {
-  if (!pendingBriefStep || !isChannelTalkBooted()) return;
-  const { step, stepLabel } = pendingBriefStep;
-  pendingBriefStep = null;
-  syncBriefStepToChannelTalk(step, stepLabel, { source: "pending" });
-}
-
-export function syncBriefStepToChannelTalk(
-  step: number,
-  stepLabel?: string,
-  options?: { source?: "dwell" | "pending" },
-): void {
-  if (!isCMBriefStep(step)) return;
-
-  const label = stepLabel ?? getBriefStepLabel(step);
-  const source = options?.source ?? "dwell";
-
-  if (!isChannelTalkBooted()) {
-    pendingBriefStep = { step, stepLabel: label };
-    return;
-  }
-
-  const now = Date.now();
-  if (
-    lastSyncedBriefStep?.step === step &&
-    now - lastSyncedBriefStep.syncedAt < SYNC_DEDUPE_MS
-  ) {
-    return;
-  }
-
-  pendingBriefStep = null;
-  const page = briefStepPage(step);
+function applyBriefStepSync(step: number, stepLabel: string): void {
+  const page = `dashboard/brief-step-${step}`;
 
   setPage(page, {
     briefStep: String(step),
-    briefStepLabel: label,
+    briefStepLabel: stepLabel,
   });
   track("PageView");
   track("brief_step_changed", {
     briefStep: step,
-    briefStepLabel: label,
-    syncSource: source,
+    briefStepLabel: stepLabel,
   });
   updateUser({
     profile: {
       briefStep: String(step),
-      briefStepLabel: label,
+      briefStepLabel: stepLabel,
     },
   });
-  trackBriefStep(step, label);
-
-  lastSyncedBriefStep = { step, stepLabel: label, page, source, syncedAt: now };
 
   if (process.env.NODE_ENV === "development") {
-    console.info(`[ChannelTalk] brief step synced (${source})`, {
-      step,
-      label,
-      page,
-    });
+    console.info("[ChannelTalk] brief step synced", { step, stepLabel, page });
   }
 }
 
-/** Clears wizard step profile when leaving the Product Brief page. */
-export function clearBriefStepFromChannelTalk(fallbackPathname: string): void {
-  if (!isChannelTalkBooted()) return;
+/**
+ * Syncs CM Wizard step to Channel Talk for workflow/campaign branching.
+ * Uses virtual page `dashboard/brief-step-N` (SPA URL stays /dashboard).
+ */
+export function syncBriefStepToChannelTalk(step: number, stepLabel?: string): void {
+  if (!isValidBriefStep(step)) return;
+
+  const label = stepLabel ?? getBriefStepLabel(step);
+
+  if (!isChannelTalkBooted()) {
+    pendingBriefStep = { step, label };
+    return;
+  }
 
   pendingBriefStep = null;
-  lastSyncedBriefStep = null;
-  const page = fallbackPathname || "/";
+  applyBriefStepSync(step, label);
+}
 
-  setPage(page);
-  track("PageView");
+/** Clears brief step profile when leaving the wizard (e.g. orders/tracking). */
+export function clearBriefStepFromChannelTalk(pathname: string): void {
+  if (!isChannelTalkBooted()) {
+    pendingBriefStep = null;
+    return;
+  }
+
+  pendingBriefStep = null;
   updateUser({
     profile: {
       briefStep: null,
       briefStepLabel: null,
     },
   });
-
-  if (process.env.NODE_ENV === "development") {
-    console.info("[ChannelTalk] brief step cleared", { page });
-  }
+  resetPage();
+  setPage(pathname || "/");
+  track("PageView");
 }
 
 export async function bootChannelTalkAsMember(
@@ -192,7 +166,10 @@ export async function bootChannelTalkAsMember(
   user: UserProfile,
   gaClientId: string | null,
 ): Promise<void> {
-  if (bootedMemberId === user.uid && !lastBootError) return;
+  if (bootedMemberId === user.uid && !lastBootError) {
+    flushPendingBriefStep();
+    return;
+  }
 
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
@@ -214,6 +191,7 @@ export async function bootChannelTalkAsMember(
     await runBoot(option);
     bootedMemberId = user.uid;
     bootedAnonymous = false;
+    flushPendingBriefStep();
 
     if (process.env.NODE_ENV === "development") {
       console.info("[ChannelTalk] member boot ok", {
@@ -221,7 +199,6 @@ export async function bootChannelTalkAsMember(
         memberHashAttached: Boolean(memberHash),
       });
     }
-    flushPendingBriefStep();
   } catch (error) {
     bootedMemberId = null;
     logBootFailure("member", error);
@@ -232,7 +209,10 @@ export async function bootChannelTalkAsAnonymous(
   pluginKey: string,
   gaClientId: string | null,
 ): Promise<void> {
-  if (bootedAnonymous && !bootedMemberId && !lastBootError) return;
+  if (bootedAnonymous && !bootedMemberId && !lastBootError) {
+    flushPendingBriefStep();
+    return;
+  }
 
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
@@ -250,13 +230,13 @@ export async function bootChannelTalkAsAnonymous(
     await runBoot(option);
     bootedAnonymous = true;
     bootedMemberId = null;
+    flushPendingBriefStep();
 
     if (process.env.NODE_ENV === "development") {
       console.info("[ChannelTalk] anonymous boot ok", {
         gaClientId: gaClientId ?? null,
       });
     }
-    flushPendingBriefStep();
   } catch (error) {
     bootedAnonymous = false;
     logBootFailure("anonymous", error);
@@ -271,11 +251,20 @@ export function shutdownChannelTalk(): void {
   lastBootError = null;
   lastBootUser = null;
   pendingBriefStep = null;
-  lastSyncedBriefStep = null;
 }
 
-export function syncChannelTalkPage(pathname: string): void {
-  if (!bootedMemberId && !bootedAnonymous) return;
+/**
+ * Route-level page sync. Skips /dashboard — brief step sync owns that URL.
+ */
+export function syncChannelTalkRoute(pathname: string): void {
+  if (!isChannelTalkBooted()) return;
+
+  if (pathname === "/dashboard") return;
+
+  if (pathname.startsWith("/dashboard")) {
+    clearBriefStepFromChannelTalk(pathname);
+    return;
+  }
 
   const page = pathname || "/";
   setPage(page);
@@ -283,7 +272,7 @@ export function syncChannelTalkPage(pathname: string): void {
 }
 
 export function resetChannelTalkPage(): void {
-  if (!bootedMemberId && !bootedAnonymous) return;
+  if (!isChannelTalkBooted()) return;
   resetPage();
   track("PageView");
 }
@@ -294,9 +283,7 @@ export function getChannelTalkDebugState() {
     bootedAnonymous,
     lastBootError,
     lastBootUserId: lastBootUser?.id ?? null,
-    channelIoLoaded: typeof window !== "undefined" && Boolean(window.ChannelIO),
     pendingBriefStep,
-    lastSyncedBriefStep,
-    isBooted: isChannelTalkBooted(),
+    channelIoLoaded: typeof window !== "undefined" && Boolean(window.ChannelIO),
   };
 }

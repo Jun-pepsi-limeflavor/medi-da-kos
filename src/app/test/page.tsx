@@ -27,24 +27,6 @@ export default function TestPage() {
                 ? "⏳ SDK loaded, boot pending"
                 : "⏳ SDK not loaded yet",
       );
-
-      if (state.lastSyncedBriefStep) {
-        const { step, stepLabel, source } = state.lastSyncedBriefStep;
-        log(
-          "BriefStep",
-          `✅ last sync — step ${step} (${stepLabel}) via ${source}`,
-        );
-      } else if (state.pendingBriefStep) {
-        log(
-          "BriefStep",
-          `⏳ pending — step ${state.pendingBriefStep.step} (${state.pendingBriefStep.stepLabel}), waiting for boot`,
-        );
-      } else {
-        log(
-          "BriefStep",
-          "⏳ none yet — dwell sync runs on /dashboard after 40s on a step",
-        );
-      }
     }, 1000);
 
     return () => window.clearInterval(timer);

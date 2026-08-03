@@ -9,12 +9,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
 import type { CMBrief } from "./types";
+import { getBriefStepLabel } from "./brief-steps";
 import { getNavigableSteps, stepHasContent } from "./brief-utils";
 import { loadCMBrief, saveCMBrief } from "./firestore-service";
 import { useDashboardStep } from "./dashboard-step-context";
-import { useBriefStepDwellSync } from "@/hooks/use-brief-step-dwell-sync";
+import { trackBriefStep } from "./analytics";
+import { syncBriefStepToChannelTalk } from "./channel-talk";
+
+function notifyBriefStepChange(step: number): void {
+  const label = getBriefStepLabel(step);
+  syncBriefStepToChannelTalk(step, label);
+  trackBriefStep(step, label);
+}
 
 interface DashboardBriefContextValue {
   brief: CMBrief | null;
@@ -39,7 +46,6 @@ export function DashboardBriefProvider({
 }) {
   const [brief, setBrief] = useState<CMBrief | null>(null);
   const [loading, setLoading] = useState(true);
-  const pathname = usePathname();
   const { setCurrentStep } = useDashboardStep();
 
   const refreshBrief = useCallback(async () => {
@@ -48,16 +54,12 @@ export function DashboardBriefProvider({
     setBrief(data);
     setCurrentStep(data.currentStep);
     setLoading(false);
+    notifyBriefStepChange(data.currentStep);
   }, [uid, setCurrentStep]);
 
   useEffect(() => {
     refreshBrief();
   }, [refreshBrief]);
-
-  useBriefStepDwellSync(
-    brief?.currentStep ?? null,
-    pathname === "/dashboard" && !loading && brief !== null,
-  );
 
   const navigableSteps = useMemo(
     () => (brief ? getNavigableSteps(brief) : []),
@@ -71,6 +73,7 @@ export function DashboardBriefProvider({
       await saveCMBrief(updated);
       setBrief(updated);
       setCurrentStep(step);
+      notifyBriefStepChange(step);
     },
     [brief, setCurrentStep],
   );
@@ -88,6 +91,7 @@ export function DashboardBriefProvider({
       await saveCMBrief(updated);
       setBrief(updated);
       setCurrentStep(updated.currentStep);
+      notifyBriefStepChange(updated.currentStep);
       return updated;
     },
     [setCurrentStep],

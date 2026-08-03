@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, Mail, Package, Truck } from "lucide-react";
-import { CM_BRIEF_STEPS } from "@/lib/brief-steps";
 import { useAuth } from "@/lib/auth-context";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
+import { CM_BRIEF_STEPS } from "@/lib/brief-steps";
 
 const cmSteps = CM_BRIEF_STEPS;
 

@@ -185,39 +185,3 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
     });
   }
 });
-
-exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event) => {
-  const snap = event.data;
-  if (!snap) return;
-
-  const contact = snap.data();
-  const contactId = event.params.contactId;
-  const submittedAt = formatKoDate();
-
-  const utmParts = [
-    contact.utmSource && `source=${contact.utmSource}`,
-    contact.utmMedium && `medium=${contact.utmMedium}`,
-    contact.utmCampaign && `campaign=${contact.utmCampaign}`,
-  ].filter(Boolean);
-
-  await queueEmail(`contact_admin_${contactId}`, {
-    to: getAdminEmails(),
-    message: {
-      subject: `[문의] ${contact.companyName || contact.email || contactId}`,
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6">
-          <h2>새 Contact 문의가 접수되었습니다</h2>
-          <p><strong>회사/브랜드:</strong> ${contact.companyName || "-"}</p>
-          <p><strong>이메일:</strong> ${contact.email || "-"}</p>
-          <p><strong>유입 경로:</strong> ${contact.referralSource || "-"}</p>
-          <p><strong>비즈니스 유형:</strong> ${contact.businessType || "-"}</p>
-          <p><strong>UTM:</strong> ${utmParts.length ? utmParts.join(", ") : "-"}</p>
-          <p><strong>문의 내용:</strong></p>
-          <pre style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px">${contact.message || "-"}</pre>
-          <p><strong>페이지 URL:</strong> ${contact.pageUrl || "-"}</p>
-          <p><strong>접수 시각:</strong> ${submittedAt}</p>
-          <p><strong>문서 ID:</strong> ${contactId}</p>
-        </div>`,
-    },
-  });
-});

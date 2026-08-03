@@ -7,8 +7,7 @@ import { getGaClientId } from "@/lib/ga-client-id";
 import {
   bootChannelTalkAsAnonymous,
   bootChannelTalkAsMember,
-  clearBriefStepFromChannelTalk,
-  syncChannelTalkPage,
+  syncChannelTalkRoute,
 } from "@/lib/channel-talk";
 
 type ChannelTalkProps = {
@@ -54,18 +53,7 @@ export function ChannelTalk({ pluginKey, gaId }: ChannelTalkProps) {
 
   useEffect(() => {
     if (!pluginKey || loading) return;
-
-    if (pathname === "/dashboard") {
-      // Wizard step page/profile sync is handled in dashboard-brief-context.
-      return;
-    }
-
-    if (pathname.startsWith("/dashboard/")) {
-      clearBriefStepFromChannelTalk(pathname);
-      return;
-    }
-
-    syncChannelTalkPage(pathname);
+    syncChannelTalkRoute(pathname);
   }, [pluginKey, pathname, loading]);
 
   useEffect(() => {
