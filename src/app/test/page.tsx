@@ -3,12 +3,82 @@ import { useEffect, useState } from "react";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
+import { getChannelTalkDebugState } from "@/lib/channel-talk";
+import { getGaClientId } from "@/lib/ga-client-id";
 
 export default function TestPage() {
   const [results, setResults] = useState<Record<string, string>>({});
 
   const log = (key: string, value: string) =>
     setResults((prev) => ({ ...prev, [key]: value }));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const state = getChannelTalkDebugState();
+      log(
+        "ChannelTalk",
+        state.lastBootError
+          ? `❌ boot error — ${state.lastBootError}`
+          : state.bootedMemberId
+            ? `✅ member boot — uid ${state.bootedMemberId}`
+            : state.bootedAnonymous
+              ? "✅ anonymous boot"
+              : state.channelIoLoaded
+                ? "⏳ SDK loaded, boot pending"
+                : "⏳ SDK not loaded yet",
+      );
+
+      if (state.lastSyncedBriefStep) {
+        const { step, stepLabel, source } = state.lastSyncedBriefStep;
+        log(
+          "BriefStep",
+          `✅ last sync — step ${step} (${stepLabel}) via ${source}`,
+        );
+      } else if (state.pendingBriefStep) {
+        log(
+          "BriefStep",
+          `⏳ pending — step ${state.pendingBriefStep.step} (${state.pendingBriefStep.stepLabel}), waiting for boot`,
+        );
+      } else {
+        log(
+          "BriefStep",
+          "⏳ none yet — dwell sync runs on /dashboard after 40s on a step",
+        );
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const testChannelTalkHash = async () => {
+    try {
+      const auth = getFirebaseAuth();
+      const uid = auth.currentUser?.uid ?? "test-anonymous-uid";
+      const res = await fetch("/api/channel-talk/member-hash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: uid }),
+      });
+      const data = await res.json();
+      log(
+        "MemberHash",
+        data.memberHash
+          ? `✅ API ok for uid ${uid} — hash ${String(data.memberHash).slice(0, 12)}...`
+          : `⚠️ hash not returned (secret missing?)`,
+      );
+    } catch (e: unknown) {
+      log(
+        "MemberHash",
+        `❌ failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  };
+
+  const testGaClientId = async () => {
+    const gaId = process.env.NEXT_PUBLIC_GA_ID;
+    const clientId = await getGaClientId(gaId);
+    log("GA client_id", clientId ? `✅ ${clientId}` : "❌ not available yet");
+  };
 
   // 1. Auth 테스트
   const testAuth = async () => {
@@ -43,10 +113,12 @@ export default function TestPage() {
   return (
     <div style={{ padding: 40, fontFamily: "monospace" }}>
       <h1>Firebase 연결 테스트</h1>
-      <div style={{ display: "flex", gap: 12, marginBottom: 32 }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" }}>
         <button onClick={testAuth}>1. Auth 로그인</button>
         <button onClick={testFirestore}>2. Firestore 읽기/쓰기</button>
         <button onClick={testSignOut}>3. 로그아웃</button>
+        <button onClick={testGaClientId}>4. GA client_id</button>
+        <button onClick={testChannelTalkHash}>5. Channel hash API</button>
       </div>
       <ul>
         {Object.entries(results).map(([k, v]) => (

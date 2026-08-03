@@ -9,10 +9,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import type { CMBrief } from "./types";
 import { getNavigableSteps, stepHasContent } from "./brief-utils";
 import { loadCMBrief, saveCMBrief } from "./firestore-service";
 import { useDashboardStep } from "./dashboard-step-context";
+import { useBriefStepDwellSync } from "@/hooks/use-brief-step-dwell-sync";
 
 interface DashboardBriefContextValue {
   brief: CMBrief | null;
@@ -37,6 +39,7 @@ export function DashboardBriefProvider({
 }) {
   const [brief, setBrief] = useState<CMBrief | null>(null);
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
   const { setCurrentStep } = useDashboardStep();
 
   const refreshBrief = useCallback(async () => {
@@ -50,6 +53,11 @@ export function DashboardBriefProvider({
   useEffect(() => {
     refreshBrief();
   }, [refreshBrief]);
+
+  useBriefStepDwellSync(
+    brief?.currentStep ?? null,
+    pathname === "/dashboard" && !loading && brief !== null,
+  );
 
   const navigableSteps = useMemo(
     () => (brief ? getNavigableSteps(brief) : []),

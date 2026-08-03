@@ -48,6 +48,22 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // contact/{docId}: 비로그인 문의 폼 — create만 허용
+    match /contact/{docId} {
+      allow create: if
+        request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'status', 'createdAt'])
+        && request.resource.data.companyName is string
+        && request.resource.data.companyName.size() > 0
+        && request.resource.data.companyName.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('.*@.*\\..*')
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.status == 'submitted';
+      allow read, update, delete: if false;
+    }
+
     // 그 외 모든 경로 차단
     match /{document=**} {
       allow read, write: if false;

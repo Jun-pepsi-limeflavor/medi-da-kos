@@ -10,6 +10,7 @@ const navLinks = [
   { href: "/about-us", label: "About Us" },
   { href: "/process", label: "Process" },
   { href: "/compare", label: "Compare" },
+  { href: "/contact", label: "Contact" },
 ];
 
 /** Home: header appears after user scrolls past the first ~12% of the viewport */

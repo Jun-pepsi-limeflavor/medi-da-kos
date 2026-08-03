@@ -53,7 +53,7 @@ flowchart TB
   Mail --> SMTP
 ```
 
-**핵심:** 메일 트리거는 **`users` 생성**과 **`orders` 생성** 두 곳뿐입니다.  
+**핵심:** 메일 트리거는 **`users` 생성**, **`orders` 생성**, **`contact` 생성** 세 곳입니다.  
 `cmBriefs`, `sampleRequests`는 직접 메일을 보내지 않습니다.
 
 ---
@@ -123,6 +123,27 @@ flowchart TB
 - `uid`, `sampleProductId`, `sampleProductName`, `sampleQuantity`
 - `shippingAddress` (recipientName, addressLine1, city, ...)
 - `status`: `"submitted"`, `createdAt`
+
+---
+
+### `contact/{contactId}` — Contact 페이지 문의 (비로그인)
+
+| 항목 | 내용 |
+|------|------|
+| **문서 ID** | Firestore auto ID |
+| **저장 시점** | `/contact` 문의 폼 제출 |
+| **호출 코드** | `src/components/contact/ContactForm.tsx` → `submitContactForm()` |
+| **메일 트리거** | `onContactCreated` → 관리자 알림 |
+
+**주요 필드** (`src/lib/types.ts`):
+
+- `companyName`, `email`, `message` (필수)
+- `referralSource`, `businessType` (선택)
+- `utmSource`, `utmMedium`, `utmCampaign`, `utmContent`, `utmTerm` (URL UTM, 선택)
+- `pageUrl`, `gaClientId`, `userAgent` (메타데이터)
+- `status`: `"submitted"`, `createdAt`, `serverCreatedAt`
+
+**보안:** `firestore.rules` — 비로그인 `create`만 허용, read/update/delete 차단
 
 ---
 
@@ -311,6 +332,30 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 
 ---
 
+### 메일 5: Contact 문의 알림 (관리자)
+
+| 항목 | 내용 |
+|------|------|
+| **트리거** | `contact/{contactId}` **created** |
+| **Function** | `onContactCreated` |
+| **mail 문서 ID** | `contact_admin_{contactId}` |
+| **수신** | `ADMIN_EMAILS` |
+
+**Subject:** `[문의] {companyName 또는 email}`
+
+**본문 필드 (한국어 HTML):**
+
+- 회사/브랜드 ← `contact.companyName`
+- 이메일 ← `contact.email`
+- 유입 경로 ← `contact.referralSource`
+- 비즈니스 유형 ← `contact.businessType`
+- UTM ← `utmSource`, `utmMedium`, `utmCampaign`
+- 문의 내용 ← `contact.message`
+- 페이지 URL ← `contact.pageUrl`
+- 접수 시각 ← 함수 실행 시각 (KST)
+
+---
+
 ## 4. 메일이 안 가는 경우 체크리스트
 
 | 원인 | 확인 방법 |
@@ -325,7 +370,7 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 **Functions 로그 확인:**
 
 ```bash
-npx firebase-tools functions:log --only onUserSignup,onOrderCreated --project medidakos
+npx firebase-tools functions:log --only onUserSignup,onOrderCreated,onContactCreated --project medidakos
 ```
 
 **Functions 서비스 계정 Firestore 권한** (mail 쓰기 실패 시):
@@ -346,6 +391,7 @@ gcloud projects add-iam-policy-binding medidakos \
 | `users` created | `signup_admin_{uid}` | 관리자 2명 | KO |
 | `orders` created | `order_admin_{orderId}` | 관리자 2명 | KO |
 | `orders` created | `order_customer_{orderId}` | 고객 | KO |
+| `contact` created | `contact_admin_{contactId}` | 관리자 2명 | KO |
 | `cmBriefs` 저장/제출 | — | — | — |
 | `sampleRequests` 생성 | — | — | — (orders 경유) |
 
@@ -355,8 +401,9 @@ gcloud projects add-iam-policy-binding medidakos \
 
 | 파일 | 역할 |
 |------|------|
-| `src/lib/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders, sampleRequests) |
+| `src/lib/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders, sampleRequests, contact) |
+| `src/components/contact/ContactForm.tsx` | Contact 폼 → `contact` 저장 |
 | `src/lib/auth-context.tsx` | 회원가입/로그인 → `users` 저장 |
-| `functions/index.js` | `onUserSignup`, `onOrderCreated` → `mail` 큐잉 |
+| `functions/index.js` | `onUserSignup`, `onOrderCreated`, `onContactCreated` → `mail` 큐잉 |
 | `functions/.env` | `ADMIN_EMAILS` |
 | `firestore.rules` | 클라이언트 접근 규칙 (`mail`은 클라이언트 차단) |

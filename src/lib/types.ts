@@ -142,3 +142,22 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ContactSubmission {
+  id: string;
+  companyName: string;
+  email: string;
+  referralSource?: string;
+  businessType?: string;
+  message: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  pageUrl?: string;
+  gaClientId?: string;
+  userAgent?: string;
+  status: "submitted";
+  createdAt: string;
+}

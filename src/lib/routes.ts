@@ -19,6 +19,7 @@
 export const ROUTES = {
   home: "/",
   login: "/login",
+  contact: "/contact",
   dashboard: "/dashboard",
   orders: "/dashboard/orders",
   tracking: "/dashboard/tracking",

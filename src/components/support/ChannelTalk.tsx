@@ -7,7 +7,7 @@ import { getGaClientId } from "@/lib/ga-client-id";
 import {
   bootChannelTalkAsAnonymous,
   bootChannelTalkAsMember,
-  shutdownChannelTalk,
+  clearBriefStepFromChannelTalk,
   syncChannelTalkPage,
 } from "@/lib/channel-talk";
 
@@ -38,7 +38,7 @@ export function ChannelTalk({ pluginKey, gaId }: ChannelTalkProps) {
         if (user) {
           await bootChannelTalkAsMember(key, user, gaClientId);
         } else {
-          bootChannelTalkAsAnonymous(key, gaClientId);
+          await bootChannelTalkAsAnonymous(key, gaClientId);
         }
       } finally {
         bootingRef.current = false;
@@ -54,14 +54,27 @@ export function ChannelTalk({ pluginKey, gaId }: ChannelTalkProps) {
 
   useEffect(() => {
     if (!pluginKey || loading) return;
+
+    if (pathname === "/dashboard") {
+      // Wizard step page/profile sync is handled in dashboard-brief-context.
+      return;
+    }
+
+    if (pathname.startsWith("/dashboard/")) {
+      clearBriefStepFromChannelTalk(pathname);
+      return;
+    }
+
     syncChannelTalkPage(pathname);
   }, [pluginKey, pathname, loading]);
 
   useEffect(() => {
-    return () => {
-      shutdownChannelTalk();
-    };
-  }, []);
+    if (!pluginKey && process.env.NODE_ENV === "development") {
+      console.warn(
+        "[ChannelTalk] NEXT_PUBLIC_CHANNEL_TALK_PLUGIN_KEY is missing. Add it to .env.local and restart `npm run dev`.",
+      );
+    }
+  }, [pluginKey]);
 
   return null;
 }

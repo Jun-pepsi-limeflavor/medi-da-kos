@@ -3,17 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, Mail, Package, Truck } from "lucide-react";
+import { CM_BRIEF_STEPS } from "@/lib/brief-steps";
 import { useAuth } from "@/lib/auth-context";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 
-const cmSteps = [
-  { step: 1, label: "Category" },
-  { step: 2, label: "Packaging" },
-  { step: 3, label: "Branding" },
-  { step: 4, label: "Quantity & Specs" },
-  { step: 5, label: "Formula" },
-  { step: 6, label: "Compliance" },
-];
+const cmSteps = CM_BRIEF_STEPS;
 
 const links = [
   { href: "/dashboard/orders", label: "My Orders", icon: Package },

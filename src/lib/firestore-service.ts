@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import type {
   CMBrief,
+  ContactSubmission,
   Order,
   SampleRequest,
   ShippingAddress,
@@ -340,4 +341,47 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
     doc(getFirebaseDb(), "users", profile.uid),
     stripUndefined(profile),
   );
+}
+
+export type ContactFormPayload = {
+  companyName: string;
+  email: string;
+  referralSource?: string;
+  businessType?: string;
+  message: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  pageUrl?: string;
+  gaClientId?: string;
+  userAgent?: string;
+};
+
+export async function submitContactForm(
+  data: ContactFormPayload,
+): Promise<ContactSubmission> {
+  const now = new Date().toISOString();
+  const payload = {
+    ...data,
+    status: "submitted" as const,
+    createdAt: now,
+  };
+
+  if (useMockAuth()) {
+    const id = `mock-contact-${Date.now()}`;
+    console.info("[mock] contact submission", { id, ...payload });
+    return { id, ...payload };
+  }
+
+  const ref = await addDoc(
+    collection(getFirebaseDb(), "contact"),
+    stripUndefined({
+      ...payload,
+      serverCreatedAt: serverTimestamp(),
+    }),
+  );
+
+  return { id: ref.id, ...payload };
 }
