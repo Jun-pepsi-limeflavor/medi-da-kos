@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -35,12 +36,15 @@ export function Footer() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">Contact</p>
-            <p className="mt-3 text-sm text-slate-600">
+            <p className="mt-3 space-y-1 text-sm text-slate-600">
               <a
-                href="mailto:support@medidakos.com"
-                className="hover:text-sky-600"
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="block hover:text-sky-600"
               >
-                support@medidakos.com
+                {SUPPORT_EMAIL}
+              </a>
+              <a href={SUPPORT_PHONE_HREF} className="block hover:text-sky-600">
+                {SUPPORT_PHONE}
               </a>
             </p>
           </div>

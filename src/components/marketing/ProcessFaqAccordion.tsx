@@ -22,7 +22,7 @@ const FAQ = [
   {
     id: "moq",
     q: "What is the minimum order quantity?",
-    a: "Our manufacturing partners are best matched at 3,000 units or more per SKU — this is where factory pricing and lead times are most competitive. Projects starting at 1,000 units can still be submitted; your PM will confirm feasibility based on product format and partner availability.",
+    a: "Our manufacturing partners are best matched at 3,000 units or more per SKU — this is where factory pricing and lead times are most competitive. Your PM will confirm feasibility based on product format and partner availability.",
   },
   {
     id: "factory-comms",

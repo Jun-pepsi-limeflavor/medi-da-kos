@@ -7,7 +7,7 @@ import { SITE_URL } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Korean Cosmetics OEM & ODM Manufacturing Platform for US Brands",
   description:
-    "Medidakos connects US beauty brands with GMP-certified Korean OEM/ODM manufacturers. Custom formulation, low MOQ, direct US freight — brief to first sample in 5 weeks. Get a free quote.",
+    "Medidakos connects US beauty brands with GMP-certified Korean OEM/ODM manufacturers. Custom formulation, MOQ from 3,000 units, direct US freight — brief to first sample in 5 weeks. Get a free quote.",
   alternates: {
     canonical: SITE_URL,
   },
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     title:
       "Korean Cosmetics OEM & ODM Manufacturing Platform for US Brands | Medidakos",
     description:
-      "Connect with GMP-certified Korean OEM/ODM manufacturers. Custom formulas, low MOQ, direct US freight. Brief to first sample in 5 weeks.",
+      "Connect with GMP-certified Korean OEM/ODM manufacturers. Custom formulas, MOQ from 3,000 units, direct US freight. Brief to first sample in 5 weeks.",
     url: SITE_URL,
     images: [
       {

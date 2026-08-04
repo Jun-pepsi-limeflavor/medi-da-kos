@@ -46,13 +46,12 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    "Launch your K-beauty line in the US market. Medidakos connects you with GMP-certified Korean OEM/ODM manufacturers — custom formulas, low MOQ, and direct US freight. Free consultation.",
+    "Launch your K-beauty line in the US market. Medidakos connects you with GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, and direct US freight. Free consultation.",
   keywords: [
     "Korean cosmetics OEM manufacturer",
     "Korean cosmetics ODM manufacturer",
     "K-beauty private label US",
     "Korean skincare manufacturer for US brands",
-    "K-beauty OEM low MOQ",
     "Korean beauty contract manufacturing",
     "custom K-beauty formulation",
     "Korean cosmetic white label",
@@ -71,7 +70,7 @@ export const metadata: Metadata = {
     title:
       "Korean Cosmetics OEM & ODM Manufacturer for US Brands | Medidakos",
     description:
-      "Launch your K-beauty line in the US market. GMP-certified Korean OEM/ODM manufacturers — custom formulas, low MOQ, direct US freight.",
+      "Launch your K-beauty line in the US market. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct US freight.",
     images: [
       {
         url: "/og-image.png",
@@ -88,7 +87,7 @@ export const metadata: Metadata = {
     title:
       "Korean Cosmetics OEM & ODM Manufacturer for US Brands | Medidakos",
     description:
-      "Launch your K-beauty line in the US market. GMP-certified Korean OEM/ODM manufacturers — custom formulas, low MOQ, direct US freight.",
+      "Launch your K-beauty line in the US market. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct US freight.",
     images: ["/og-image.png"],
   },
   alternates: {
