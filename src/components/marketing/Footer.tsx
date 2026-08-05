@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SocialLinks } from "@/components/marketing/SocialLinks";
 import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/site";
 
 export function Footer() {
@@ -13,6 +14,7 @@ export function Footer() {
             <p className="mt-2 max-w-md text-sm text-slate-600">
             Beauty production from Republic of Korea<br></br>Built around your timeline and your margins
             </p>
+            <SocialLinks className="mt-5" showLabel label="Follow us" />
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">Platform</p>

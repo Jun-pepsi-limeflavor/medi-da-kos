@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ContactForm } from "@/components/contact/ContactForm";
+import { SocialLinks } from "@/components/marketing/SocialLinks";
 import { SITE_URL, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -59,6 +60,12 @@ export default function ContactPage() {
               {SUPPORT_PHONE}
             </a>
           </p>
+          <SocialLinks
+            className="mt-6 flex flex-col items-center"
+            showLabel
+            label="Follow us on social"
+            size="md"
+          />
         </div>
 
         <Suspense fallback={<ContactFormFallback />}>
