@@ -15,6 +15,7 @@ import {
 import type {
   CMBrief,
   ContactSubmission,
+  KoreaLeadSubmission,
   Order,
   SampleRequest,
   ShippingAddress,
@@ -22,6 +23,8 @@ import type {
   UserProfile,
 } from "./types";
 import { getStep1Selection, odmCategory } from "./step1-utils";
+import { expectedVolumeLabel } from "./contact-form-options";
+import { SITE_URL } from "./site";
 import { getFirebaseDb } from "./firebase";
 import {
   mockGetBrief,
@@ -377,6 +380,62 @@ export async function submitContactForm(
 
   const ref = await addDoc(
     collection(getFirebaseDb(), "contact"),
+    stripUndefined({
+      ...payload,
+      serverCreatedAt: serverTimestamp(),
+    }),
+  );
+
+  return { id: ref.id, ...payload };
+}
+
+export type KoreaLeadPayload = {
+  companyName: string;
+  email: string;
+  referralSource?: string;
+  businessType?: string;
+  expectedVolume: string;
+  message: string;
+  positioningArm: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  pageUrl?: string;
+  gaClientId?: string;
+  userAgent?: string;
+};
+
+/**
+ * 운영 도메인 밖에서 들어온 제출인지 판정한다.
+ * 저장소에 테스트/운영 구분자가 없어서 내부 QA 제출이 그대로 전환 수치가 된 전례가 있다.
+ */
+function isNonProductionSubmission(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.location.hostname !== new URL(SITE_URL).hostname;
+}
+
+export async function submitKoreaLead(
+  data: KoreaLeadPayload,
+): Promise<KoreaLeadSubmission> {
+  const now = new Date().toISOString();
+  const payload = {
+    ...data,
+    expectedVolumeLabel: expectedVolumeLabel(data.expectedVolume),
+    isTest: isNonProductionSubmission(),
+    status: "submitted" as const,
+    createdAt: now,
+  };
+
+  if (useMockAuth()) {
+    const id = `mock-korea-lead-${Date.now()}`;
+    console.info("[mock] korea lead submission", { id, ...payload });
+    return { id, ...payload };
+  }
+
+  const ref = await addDoc(
+    collection(getFirebaseDb(), "koreaLeads"),
     stripUndefined({
       ...payload,
       serverCreatedAt: serverTimestamp(),

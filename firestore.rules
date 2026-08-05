@@ -64,6 +64,25 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // koreaLeads/{docId}: 콜드메일 랜딩(/korea) 문의 폼 — create만 허용
+    match /koreaLeads/{docId} {
+      allow create: if
+        request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'expectedVolume', 'status', 'createdAt'])
+        && request.resource.data.companyName is string
+        && request.resource.data.companyName.size() > 0
+        && request.resource.data.companyName.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('.*@.*\\..*')
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.expectedVolume is string
+        && request.resource.data.expectedVolume.size() > 0
+        && request.resource.data.expectedVolume.size() <= 40
+        && request.resource.data.status == 'submitted';
+      allow read, update, delete: if false;
+    }
+
     // 그 외 모든 경로 차단
     match /{document=**} {
       allow read, write: if false;
