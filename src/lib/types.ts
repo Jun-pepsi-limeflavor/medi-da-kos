@@ -161,3 +161,29 @@ export interface ContactSubmission {
   status: "submitted";
   createdAt: string;
 }
+
+/** /korea 콜드메일 랜딩 문의 — contact와 별도 컬렉션(koreaLeads) */
+export interface KoreaLeadSubmission {
+  id: string;
+  companyName: string;
+  email: string;
+  referralSource?: string;
+  businessType?: string;
+  expectedVolume: string;
+  expectedVolumeLabel: string;
+  message: string;
+  /** utm_content로 결정된 포지셔닝 문단 — "arm-a" | "arm-b" */
+  positioningArm: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  pageUrl?: string;
+  gaClientId?: string;
+  userAgent?: string;
+  /** 운영 도메인 밖(localhost·프리뷰) 제출 — 알림·전환 집계에서 제외 */
+  isTest: boolean;
+  status: "submitted";
+  createdAt: string;
+}
