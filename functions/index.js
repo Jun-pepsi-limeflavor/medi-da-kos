@@ -2,6 +2,11 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { defineString } = require("firebase-functions/params");
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+// 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
+// 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
+setGlobalOptions({ region: "asia-northeast3" });
 
 initializeApp();
 const db = getFirestore();
@@ -135,6 +140,45 @@ exports.onUserSignup = onDocumentCreated("users/{userId}", async (event) => {
           <p><strong>회사:</strong> ${user.companyName || "-"}</p>
           <p><strong>UID:</strong> ${userId}</p>
           <p><strong>가입 시각:</strong> ${signedUpAt}</p>
+        </div>`,
+    },
+  });
+});
+
+// 2026-08-03 커밋 4a21933에서 소스에서만 삭제되고 운영엔 배포된 채 남아 있었다
+// (그 커밋 메시지는 채널톡 건이고 이 삭제를 언급하지 않는다 — 실수로 보인다).
+// 운영 동작을 기준으로 되돌린다. 소스에 없으면 다음 functions 배포가 이걸 지운다.
+exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+
+  const contact = snap.data();
+  const contactId = event.params.contactId;
+  const submittedAt = formatKoDate();
+
+  const utmParts = [
+    contact.utmSource && `source=${contact.utmSource}`,
+    contact.utmMedium && `medium=${contact.utmMedium}`,
+    contact.utmCampaign && `campaign=${contact.utmCampaign}`,
+  ].filter(Boolean);
+
+  await queueEmail(`contact_admin_${contactId}`, {
+    to: getAdminEmails(),
+    message: {
+      subject: `[문의] ${contact.companyName || contact.email || contactId}`,
+      html: `
+        <div style="font-family:sans-serif;line-height:1.6">
+          <h2>새 Contact 문의가 접수되었습니다</h2>
+          <p><strong>회사/브랜드:</strong> ${contact.companyName || "-"}</p>
+          <p><strong>이메일:</strong> ${contact.email || "-"}</p>
+          <p><strong>유입 경로:</strong> ${contact.referralSource || "-"}</p>
+          <p><strong>비즈니스 유형:</strong> ${contact.businessType || "-"}</p>
+          <p><strong>UTM:</strong> ${utmParts.length ? utmParts.join(", ") : "-"}</p>
+          <p><strong>문의 내용:</strong></p>
+          <pre style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px">${contact.message || "-"}</pre>
+          <p><strong>페이지 URL:</strong> ${contact.pageUrl || "-"}</p>
+          <p><strong>접수 시각:</strong> ${submittedAt}</p>
+          <p><strong>문서 ID:</strong> ${contactId}</p>
         </div>`,
     },
   });
