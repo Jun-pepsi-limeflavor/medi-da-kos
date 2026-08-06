@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import {
   BUSINESS_TYPES,
@@ -10,6 +10,7 @@ import {
 import { trackConversionEvent } from "@/lib/analytics";
 import { getGaClientId } from "@/lib/ga-client-id";
 import { submitKoreaLead } from "@/lib/firestore-service";
+import { trackFormAbandon, trackFormStart } from "./analytics";
 
 /** 폼이 죽었을 때의 대체 경로. 콜드메일 발신 계정이라 회신 스레드와 같은 곳으로 간다. */
 const FALLBACK_EMAIL = "hally@medidakoslabs.com";
@@ -54,6 +55,21 @@ export function KoreaLeadForm({
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<FieldName, string>>
   >({});
+  const startedRef = useRef(false);
+  const lastFieldRef = useRef("");
+  const submittedRef = useRef(false);
+
+  // 쓰다 말고 떠난 경우를 잡는다. 어느 칸에서 멈췄는지가 폼 개선의 유일한 단서다.
+  // pagehide는 뒤로가기·탭 닫기·모바일 백그라운드 전환을 모두 덮는다.
+  useEffect(() => {
+    const onLeave = () => {
+      if (!startedRef.current || submittedRef.current) return;
+      startedRef.current = false; // 중복 발사 방지
+      trackFormAbandon(lastFieldRef.current || "(unknown)");
+    };
+    window.addEventListener("pagehide", onLeave);
+    return () => window.removeEventListener("pagehide", onLeave);
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -125,6 +141,7 @@ export function KoreaLeadForm({
         utm_content: utm.utmContent,
       });
 
+      submittedRef.current = true;
       setSubmitted(true);
     } catch {
       setError(
@@ -160,6 +177,14 @@ export function KoreaLeadForm({
   return (
     <form
       onSubmit={handleSubmit}
+      // 첫 입력 1회. 폼까지 내려온 사람과 실제로 쓰기 시작한 사람을 나눈다.
+      onFocusCapture={(e) => {
+        const field = (e.target as HTMLElement).id;
+        if (field) lastFieldRef.current = field;
+        if (startedRef.current) return;
+        startedRef.current = true;
+        trackFormStart();
+      }}
       noValidate
       className="rounded-2xl border border-sky-100/90 bg-white/85 p-6 shadow-md shadow-sky-100/35 sm:p-8"
     >

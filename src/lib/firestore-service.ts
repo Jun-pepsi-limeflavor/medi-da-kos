@@ -24,7 +24,7 @@ import type {
 } from "./types";
 import { getStep1Selection, odmCategory } from "./step1-utils";
 import { expectedVolumeLabel } from "./contact-form-options";
-import { SITE_URL } from "./site";
+import { isNonProductionEnv } from "./env-flags";
 import { getFirebaseDb } from "./firebase";
 import {
   mockGetBrief,
@@ -407,15 +407,6 @@ export type KoreaLeadPayload = {
   userAgent?: string;
 };
 
-/**
- * 운영 도메인 밖에서 들어온 제출인지 판정한다.
- * 저장소에 테스트/운영 구분자가 없어서 내부 QA 제출이 그대로 전환 수치가 된 전례가 있다.
- */
-function isNonProductionSubmission(): boolean {
-  if (typeof window === "undefined") return true;
-  return window.location.hostname !== new URL(SITE_URL).hostname;
-}
-
 export async function submitKoreaLead(
   data: KoreaLeadPayload,
 ): Promise<KoreaLeadSubmission> {
@@ -423,7 +414,7 @@ export async function submitKoreaLead(
   const payload = {
     ...data,
     expectedVolumeLabel: expectedVolumeLabel(data.expectedVolume),
-    isTest: isNonProductionSubmission(),
+    isTest: isNonProductionEnv(),
     status: "submitted" as const,
     createdAt: now,
   };
