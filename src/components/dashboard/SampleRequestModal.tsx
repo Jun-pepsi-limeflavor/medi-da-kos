@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import type { TopProduct, ShippingAddress } from "@/lib/types";
 import { saveSampleRequest } from "@/lib/firestore-service";
+import { trackConversionEvent } from "@/lib/analytics";
 
 const inputClass =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
@@ -46,6 +47,14 @@ export function SampleRequestModal({
         sampleQuantity: quantity,
         shippingAddress: address,
       });
+
+      // 저장이 끝난 뒤에만 센다. 8월 KPI 1호가 이 경로에서 나왔는데 계측이 없었다.
+      trackConversionEvent("request_sample", {
+        product_id: product.id,
+        product_name: product.nameEn,
+        quantity,
+      });
+
       onSuccess();
       onClose();
     } catch (err) {

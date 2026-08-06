@@ -1,5 +1,4 @@
 import { trackConversionEvent } from "@/lib/analytics";
-import { isNonProductionEnv } from "@/lib/env-flags";
 
 /**
  * /korea 랜딩의 반응 계측.
@@ -8,8 +7,9 @@ import { isNonProductionEnv } from "@/lib/env-flags";
  * 이벤트 이름은 그대로 두고 `section_id`·`faq_id` 값만 늘어난다 —
  * 주차마다 카피가 바뀌는 페이지라 이름을 고정해야 주 간 비교가 가능하다.
  *
- * 모든 이벤트에 `positioning_arm`과 `is_test`를 붙인다. 이 둘은 GA4에서
- * 맞춤 측정기준으로 등록해야 보고서에 나온다 — 등록 전에는 수집돼도 안 보인다.
+ * 모든 이벤트에 `positioning_arm`을 붙인다. `is_test`는 `trackConversionEvent`가
+ * 전역으로 붙인다. 둘 다 GA4에서 맞춤 측정기준으로 등록해야 보고서에 나온다 —
+ * 등록 전에는 수집돼도 안 보인다.
  */
 
 /** 페이지 안에서 관찰하는 구간. 값이 곧 보고서의 행이 된다. */
@@ -35,11 +35,7 @@ export function setKoreaArm(arm: string) {
 }
 
 function track(event: string, params: Record<string, unknown>) {
-  trackConversionEvent(event, {
-    ...params,
-    positioning_arm: armForSession,
-    is_test: isNonProductionEnv(),
-  });
+  trackConversionEvent(event, { ...params, positioning_arm: armForSession });
 }
 
 /** 세로 스크롤 도달률. 25/50/75/100 각각 1회씩. */

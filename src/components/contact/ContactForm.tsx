@@ -61,7 +61,11 @@ export function ContactForm() {
         userAgent: navigator.userAgent,
       });
 
-      trackConversionEvent("contact_form_submit", {
+      // 이름은 구글 권장명으로 통일한다. /korea 폼과 같은 행동이므로
+      // 이벤트를 나누지 않고 form_id로 가른다.
+      trackConversionEvent("generate_lead", {
+        form_id: "contact-page",
+        lead_type: "inquiry",
         referral_source: referralSource || undefined,
         business_type: businessType || undefined,
         utm_source: utmParams.utmSource,
