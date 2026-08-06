@@ -13,6 +13,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  getAdditionalUserInfo,
   GoogleAuthProvider,
   signOut,
   onAuthStateChanged,
@@ -30,6 +31,7 @@ import {
   seedMockAdmin,
 } from "./mock-store";
 import { saveUserProfile } from "./firestore-service";
+import { trackConversionEvent } from "@/lib/analytics";
 
 interface RegisterInput {
   email: string;
@@ -129,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         provider: "email",
       });
       await saveUserProfile(profile);
+      trackConversionEvent("sign_up", { method: "email" });
       setUser(profile);
     },
     [isMockMode],
@@ -143,6 +146,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cred = await signInWithPopup(getFirebaseAuth(), provider);
     const profile = mapFirebaseUser(cred.user, { provider: "google" });
     await saveUserProfile(profile);
+    // 구글 버튼 하나가 가입과 로그인을 겸한다. 신규일 때만 가입으로 센다.
+    if (getAdditionalUserInfo(cred)?.isNewUser) {
+      trackConversionEvent("sign_up", { method: "google" });
+    }
     setUser(profile);
   }, [isMockMode]);
 

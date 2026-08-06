@@ -198,6 +198,7 @@ export async function createOrder(
   const ref = await addDoc(
     collection(getFirebaseDb(), "orders"),
     stripUndefined({
+      isTest: isNonProductionEnv(),
       ...order,
       createdAt: now,
       updatedAt: now,
@@ -239,6 +240,7 @@ export async function saveSampleRequest(
   const payload = {
     uid,
     ...data,
+    isTest: isNonProductionEnv(),
     status: "submitted" as const,
     createdAt: now,
   };
@@ -342,7 +344,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   if (useMockAuth()) return;
   await setDoc(
     doc(getFirebaseDb(), "users", profile.uid),
-    stripUndefined(profile),
+    stripUndefined({ isTest: isNonProductionEnv(), ...profile }),
   );
 }
 
@@ -368,6 +370,7 @@ export async function submitContactForm(
   const now = new Date().toISOString();
   const payload = {
     ...data,
+    isTest: isNonProductionEnv(),
     status: "submitted" as const,
     createdAt: now,
   };
