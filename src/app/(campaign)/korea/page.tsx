@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { ArrowRight } from "lucide-react";
 import { SITE_URL } from "@/lib/site";
+import { KoreaCta } from "./KoreaCta";
 import { KoreaFaq } from "./KoreaFaq";
+import { KoreaPageSignals } from "./KoreaPageSignals";
 import { KoreaLeadForm } from "./KoreaLeadForm";
 import { StickyFormCta } from "./StickyFormCta";
 
@@ -187,8 +188,10 @@ export default async function KoreaLandingPage({
 
   return (
     <>
+      <KoreaPageSignals arm={arm} />
+
       {/* §1 히어로 — 메일 제목 "A note from Korea about your next line"과 톤을 맞춘다 */}
-      <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+      <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28" data-section="hero">
         <p className={eyebrowClass}>{HERO.eyebrow}</p>
         <h1 className="mt-4 max-w-3xl font-serif text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
           {HERO.title}
@@ -197,16 +200,15 @@ export default async function KoreaLandingPage({
           {HERO.sub}
         </p>
         <div className="mt-8">
-          <a href="#brief" className={ctaClass}>
+          <KoreaCta ctaId="hero" className={ctaClass}>
             Send one spec
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </a>
+          </KoreaCta>
         </div>
         <p className="mt-3 text-sm text-slate-500">{HERO.note}</p>
       </section>
 
       {/* §2 성분 — 자기소개보다 앞. 계속 읽을 이유를 먼저 준다 */}
-      <section className={sectionClass}>
+      <section className={sectionClass} data-section="formulas">
         <p className={eyebrowClass}>Where we&apos;d start</p>
         <h2 className={h2Class}>Five formulas we can run for you.</h2>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
@@ -240,7 +242,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §3 포지셔닝 — utm_content로 갈리는 유일한 블록. 제목을 일부러 안 단다 */}
-      <section className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8" data-section="positioning">
         <div className="rounded-2xl border border-sky-100/90 bg-sky-50/40 px-6 py-10 text-center shadow-sm shadow-sky-100/30 sm:px-10">
           <p className="mx-auto max-w-3xl font-serif text-xl leading-relaxed text-slate-800 sm:text-2xl">
             {POSITIONING[arm]}
@@ -249,7 +251,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §4 진행 방식 — 포지셔닝의 동사를 관찰 가능한 행동으로 */}
-      <section className={sectionClass}>
+      <section className={sectionClass} data-section="steps">
         <p className={eyebrowClass}>How a project runs</p>
         <h2 className={h2Class}>Four steps, and the first one is yours.</h2>
 
@@ -274,7 +276,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §5 견적 전 확인 — 의심이 최고조인 지점을 흡수한다 */}
-      <section className={sectionClass}>
+      <section className={sectionClass} data-section="checks">
         <p className={eyebrowClass}>Before we quote</p>
         <h2 className={h2Class}>
           Three things we settle before a number goes out.
@@ -295,7 +297,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §6 물량 — 1만 개 필터. 거절이 아니라 자격 안내로 읽히게 성분 뒤에 둔다 */}
-      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+      <section className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20" data-section="volume">
         <p className={eyebrowClass}>Volume</p>
         <h2 className={h2Class}>The range we&apos;re set up to run.</h2>
         <p className="mt-6 font-serif text-xl leading-relaxed text-slate-800 sm:text-2xl">
@@ -307,7 +309,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §7 정직 카드 — 필터가 쓴 신뢰를 되산다 */}
-      <section className="mx-auto max-w-4xl px-4 pb-8 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-4xl px-4 pb-8 sm:px-6 lg:px-8" data-section="honesty">
         <div className="rounded-2xl border border-sky-100/90 bg-sky-50/40 p-6 text-center shadow-sm shadow-sky-100/30">
           <p className="font-serif text-lg leading-relaxed text-slate-800 sm:text-xl">
             {HONESTY}
@@ -318,6 +320,7 @@ export default async function KoreaLandingPage({
       {/* §8 폼 — 이 페이지의 유일한 전환 장치 */}
       <section
         id="brief"
+        data-section="brief"
         className="mx-auto max-w-2xl scroll-mt-8 px-4 py-16 sm:px-6 lg:px-8 lg:py-20"
       >
         <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
@@ -336,7 +339,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §9 FAQ — 뒤로가기가 될 반론 회수 */}
-      <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20">
+      <section className="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20" data-section="faq">
         <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
           Before you send it.
         </h2>
@@ -350,7 +353,7 @@ export default async function KoreaLandingPage({
       </section>
 
       {/* §10 서명 마무리 — 발신 계정이 둘이라 두 이름을 같이 쓴다 */}
-      <section className="mx-auto max-w-2xl px-4 pb-20 text-center sm:px-6 lg:px-8 lg:pb-28">
+      <section className="mx-auto max-w-2xl px-4 pb-20 text-center sm:px-6 lg:px-8 lg:pb-28" data-section="closing">
         <p className="font-serif text-xl leading-relaxed text-slate-800">
           {CLOSING.thanks}
         </p>
@@ -358,10 +361,9 @@ export default async function KoreaLandingPage({
           {CLOSING.body}
         </p>
         <div className="mt-8">
-          <a href="#brief" className={ctaClass}>
+          <KoreaCta ctaId="closing" className={ctaClass}>
             Send one spec
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </a>
+          </KoreaCta>
         </div>
         <p className="mt-8 text-sm text-slate-500">— {CLOSING.signature}</p>
       </section>

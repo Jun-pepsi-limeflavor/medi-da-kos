@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { trackCtaClick } from "./analytics";
 
 /**
  * 모바일 전용 하단 CTA.
@@ -50,7 +51,9 @@ export function StickyFormCta() {
     >
       <a
         href="#brief"
+        data-cta="sticky"
         tabIndex={show ? undefined : -1}
+        onClick={() => trackCtaClick("sticky")}
         className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-sky-500/90 px-8 py-3 text-sm font-semibold text-white shadow-sm shadow-sky-200/50 transition hover:bg-sky-600"
       >
         Send one spec

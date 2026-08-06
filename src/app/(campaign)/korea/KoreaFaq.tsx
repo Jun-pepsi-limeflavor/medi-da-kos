@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { trackFaqOpen } from "./analytics";
 
 const FAQ = [
   {
@@ -42,7 +43,11 @@ export function KoreaFaq() {
           <div key={item.id}>
             <button
               type="button"
-              onClick={() => setOpenId(isOpen ? null : item.id)}
+              onClick={() => {
+                // 닫는 동작은 세지 않는다 — 열었다는 사실만이 반론 신호다.
+                if (!isOpen) trackFaqOpen(item.id);
+                setOpenId(isOpen ? null : item.id);
+              }}
               className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-sky-50/40"
               aria-expanded={isOpen}
             >
