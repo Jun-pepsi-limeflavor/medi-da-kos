@@ -13,6 +13,8 @@ const HERO_COPY = {
     "Reduce production costs by 40% or more — without compromising on quality. Connect directly to certified Korean beauty manufacturers who deliver at scale, on spec, and on schedule.",
   primaryCta: "Request a Custom Quote",
   primaryHref: "/login",
+  secondaryCta: "Let's Talk to Our Team",
+  secondaryHref: "/contact",
 };
 
 /**
@@ -136,7 +138,7 @@ export function HeroCarousel() {
             >
               {HERO_COPY.subtitle}
             </p>
-            <div className="mt-9">
+            <div className="mt-9 flex flex-wrap items-center gap-3 sm:gap-4">
               <Link
                 href={HERO_COPY.primaryHref}
                 className={`inline-block rounded-full px-8 py-3.5 text-base font-semibold shadow-md transition-colors duration-700 sm:text-lg ${
@@ -146,6 +148,16 @@ export function HeroCarousel() {
                 }`}
               >
                 {HERO_COPY.primaryCta}
+              </Link>
+              <Link
+                href={HERO_COPY.secondaryHref}
+                className={`inline-block rounded-full border px-8 py-3.5 text-base font-semibold backdrop-blur-[2px] transition-colors duration-700 sm:text-lg ${
+                  lightText
+                    ? "border-white/70 bg-white/10 text-white hover:bg-white/20"
+                    : "border-sky-200/90 bg-white/70 text-sky-700 hover:bg-white"
+                }`}
+              >
+                {HERO_COPY.secondaryCta}
               </Link>
             </div>
           </div>
