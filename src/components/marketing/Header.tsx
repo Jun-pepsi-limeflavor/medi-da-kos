@@ -31,6 +31,12 @@ export function Header() {
     }
 
     function updateVisibility() {
+      // Below lg the home hero is a split layout, not a full-bleed photo, so
+      // there is nothing for a transparent header to sit on. Keep it pinned.
+      if (!window.matchMedia("(min-width: 1024px)").matches) {
+        setVisible(true);
+        return;
+      }
       const threshold =
         window.innerHeight * HOME_HEADER_SCROLL_THRESHOLD;
       setVisible(window.scrollY > threshold);

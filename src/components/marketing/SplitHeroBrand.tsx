@@ -7,7 +7,9 @@ type SplitHeroBrandProps = {
 function BrandMark({ title, className }: { title: string; className: string }) {
   return (
     <p
-      className={`whitespace-nowrap font-serif text-[clamp(1.75rem,4.5vw,3.5rem)] font-semibold leading-none tracking-[-0.02em] ${className}`}
+      // The two columns are anchored at 1/4 and 3/4 and centered on those
+      // points, so at ~320px the 1.75rem floor makes them overlap and clip.
+      className={`whitespace-nowrap font-serif text-[clamp(1.25rem,7vw,1.75rem)] font-semibold leading-none tracking-[-0.02em] sm:text-[clamp(1.75rem,4.5vw,3.5rem)] ${className}`}
     >
       {title}
     </p>

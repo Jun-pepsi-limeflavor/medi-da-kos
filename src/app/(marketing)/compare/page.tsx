@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -121,19 +121,82 @@ export default function ComparePage() {
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-sky-100/90 bg-white/85 shadow-sm shadow-sky-100/30">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-left text-sm">
+          {/* Below sm a 3-column table either scrolls sideways or wraps the
+              longest cell to ~8 lines, so it becomes a two-column comparison
+              with one sticky header instead of a label repeated on every row.
+              No overflow-hidden on this wrapper — it would become the sticky
+              header's scroll container and kill the sticky. */}
+          <div className="relative rounded-xl border border-sky-100/90 bg-white/85 shadow-sm shadow-sky-100/30 sm:hidden">
+            {/* Both cells must be fully opaque: once pinned, the rows scroll
+                underneath and any alpha lets their text bleed through. */}
+            <div className="sticky top-16 z-10 grid grid-cols-2 overflow-hidden rounded-t-xl border-b border-sky-100/90 shadow-sm shadow-sky-100/50">
+              <p className="bg-white px-4 py-2.5 text-xs font-medium leading-snug text-slate-500">
+                Typical contract manufacturing
+              </p>
+              <p className="flex items-start gap-1.5 border-l border-sky-100 bg-sky-100 px-4 py-2.5 text-xs font-semibold leading-snug text-sky-800">
+                <Check size={14} className="mt-0.5 shrink-0" aria-hidden />
+                Medi Da Kos
+              </p>
+            </div>
+
+            <ul>
+              {COMPARISON_ROWS.map((row, i) => {
+                const last = i === COMPARISON_ROWS.length - 1;
+                return (
+                  <li
+                    key={row.label}
+                    className="border-t border-sky-100/70 first:border-t-0"
+                  >
+                    {/* Full-width band. Most labels are wider than half the
+                        card, so without a background of their own they sat
+                        half on white and half on the tinted column and read
+                        as intruding on it. The band settles the question. */}
+                    <p className="border-b border-sky-100/70 bg-slate-50/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      {row.label}
+                    </p>
+                    <div className="grid grid-cols-2">
+                      {/* The visible column identity is the sticky header;
+                          these restore it for screen readers at no cost. */}
+                      <p className="px-4 py-3 text-sm tabular-nums text-slate-500">
+                        <span className="sr-only">
+                          Typical contract manufacturing:{" "}
+                        </span>
+                        {row.colA}
+                      </p>
+                      {/* The card cannot carry overflow-hidden — it would
+                          become the sticky header's scroll container — so the
+                          last tinted cell trims its own corner. */}
+                      <p
+                        className={`border-l border-sky-100 bg-sky-50/70 px-4 py-3 text-sm font-semibold tabular-nums text-sky-900 ${
+                          last ? "rounded-br-xl" : ""
+                        }`}
+                      >
+                        <span className="sr-only">Medi Da Kos: </span>
+                        {row.colB}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div className="hidden overflow-hidden rounded-xl border border-sky-100/90 bg-white/85 shadow-sm shadow-sky-100/30 sm:block">
+            <div>
+              <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-sky-100/90 bg-sky-50/50">
                     <th className="px-4 py-3.5 font-semibold text-slate-700 sm:px-6">
                       Item
                     </th>
-                    <th className="px-4 py-3.5 font-semibold text-slate-600 sm:px-6">
+                    <th className="px-4 py-3.5 font-semibold text-slate-500 sm:px-6">
                       Typical contract manufacturing
                     </th>
-                    <th className="px-4 py-3.5 font-semibold text-sky-700 sm:px-6">
-                      Medi Da Kos
+                    <th className="bg-sky-100/60 px-4 py-3.5 text-base font-semibold text-sky-800 sm:px-6">
+                      <span className="flex items-center gap-2">
+                        <Check size={18} className="shrink-0" aria-hidden />
+                        Medi Da Kos
+                      </span>
                     </th>
                   </tr>
                 </thead>
@@ -146,10 +209,10 @@ export default function ComparePage() {
                       <td className="px-4 py-3.5 font-medium text-slate-800 sm:px-6">
                         {row.label}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-600 sm:px-6">
+                      <td className="px-4 py-3.5 tabular-nums text-slate-500 sm:px-6">
                         {row.colA}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-700 sm:px-6">
+                      <td className="bg-sky-50/60 px-4 py-3.5 font-semibold tabular-nums text-sky-900 sm:px-6">
                         {row.colB}
                       </td>
                     </tr>

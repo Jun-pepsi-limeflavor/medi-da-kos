@@ -6,13 +6,16 @@ export function Footer() {
   return (
     <footer className="border-t border-sky-100/70 bg-sky-50/30">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-8 md:grid-cols-4">
-            <div className="md:col-span-2">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-2">
             <p className="font-serif text-lg font-semibold text-slate-800">
               Medi Da Kos
             </p>
             <p className="mt-2 max-w-md text-sm text-slate-600">
-            Beauty production from Republic of Korea<br></br>Built around your timeline and your margins
+              Beauty production from Republic of Korea
+            </p>
+            <p className="max-w-md text-sm text-slate-600">
+              Built around your timeline and your margins
             </p>
             <SocialLinks className="mt-5" showLabel label="Follow us" />
           </div>
@@ -38,7 +41,7 @@ export function Footer() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">Contact</p>
-            <p className="mt-3 space-y-1 text-sm text-slate-600">
+            <div className="mt-3 space-y-1 text-sm text-slate-600">
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}
                 className="block hover:text-sky-600"
@@ -48,7 +51,7 @@ export function Footer() {
               <a href={SUPPORT_PHONE_HREF} className="block hover:text-sky-600">
                 {SUPPORT_PHONE}
               </a>
-            </p>
+            </div>
           </div>
         </div>
         <p className="mt-10 border-t border-sky-100 pt-6 text-center text-xs text-slate-500">

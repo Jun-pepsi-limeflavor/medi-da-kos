@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
@@ -24,6 +24,19 @@ const notoSerif = Noto_Serif({
 });
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+
+/**
+ * viewportFit: "cover" is required for env(safe-area-inset-*) to resolve to a
+ * non-zero value on notched devices — StickyFormCta relies on it.
+ * Deliberately no maximumScale/userScalable: blocking pinch-zoom to stop iOS
+ * input zoom would fail WCAG 1.4.4. 16px inputs are the fix instead.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#38bdf8",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

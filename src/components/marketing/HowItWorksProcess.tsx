@@ -158,7 +158,7 @@ export function HowItWorksProcess() {
               <button
                 type="button"
                 onClick={() => toggleStep(step.id)}
-                className={`flex w-full items-start justify-between gap-5 px-6 py-6 text-left transition sm:px-8 sm:py-7 ${
+                className={`flex w-full items-start justify-between gap-3 px-6 py-6 text-left transition sm:gap-5 sm:px-8 sm:py-7 ${
                   showAll ? "cursor-default" : "hover:bg-sky-50/30"
                 }`}
                 aria-expanded={isOpen}
@@ -170,6 +170,12 @@ export function HowItWorksProcess() {
                   <p className="mt-1.5 text-xl font-semibold text-slate-800 sm:text-2xl">
                     {step.title}
                   </p>
+                  {/* Below sm the duration sits under the title so it and the
+                      title each get a full line, and the summary below is not
+                      squeezed by a side column. At sm+ it moves back up right. */}
+                  <span className="mt-2 block text-sm font-medium text-slate-400 sm:hidden">
+                    {step.duration}
+                  </span>
                   {!isOpen && (
                     <p className="mt-3 text-base leading-relaxed text-slate-500">
                       {step.summary}
@@ -177,7 +183,7 @@ export function HowItWorksProcess() {
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2 pt-1">
-                  <span className="whitespace-nowrap text-sm font-medium text-slate-400">
+                  <span className="hidden whitespace-nowrap text-sm font-medium text-slate-400 sm:block">
                     {step.duration}
                   </span>
                   {!showAll && (
