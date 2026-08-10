@@ -116,7 +116,7 @@ const RESPONSIBILITIES = [
 export default function AboutUsPage() {
   return (
     <div className="bg-white">
-      <section className="relative -mt-16 h-[100dvh] min-h-[600px] w-full overflow-hidden bg-sky-50">
+      <section className="relative -mt-16 h-[100dvh] w-full overflow-hidden bg-sky-50 lg:min-h-[600px]">
         <Image
           src="/About_Us1.png"
           alt="Pre-vetted Korean OEM/ODM manufacturing facility — MFDS-registered, ISO 22716 GMP certified"
@@ -145,7 +145,7 @@ export default function AboutUsPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-500">
             About Medi Da Kos
           </p>
-          <h1 className="mt-4 max-w-4xl font-serif text-4xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
+          <h1 className="mt-4 max-w-4xl font-serif text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
             The fastest path from brief to certified Korean OEM/ODM - without
             sourcing a factory yourself.
           </h1>
@@ -158,11 +158,11 @@ export default function AboutUsPage() {
         </div>
 
         <div className="border-y border-sky-100/80 bg-sky-50/40">
-          <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 md:grid-cols-3 lg:px-8">
+          <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:grid-cols-3 sm:px-6 lg:px-8">
             {NETWORK_STATS.map((item) => (
               <div
                 key={item.label}
-                className="text-center md:text-left"
+                className="text-center sm:text-left"
               >
                 <p className="text-2xl font-semibold text-sky-600">
                   {item.value}
@@ -178,11 +178,11 @@ export default function AboutUsPage() {
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
               Certifications our network supports
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-7">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
               {CERTIFICATIONS.map((cert) => (
                 <span
                   key={cert}
-                  className="rounded-lg border border-sky-100/80 bg-white px-3 py-5 text-center text-s font-rg text-sky-600 shadow-sm"
+                  className="rounded-lg border border-sky-100/80 bg-white px-3 py-5 text-center text-xs font-medium text-sky-600 shadow-sm sm:text-sm"
                 >
                   {cert}
                 </span>
@@ -198,7 +198,7 @@ export default function AboutUsPage() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <section className="grid gap-8 lg:grid-cols-5 lg:items-start">
             <div className="lg:col-span-2">
-              <h2 className="font-serif text-3xl font-semibold tracking-tight text-slate-800">
+              <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
                 We screen every factory before you ever see their name.
               </h2>
               <p className="mt-5 text-base leading-relaxed text-slate-600">
@@ -238,10 +238,10 @@ export default function AboutUsPage() {
           </section>
 
           <section className="mt-16">
-            <h2 className="font-serif text-3xl font-semibold tracking-tight text-slate-800">
+            <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
               Why brands choose Korean ODM - and why it works for the US market.
             </h2>
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {WHY_KOREA.map((item) => (
                 <article
                   key={item.title}
@@ -264,10 +264,10 @@ export default function AboutUsPage() {
           </section>
 
           <section className="mt-16">
-            <h2 className="font-serif text-3xl font-semibold tracking-tight text-slate-800">
+            <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
               Your brand focuses on the product. We handle the supply chain.
             </h2>
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {RESPONSIBILITIES.map((column) => (
                 <article
                   key={column.title}
@@ -301,7 +301,7 @@ export default function AboutUsPage() {
           </section>
 
           <section className="mt-16">
-            <h2 className="font-serif text-3xl font-semibold tracking-tight text-slate-800">
+            <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
               Built by people who know Korean manufacturing.
             </h2>
             <div className="mt-5 max-w-3xl border-l-2 border-sky-200 pl-5">

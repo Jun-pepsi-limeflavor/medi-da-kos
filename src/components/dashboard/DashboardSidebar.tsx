@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Mail, Package, Truck } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { LayoutDashboard, LogOut, Mail, Package, Truck, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { CM_BRIEF_STEPS } from "@/lib/brief-steps";
@@ -14,11 +15,24 @@ const links = [
   { href: "/dashboard/tracking", label: "Tracking", icon: Truck },
 ];
 
-export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) {
+export function DashboardSidebar({
+  currentStep = 1,
+  open = false,
+  onClose,
+}: {
+  currentStep?: number;
+  open?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
   const { navigableSteps, goToStep } = useDashboardBrief();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) closeButtonRef.current?.focus();
+  }, [open]);
 
   async function handleStepClick(step: number) {
     if (!navigableSteps.includes(step)) return;
@@ -26,20 +40,40 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
     if (pathname !== "/dashboard") {
       router.push("/dashboard");
     }
+    onClose?.();
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-sky-100/70 bg-white/80 backdrop-blur-sm">
-      <div className="border-b border-sky-50 px-5 py-5">
+    // Below lg this is a slide-in drawer. `invisible` (not just the transform)
+    // is what keeps a closed drawer out of the tab order; lg:visible restores
+    // it. Keeping visibility in the transition list is what lets it slide out
+    // instead of vanishing.
+    <aside
+      id="dashboard-sidebar"
+      className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] shrink-0 flex-col border-r border-sky-100/70 bg-white shadow-xl transition-[transform,visibility] duration-300 ease-out lg:static lg:z-auto lg:max-w-none lg:visible lg:translate-x-0 lg:bg-white/80 lg:shadow-none lg:backdrop-blur-sm ${
+        open ? "translate-x-0" : "invisible -translate-x-full"
+      }`}
+    >
+      <div className="relative border-b border-sky-50 px-5 py-5">
         <Link href="/" className="text-lg font-serif font-semibold text-slate-800">
           Medi Da Kos
         </Link>
         <p className="mt-1 text-xs text-slate-500">Your Manufacturing Dashboard</p>
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          aria-label="Close dashboard menu"
+          className="absolute right-2 top-3 inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-sky-50/60 lg:hidden"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
         <Link
           href="/dashboard"
+          onClick={onClose}
           className={`mb-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
             pathname === "/dashboard"
               ? "bg-sky-100/70 text-sky-700"
@@ -103,6 +137,7 @@ export function DashboardSidebar({ currentStep = 1 }: { currentStep?: number }) 
               <li key={link.href}>
                 <Link
                   href={link.href}
+                  onClick={onClose}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
                     pathname === link.href
                       ? "bg-sky-100/70 text-sky-700"

@@ -34,7 +34,8 @@ export default function TrackingPage() {
         </div>
       ) : (
         <div className="mt-8 overflow-hidden rounded-lg border border-sky-100/80 bg-white/85 shadow-sm shadow-sky-100/25">
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
             <thead className="border-b border-sky-100/80 bg-sky-50/60">
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-600">Carrier</th>
@@ -54,6 +55,7 @@ export default function TrackingPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

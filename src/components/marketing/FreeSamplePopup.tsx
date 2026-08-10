@@ -33,11 +33,13 @@ export function FreeSamplePopup() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-sky-900/20 backdrop-blur-[3px]"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-sky-900/20 p-4 backdrop-blur-[3px]"
       onClick={dismiss}
     >
       <div
-        className="relative mx-4 w-full max-w-[440px] rounded-2xl border border-sky-100/80 bg-white/95 p-8 shadow-2xl shadow-sky-100/50 transition-all duration-200"
+        // Content runs 640-700px tall at 375px, so it clips on a 667px viewport
+        // without max-h + inner scroll — the CTA becomes unreachable.
+        className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto rounded-2xl border border-sky-100/80 bg-white/95 p-6 shadow-2xl shadow-sky-100/50 transition-all duration-200 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}

@@ -107,14 +107,10 @@ export function CMWizard({ uid }: Props) {
 
   const step = brief.currentStep;
 
+  // Below lg the height budget is viewport − 3.5rem mobile top bar − 3rem of
+  // p-6. 100dvh there so the collapsing iOS URL bar can't cause overflow.
   return (
-    <div
-      className={
-        step === 1
-          ? "flex min-h-[calc(100vh-5rem)] flex-col"
-          : "flex min-h-[calc(100vh-5rem)] flex-col"
-      }
-    >
+    <div className="flex min-h-[calc(100dvh-6.5rem)] flex-col lg:min-h-[calc(100vh-5rem)]">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">
@@ -1087,7 +1083,7 @@ function Step6({
               <label className={wizardLabelClass}>
                 International certifications
               </label>
-              <div className="mt-2 flex f lex-wrap gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {certs.map((c) => (
                   <button
                     key={c}
@@ -1102,7 +1098,9 @@ function Step6({
                             : [...v.internationalCertifications, c],
                       })
                     }
-                    className={`${choiceChipClass} rounded-full px-5 py-3 tex-xs md:text-base ${
+                    // Not composed from choiceChipClass: its text-sm/py-3.5 are
+                    // emitted after the overrides below, so they would win.
+                    className={`rounded-full border-2 px-5 py-3 text-xs font-medium transition md:text-base ${
                       v.internationalCertifications.includes(c)
                         ? "border-sky-500 bg-white text-sky-800 shadow-sm ring-2 ring-sky-100"
                         : "border-slate-200/90 bg-white/80 text-slate-600 hover:border-sky-200"

@@ -1,8 +1,10 @@
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { buildLifecycleList, SEGMENT_ORDER } = require("./lifecycle");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -295,4 +297,162 @@ exports.onKoreaLeadCreated = onDocumentCreated(
       },
     });
   },
+);
+
+// ---------------------------------------------------------------------------
+// 이탈 복구·육성 트랙 — 일일 스캔
+//
+// 왜 필요한가: 외부 가입자 14명 중 11명이 한 번도 접촉되지 않은 채로 있었다
+// (2026-08-06 실측). 리드가 부족한 게 아니라 들어온 리드를 아무도 안 보는 게
+// 병목이었고, 알림이 가입 시점 한 번뿐이라 그 뒤로는 아무 일도 안 일어난다.
+//
+// 이 함수는 **보내지 않는다.** 누구에게 무엇을 보내야 하는지만 매일 집계해
+// 관리자에게 알린다. 발송은 사람이 한다 — 문안에 아직 사람 손이 필요하고
+// (실측 리드타임 숫자, 개별 사정), 육성 메일은 support@가 아니라
+// thomas@medidakoslabs.com에서 나가야 답장이 제자리로 온다.
+// ---------------------------------------------------------------------------
+
+const LIFECYCLE_SCAN_TZ = "Asia/Seoul";
+
+/**
+ * 브리프를 읽을 때 로고 base64를 빼고 가져온다.
+ *
+ * `step3.logoDataUrl`은 문서당 수백 KB짜리 data URL이라, 그냥 읽으면 스캔
+ * 한 번에 수 MB를 끌어온다. 판정에는 `logoFileName` 존재 여부면 충분하다.
+ */
+const BRIEF_FIELDS = [
+  "uid",
+  "status",
+  "updatedAt",
+  "step1",
+  "step2",
+  "step3.logoFileName",
+  "step4",
+  "step5",
+  "step6",
+];
+
+function renderLifecycleRows(rows) {
+  return rows
+    .map((row) => {
+      const idle = row.idleDays === null ? "-" : `${row.idleDays}일`;
+      const contacted = row.touchesSent
+        ? `${row.touchesSent}회 (마지막 ${escapeHtml(row.lastContact)})`
+        : "없음";
+      return `
+        <tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.segmentLabel)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.displayName)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.email)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0;text-align:right">${escapeHtml(idle)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${escapeHtml(contacted)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #e2e8f0">${row.nextTouch ? `t${row.nextTouch}` : "시퀀스 종료"}</td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function buildLifecycleEmail({ rows, skipped, scannedAt }) {
+  const bySegment = SEGMENT_ORDER.map((segment) => {
+    const count = rows.filter((row) => row.segment === segment).length;
+    return count ? `${segment} ${count}` : null;
+  })
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    subject: `[육성 트랙] 접촉 대기 ${rows.length}명 — ${scannedAt.slice(0, 10)}`,
+    html: `
+      <div style="font-family:sans-serif;line-height:1.6">
+        <h2>이탈 복구·육성 트랙 일일 스캔</h2>
+        <p><strong>접촉 대기 ${rows.length}명</strong> — ${escapeHtml(bySegment)}</p>
+        <table style="border-collapse:collapse;font-size:14px;width:100%">
+          <thead>
+            <tr style="background:#f1f5f9;text-align:left">
+              <th style="padding:6px 10px">막힌 지점</th>
+              <th style="padding:6px 10px">이름</th>
+              <th style="padding:6px 10px">이메일</th>
+              <th style="padding:6px 10px;text-align:right">방치</th>
+              <th style="padding:6px 10px">접촉 이력</th>
+              <th style="padding:6px 10px">다음</th>
+            </tr>
+          </thead>
+          <tbody>${renderLifecycleRows(rows)}</tbody>
+        </table>
+        <p style="color:#666;font-size:13px;margin-top:16px">
+          문안은 <code>_workspace/육성_메일_시퀀스_v2</code>, 링크는
+          <code>utm_links.lifecycle_link(세그먼트, 회차)</code>로 뽑는다.<br>
+          발송 후에는 <code>lifecycleContacts</code>에 기록해야 다음 회차가 계산된다 —
+          기록이 없으면 매일 같은 사람이 t1로 뜬다.<br>
+          제외: 내부 계정 ${skipped.internal} · 기존 고객 ${skipped.customer} · 제출 완료 ${skipped.submitted}<br>
+          스캔 시각: ${escapeHtml(scannedAt)}
+        </p>
+      </div>`,
+  };
+}
+
+exports.lifecycleScan = onSchedule(
+  { schedule: "0 9 * * *", timeZone: LIFECYCLE_SCAN_TZ },
+  async () => {
+    const [usersSnap, briefsSnap, ordersSnap, samplesSnap, contactsSnap] =
+      await Promise.all([
+        db.collection("users").get(),
+        db.collection("cmBriefs").select(...BRIEF_FIELDS).get(),
+        db.collection("orders").select("uid").get(),
+        db.collection("sampleRequests").select("uid").get(),
+        db.collection("lifecycleContacts").get(),
+      ]);
+
+    const users = usersSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const briefsByUid = new Map(
+      briefsSnap.docs.map((doc) => [doc.data().uid || doc.id, doc.data()])
+    );
+    const customerUids = new Set(
+      [...ordersSnap.docs, ...samplesSnap.docs]
+        .map((doc) => doc.data().uid)
+        .filter(Boolean)
+    );
+    const contactsByUid = new Map();
+    for (const doc of contactsSnap.docs) {
+      const contact = doc.data();
+      if (!contact.uid) continue;
+      const list = contactsByUid.get(contact.uid) || [];
+      list.push(contact);
+      contactsByUid.set(contact.uid, list);
+    }
+
+    const scannedAt = formatKoDate();
+    const { rows, skipped } = buildLifecycleList({
+      users,
+      briefsByUid,
+      customerUids,
+      contactsByUid,
+    });
+
+    const dateKey = new Date()
+      .toLocaleDateString("sv-SE", { timeZone: LIFECYCLE_SCAN_TZ });
+
+    // 스냅샷은 결과가 비어도 남긴다 — "그날 0명이었다"와 "스캔이 안 돌았다"를
+    // 구분할 방법이 이것뿐이다.
+    await db.collection("lifecycleQueue").doc(dateKey).set({
+      scannedAt,
+      total: rows.length,
+      skipped,
+      rows,
+    });
+
+    // 메일은 보낼 사람이 있을 때만. 매일 "0명"이 오면 읽지 않게 된다.
+    const pending = rows.filter((row) => row.nextTouch !== null);
+    if (!pending.length) {
+      console.log(`lifecycleScan ${dateKey}: 접촉 대기 0명 — 메일 생략`);
+      return;
+    }
+
+    await queueEmail(`lifecycle_scan_${dateKey}`, {
+      to: getAdminEmails(),
+      message: buildLifecycleEmail({ rows: pending, skipped, scannedAt }),
+    });
+
+    console.log(`lifecycleScan ${dateKey}: 접촉 대기 ${pending.length}명 — 알림 발송`);
+  }
 );

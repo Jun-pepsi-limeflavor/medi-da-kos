@@ -10,7 +10,10 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Header />
-      <main className={`flex-1 ${isHome ? "" : "pt-16"}`}>{children}</main>
+      {/* Home only drops the header offset at lg, where the hero goes full-bleed. */}
+      <main className={`flex-1 pt-16 ${isHome ? "lg:pt-0" : ""}`}>
+        {children}
+      </main>
       <Footer />
     </>
   );
