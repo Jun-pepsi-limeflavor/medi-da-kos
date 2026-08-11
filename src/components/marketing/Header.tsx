@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { LogOut, Menu, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const navLinks = [
   { href: "/about-us", label: "About Us" },
@@ -13,47 +13,11 @@ const navLinks = [
   { href: "/contact", label: "Contact" },
 ];
 
-/** Home: header appears after user scrolls past the first ~12% of the viewport */
-const HOME_HEADER_SCROLL_THRESHOLD = 0.12;
-
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
-  const isHome = pathname === "/";
-  const [visible, setVisible] = useState(!isHome);
-
-  useEffect(() => {
-    if (!isHome) {
-      setVisible(true);
-      return;
-    }
-
-    function updateVisibility() {
-      // Below lg the home hero is a split layout, not a full-bleed photo, so
-      // there is nothing for a transparent header to sit on. Keep it pinned.
-      if (!window.matchMedia("(min-width: 1024px)").matches) {
-        setVisible(true);
-        return;
-      }
-      const threshold =
-        window.innerHeight * HOME_HEADER_SCROLL_THRESHOLD;
-      setVisible(window.scrollY > threshold);
-    }
-
-    updateVisibility();
-    window.addEventListener("scroll", updateVisibility, { passive: true });
-    window.addEventListener("resize", updateVisibility);
-    return () => {
-      window.removeEventListener("scroll", updateVisibility);
-      window.removeEventListener("resize", updateVisibility);
-    };
-  }, [isHome]);
-
-  useEffect(() => {
-    if (!visible) setOpen(false);
-  }, [visible]);
 
   async function handleLogout() {
     await logout();
@@ -62,13 +26,7 @@ export function Header() {
   }
 
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-500 ease-out ${
-        visible
-          ? "translate-y-0 border-sky-100/60 bg-white/75 opacity-100 shadow-sm shadow-sky-100/30 backdrop-blur-xl"
-          : "pointer-events-none -translate-y-full border-transparent bg-transparent opacity-0 backdrop-blur-none"
-      }`}
-    >
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-sky-100/60 bg-white/75 shadow-sm shadow-sky-100/30 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2">
           <span className="font-serif text-xl font-semibold tracking-tight text-slate-800">
@@ -123,13 +81,12 @@ export function Header() {
           className="rounded-lg p-2 text-slate-600 md:hidden"
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
-          tabIndex={visible ? 0 : -1}
         >
           {open ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
 
-      {open && visible && (
+      {open && (
         <div className="border-t border-sky-50 bg-white px-4 py-4 md:hidden">
           {navLinks.map((link) => (
             <Link
