@@ -5,24 +5,24 @@ import { FreeSamplePopup } from "@/components/marketing/FreeSamplePopup";
 import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Korean Cosmetics OEM & ODM Manufacturing Platform for US Brands",
+  title: "Korean Cosmetics OEM & ODM Manufacturing Platform for Global Brands",
   description:
-    "Medidakos connects US beauty brands with GMP-certified Korean OEM/ODM manufacturers. Custom formulation, MOQ from 3,000 units, direct US freight — brief to first sample in 5 weeks. Get a free quote.",
+    "Medidakos connects global beauty brands with GMP-certified Korean OEM/ODM manufacturers. Custom formulation, MOQ from 3,000 units, direct global freight — brief to first sample in 5 weeks. Get a free quote.",
   alternates: {
     canonical: SITE_URL,
   },
   openGraph: {
     title:
-      "Korean Cosmetics OEM & ODM Manufacturing Platform for US Brands | Medidakos",
+      "Korean Cosmetics OEM & ODM Manufacturing Platform for Global Brands | Medidakos",
     description:
-      "Connect with GMP-certified Korean OEM/ODM manufacturers. Custom formulas, MOQ from 3,000 units, direct US freight. Brief to first sample in 5 weeks.",
+      "Connect with GMP-certified Korean OEM/ODM manufacturers. Custom formulas, MOQ from 3,000 units, direct global freight. Brief to first sample in 5 weeks.",
     url: SITE_URL,
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for US Beauty Brands",
+        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for Global Beauty Brands",
       },
     ],
   },
@@ -51,8 +51,8 @@ const ADVANTAGES = [
   {
     icon: Sparkles,
     tag: "Cost efficiency",
-    headline: "40%+ lower cost than domestic production",
-    body: "Factory-direct pricing with margins domestic production can't match — more profit, every order.",
+    headline: "40%+ lower cost than local production",
+    body: "Factory-direct pricing with margins local production can't match — more profit, every order.",
     metrics: [
       { value: "40%+", label: "avg. cost savings" },
       { value: "Factory-direct", label: "pricing model" },
@@ -92,7 +92,7 @@ const ADVANTAGES = [
     icon: ShieldCheck,
     tag: "Regulatory compliance",
     headline: "Sell anywhere. Every certification, covered.",
-    body: "From US and EU market entry to Halal and vegan consumer segments — we manufacture to the exact standards your market demands. No reformulation surprises.",
+    body: "From global market entry to Halal and vegan consumer segments — we manufacture to the exact standards your market demands. No reformulation surprises.",
     certs: ["FDA (MoCRA)",
   "EU CPNP",
   "ISO 22716 GMP",

@@ -32,7 +32,7 @@ const FAQ = [
   {
     id: "certifications",
     q: "What certifications can you support?",
-    a: "Our partner network covers the most common requirements for US and international market entry: FDA (MoCRA), EU CPNP, ISO 22716 GMP, Halal, Vegan Society, and Leaping Bunny cruelty-free, among others. Your PM will confirm which certifications apply to your product category and target markets.",
+    a: "Our partner network covers the most common requirements for global market entry: FDA (MoCRA), EU CPNP, ISO 22716 GMP, Halal, Vegan Society, and Leaping Bunny cruelty-free, among others. Your PM will confirm which certifications apply to your product category and target markets.",
   },
 ] as const;
 

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}/contact`,
   },
   openGraph: {
-    title: "Contact Medidakos — Korean OEM/ODM for US Beauty Brands",
+    title: "Contact Medidakos — Korean OEM/ODM for Global Beauty Brands",
     description:
       "Get in touch about Korean cosmetics manufacturing. Share your product idea, expected volume, and launch timeline.",
     url: `${SITE_URL}/contact`,

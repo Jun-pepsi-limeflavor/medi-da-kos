@@ -6,24 +6,24 @@ import { SplitHeroBrand } from "@/components/marketing/SplitHeroBrand";
 import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "About Us — Vetted Korean OEM/ODM Manufacturer Network for US Brands",
+  title: "About Us — Vetted Korean OEM/ODM Manufacturer Network for Global Brands",
   description:
-    "Medidakos operates a pre-vetted network of ISO 22716 GMP-certified Korean OEM/ODM manufacturers with US export experience. English-speaking PMs, MFDS-registered facilities, direct US freight.",
+    "Medidakos operates a pre-vetted network of ISO 22716 GMP-certified Korean OEM/ODM manufacturers with global export experience. English-speaking PMs, MFDS-registered facilities, direct global freight.",
   alternates: {
     canonical: `${SITE_URL}/about-us`,
   },
   openGraph: {
     title:
-      "About Medidakos — Vetted Korean OEM/ODM Manufacturer Network for US Brands",
+      "About Medidakos — Vetted Korean OEM/ODM Manufacturer Network for Global Brands",
     description:
-      "Pre-vetted ISO 22716 GMP-certified Korean OEM/ODM manufacturers. English-speaking PMs, MFDS-registered facilities, US export experience.",
+      "Pre-vetted ISO 22716 GMP-certified Korean OEM/ODM manufacturers. English-speaking PMs, MFDS-registered facilities, global export experience.",
     url: `${SITE_URL}/about-us`,
     images: [
       {
         url: "/og-about-us.png",
         width: 1200,
         height: 630,
-        alt: "Medidakos — Vetted Korean OEM/ODM Manufacturer Network for US Beauty Brands",
+        alt: "Medidakos — Vetted Korean OEM/ODM Manufacturer Network for Global Beauty Brands",
       },
     ],
   },
@@ -53,15 +53,15 @@ const SCREENING_CRITERIA = [
 const WHY_KOREA = [
   {
     title: "Formulation depth",
-    body: "Korean R&D labs have spent decades engineering textures, delivery systems, and active profiles that perform at the standard US prestige retail demands. The same factories supplying leading K-beauty brands at Sephora and Ulta are accessible through this platform.",
+    body: "Korean R&D labs have spent decades engineering textures, delivery systems, and active profiles that perform at the standard global prestige retail demands. The same factories supplying leading K-beauty brands at Sephora and Ulta are accessible through this platform.",
   },
   {
     title: "Export-ready compliance",
-    body: "Your partner factories have active export experience to the US, EU, and GCC markets. FDA MoCRA registration, EU CPNP filing, and ISO 22716 GMP are standard, not exceptions.",
+    body: "Your partner factories have global export experience across major beauty markets. FDA MoCRA registration, EU CPNP filing, and ISO 22716 GMP are standard, not exceptions.",
   },
   {
     title: "Competitive unit economics",
-    body: "Factory-direct pricing through a platform-managed brief removes the intermediary markup typical of traditional import agents. Brands typically see 30-50% lower unit costs versus comparable US contract manufacturing.",
+    body: "Factory-direct pricing through a platform-managed brief removes the intermediary markup typical of traditional import agents. Brands typically see 30-50% lower unit costs versus comparable local contract manufacturing.",
   },
   {
     title: "KORUS FTA trade terms",
@@ -150,7 +150,7 @@ export default function AboutUsPage() {
             sourcing a factory yourself.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
-            Medi Da Kos connects US beauty brands with a pre-vetted network of
+            Medi Da Kos connects global beauty brands with a pre-vetted network of
             Korean manufacturers. We manage formula development, sampling,
             compliance, and freight so your team stays focused on brand, not
             supply chain.
@@ -239,7 +239,7 @@ export default function AboutUsPage() {
 
           <section className="mt-16">
             <h2 className="font-serif text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
-              Why brands choose Korean ODM - and why it works for the US market.
+              Why brands choose Korean ODM - and why it works for global markets.
             </h2>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {WHY_KOREA.map((item) => (
@@ -309,8 +309,7 @@ export default function AboutUsPage() {
                 Medi Da Kos is operated by KTA Inc., a Korea-based company
                 with direct relationships in the Korean cosmetic manufacturing
                 industry. Our operations are built around one goal: making
-                Korean ODM accessible and low-friction for international brands,
-                starting with the US market.
+                Korean ODM accessible and low-friction for brands worldwide.
               </p>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
                 Every project is managed by an English-speaking project manager

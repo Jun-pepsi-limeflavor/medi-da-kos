@@ -44,10 +44,10 @@ Welcome aboard — we're glad you're here.
 
 Launching a beauty brand is hard enough without also having to navigate overseas manufacturing, certifications, and shipping. That's exactly the part we handle for you.
 
-Medidakos connects US beauty brands like yours with pre-vetted, ISO 22716 GMP-certified Korean manufacturers. Every partner in our network has English-speaking project managers and real US export experience, so nothing gets lost in translation.
+Medidakos connects global beauty brands like yours with pre-vetted, ISO 22716 GMP-certified Korean manufacturers. Every partner in our network has English-speaking project managers and real export experience, so nothing gets lost in translation.
 
 A few things you can do right now:
-• Explore how it works — see our 5-step process from brief to US delivery: https://www.medidakos.com/process
+• Explore how it works — see our 5-step process from brief to global delivery: https://www.medidakos.com/process
 • See why brands choose Korea — our side-by-side comparison: https://www.medidakos.com/compare
 • Start a brief whenever you're ready — no commitment, no pressure.
 
@@ -56,7 +56,7 @@ There's no rush. When you're ready to talk through your product idea, just reply
 Welcome to the start of something good,
 The Medidakos Team
 
-Medidakos · Korean Cosmetics OEM/ODM for US Brands
+Medidakos · Korean Cosmetics OEM/ODM for Global Brands
 https://www.medidakos.com
 
 From Medi Da KOS`;
@@ -66,17 +66,17 @@ From Medi Da KOS`;
       <p>Hi ${firstName},</p>
       <p>Welcome aboard — we're glad you're here.</p>
       <p>Launching a beauty brand is hard enough without also having to navigate overseas manufacturing, certifications, and shipping. That's exactly the part we handle for you.</p>
-      <p>Medidakos connects US beauty brands like yours with pre-vetted, ISO 22716 GMP-certified Korean manufacturers. Every partner in our network has English-speaking project managers and real US export experience, so nothing gets lost in translation.</p>
+      <p>Medidakos connects global beauty brands like yours with pre-vetted, ISO 22716 GMP-certified Korean manufacturers. Every partner in our network has English-speaking project managers and real export experience, so nothing gets lost in translation.</p>
       <p>A few things you can do right now:</p>
       <ul style="padding-left:1.25rem">
-        <li>Explore how it works — see our 5-step process from brief to US delivery: <a href="https://www.medidakos.com/process">https://www.medidakos.com/process</a></li>
+        <li>Explore how it works — see our 5-step process from brief to global delivery: <a href="https://www.medidakos.com/process">https://www.medidakos.com/process</a></li>
         <li>See why brands choose Korea — our side-by-side comparison: <a href="https://www.medidakos.com/compare">https://www.medidakos.com/compare</a></li>
         <li>Start a brief whenever you're ready — no commitment, no pressure.</li>
       </ul>
       <p>There's no rush. When you're ready to talk through your product idea, just reply to this email and we'll help you map out the next steps.</p>
       <p>Welcome to the start of something good,<br>The Medidakos Team</p>
       <p style="color:#666;font-size:13px;margin-top:2rem">
-        Medidakos · Korean Cosmetics OEM/ODM for US Brands<br>
+        Medidakos · Korean Cosmetics OEM/ODM for Global Brands<br>
         <a href="https://www.medidakos.com">https://www.medidakos.com</a><br><br>
         From Medi Da KOS
       </p>

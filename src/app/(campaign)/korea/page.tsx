@@ -82,7 +82,7 @@ const FORMULAS = [
   {
     name: "PDRN",
     kicker: "Anti-aging serums, ampoules, repair lines",
-    body: "A PDRN line is the one most US brands are being asked about right now — we can run that formula for you. PDRN showed up in eye formats early, so an eye serum is a natural second SKU next to what you already sell.",
+    body: "A PDRN line is the one most brands are being asked about right now — we can run that formula for you. PDRN showed up in eye formats early, so an eye serum is a natural second SKU next to what you already sell.",
     wide: true,
   },
   {
@@ -100,7 +100,7 @@ const FORMULAS = [
   {
     name: "Centella asiatica",
     kicker: "Sensitive skin and barrier lines",
-    body: "Centella keeps showing up in US reformulations — we can build a barrier line around it.",
+    body: "Centella keeps showing up in reformulations worldwide — we can build a barrier line around it.",
     wide: false,
   },
   {
