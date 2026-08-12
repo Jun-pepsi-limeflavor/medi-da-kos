@@ -27,15 +27,31 @@ export type KoreaSectionId =
 
 export type KoreaCtaId = "hero" | "closing" | "sticky";
 
+/**
+ * 랜딩 디자인 판. `positioning_arm`과 별개다 —
+ * arm은 카피(자기규정 명시 여부), variant는 디자인·레이아웃을 가른다.
+ * 둘을 한 값에 섞으면 어느 쪽이 움직였는지 못 가린다.
+ */
+export type KoreaVariant = "v1" | "v2";
+
 let armForSession = "arm-b";
+let variantForSession: KoreaVariant = "v1";
 
 /** 페이지 진입 시 1회. 서버가 정한 arm을 클라이언트 이벤트에도 실어보내기 위함. */
 export function setKoreaArm(arm: string) {
   armForSession = arm;
 }
 
+export function setKoreaVariant(variant: KoreaVariant) {
+  variantForSession = variant;
+}
+
 function track(event: string, params: Record<string, unknown>) {
-  trackConversionEvent(event, { ...params, positioning_arm: armForSession });
+  trackConversionEvent(event, {
+    ...params,
+    positioning_arm: armForSession,
+    landing_variant: variantForSession,
+  });
 }
 
 /** 세로 스크롤 도달률. 25/50/75/100 각각 1회씩. */
@@ -46,6 +62,18 @@ export function trackScrollDepth(percent: 25 | 50 | 75 | 100) {
 /** 구간이 화면에 절반 이상 들어온 순간. 구간당 1회. */
 export function trackSectionView(sectionId: KoreaSectionId) {
   track("section_view", { section_id: sectionId });
+}
+
+/**
+ * 성분 카드가 화면에 들어온 순간. 카드당 1회.
+ *
+ * v2의 성분 섹션은 가로 캐러셀이라 `section_view` 하나로는
+ * 뒤쪽 카드를 봤는지 알 수 없다 — 세로 스크롤과 달리 넘기지 않으면 안 보인다.
+ * 발송 성분 배분이 PDRN에 쏠려 있어 메일로는 성분 간 비교가 안 되는데,
+ * 이 이벤트는 한 세션 안에서 어느 성분까지 넘겼는지를 준다.
+ */
+export function trackFormulaView(formulaId: string) {
+  track("formula_view", { formula_id: formulaId });
 }
 
 /** FAQ 문항을 펼친 순간. 어떤 반론이 살아 있는지 읽는 지표. */

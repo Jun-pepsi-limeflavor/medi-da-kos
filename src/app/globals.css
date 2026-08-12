@@ -14,6 +14,9 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-noto-serif), ui-serif, Georgia, serif;
+  /* /korea-v2 전용. 다른 라우트는 이 두 개를 쓰지 않는다. */
+  --font-display: var(--font-display-face), ui-serif, Georgia, serif;
+  --font-body-alt: var(--font-body-alt-face), system-ui, sans-serif;
 }
 
 body {

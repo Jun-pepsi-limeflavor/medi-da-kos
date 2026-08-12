@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import {
   setKoreaArm,
+  setKoreaVariant,
   trackCtaView,
   trackEngaged15s,
   trackScrollDepth,
   trackSectionView,
   type KoreaCtaId,
   type KoreaSectionId,
+  type KoreaVariant,
 } from "./analytics";
 
 const DEPTHS = [25, 50, 75, 100] as const;
@@ -29,7 +31,18 @@ const ENGAGED_MS = 15000;
  * 구간 노출은 IntersectionObserver로 잡는다. `data-section` 속성이 붙은
  * 요소를 자동으로 찾으므로 섹션이 늘어도 이 파일은 안 고친다.
  */
-export function KoreaPageSignals({ arm }: { arm: string }) {
+export function KoreaPageSignals({
+  arm,
+  variant = "v1",
+}: {
+  arm: string;
+  variant?: KoreaVariant;
+}) {
+  // 다른 이벤트보다 먼저 세션 값을 세운다 — 첫 section_view가 이미 여기 의존한다.
+  useEffect(() => {
+    setKoreaVariant(variant);
+  }, [variant]);
+
   useEffect(() => {
     setKoreaArm(arm);
   }, [arm]);

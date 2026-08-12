@@ -1,5 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Instrument_Serif,
+  Montserrat,
+  Noto_Serif,
+} from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { ChannelTalk } from "@/components/support/ChannelTalk";
@@ -21,6 +27,25 @@ const notoSerif = Noto_Serif({
   variable: "--font-noto-serif",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
+});
+
+/**
+ * /korea-v2 전용 서체 2종.
+ *
+ * D'you의 Lemonde(유료)를 대신할 디돈 계열 표제용 + 본문 Montserrat.
+ * 루트에서 변수만 심고 실제 적용은 해당 라우트에서만 한다 —
+ * 다른 페이지의 서체를 건드리면 v1과의 비교가 오염된다.
+ */
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-display-face",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+});
+
+const montserrat = Montserrat({
+  variable: "--font-body-alt-face",
+  subsets: ["latin"],
 });
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
@@ -138,7 +163,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} ${instrumentSerif.variable} ${montserrat.variable} h-full antialiased`}
     >
       <head>
         <OrganizationJsonLd />

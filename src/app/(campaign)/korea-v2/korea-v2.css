@@ -1,0 +1,119 @@
+/*
+ * /korea-v2 전용 스타일. 이 라우트에서만 import한다.
+ *
+ * 움직임 원칙 — 콜드메일 랜딩이라 첫인상이 신뢰다. 눈에 띄는 연출은
+ * 넣지 않는다. 나타나는 방향은 아래에서 위 하나로 통일하고, 거리는 짧게,
+ * 곡선은 감속만 있는 것으로 둔다. 튕김·회전·시차 스크롤은 쓰지 않는다.
+ */
+
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* 합성 레이어를 미리 잡아둬야 첫 프레임이 끊기지 않는다. */
+  will-change: opacity, transform;
+}
+
+.reveal[data-reveal="in"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  /* 끝난 뒤에는 레이어를 놓아준다. 긴 페이지에서 메모리로 돌아온다. */
+  will-change: auto;
+}
+
+/*
+ * 사진은 살짝 확대된 상태로 들어와 제자리를 찾는다.
+ * 카드가 아니라 사진만 움직여야 텍스트 기준선이 안 흔들린다.
+ */
+.reveal-media {
+  overflow: hidden;
+}
+
+.reveal-media img {
+  transform: scale(1.06);
+  transition: transform 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal[data-reveal="in"] .reveal-media img,
+.reveal-media[data-reveal="in"] img {
+  transform: scale(1);
+}
+
+/* <scroll-carousel> — 커스텀 엘리먼트의 기본 형태 */
+scroll-carousel {
+  display: block;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+scroll-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* 넘칠 때만 잡아끌 수 있다는 신호를 준다. 안 넘치면 커서도 그대로. */
+scroll-carousel.is-scrollable {
+  cursor: grab;
+}
+
+scroll-carousel.is-dragging {
+  cursor: grabbing;
+  /* 끄는 동안 카드 안 글자가 선택되면 드래그가 텍스트 선택으로 새어나간다. */
+  user-select: none;
+  scroll-snap-type: none;
+}
+
+scroll-carousel.is-dragging img {
+  /* 브라우저 기본 이미지 드래그가 포인터를 가로챈다. */
+  pointer-events: none;
+}
+
+/*
+ * 오른쪽 끝 페이드. 끝까지 밀면 사라져서 "여기가 끝"이 손이 아니라 눈으로 온다.
+ * --progress는 커스텀 엘리먼트가 스크롤할 때마다 갱신한다.
+ */
+.carousel-shell {
+  position: relative;
+}
+
+.carousel-shell::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 88px;
+  pointer-events: none;
+  background: linear-gradient(to right, rgb(255 255 255 / 0), rgb(255 255 255));
+  opacity: calc(1 - var(--carousel-progress, 0));
+  transition: opacity 200ms linear;
+}
+
+@media (max-width: 640px) {
+  .carousel-shell::after {
+    width: 40px;
+  }
+}
+
+/* 움직임을 줄이라고 한 사용자에게는 전환 없이 최종 상태만 준다. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-media img {
+    transition: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .reveal-media img {
+    transform: none;
+  }
+
+  scroll-carousel {
+    scroll-behavior: auto;
+  }
+}
