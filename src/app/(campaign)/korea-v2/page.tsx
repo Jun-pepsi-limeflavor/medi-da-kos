@@ -80,36 +80,36 @@ const FORMULAS = [
     name: "PDRN",
     kicker: "Anti-aging serums, ampoules, repair lines",
     body: "A PDRN line is the one most brands are being asked about right now — we can run that formula for you. PDRN showed up in eye formats early, so an eye serum is a natural second SKU next to what you already sell.",
-    image: "/korea-v2/formula-pdrn.jpg",
-    alt: "A pink gel swatch on a pink background.",
+    image: "/korea-v2/formula-pdrn-2.jpg",
+    alt: "A glossy pink gel swatch on a pale pink background.",
   },
   {
     name: "Encapsulated retinol",
     kicker: "Wrinkle and firming creams, night creams",
     body: "If a retinol line is on your roadmap, encapsulated retinol is where the formulation work sits — we run those.",
-    image: "/korea-v2/formula-encapsulated-retinol.jpg",
-    alt: "Shavings of a pale cream balm on a pink background.",
+    image: "/korea-v2/formula-encapsulated-retinol-2.jpg",
+    alt: "A stroke of thick white cream on a pale sage background.",
   },
   {
     name: "Retinal",
     kicker: "Wrinkle and firming, with Europe on the map",
     body: "If Europe is on your map, retinal sits outside the EU retinol cap — worth speccing that way from the start.",
-    image: "/korea-v2/formula-retinal.jpg",
+    image: "/korea-v2/formula-retinal-2.jpg",
     alt: "A clear gel droplet spread on a grey background.",
   },
   {
     name: "Centella asiatica",
     kicker: "Sensitive skin and barrier lines",
     body: "Centella keeps showing up in reformulations worldwide — we can build a barrier line around it.",
-    image: "/korea-v2/formula-centella.jpg",
-    alt: "A teal-tinted gel droplet on a grey background.",
+    image: "/korea-v2/formula-centella-2.jpg",
+    alt: "A green gel swirled into ridges, with fine particles suspended in it.",
   },
   {
     name: "Plant-derived PDRN",
     kicker: "Vegan and clean-beauty positioning",
     body: "There's a plant-derived route to PDRN if animal-derived is off the table for you. It's a different input with a different profile, so we'd spec it as its own line rather than a swap.",
-    image: "/korea-v2/formula-plant-pdrn.jpg",
-    alt: "Two strokes of a golden gel with suspended particles on a sand background.",
+    image: "/korea-v2/formula-plant-pdrn-2.jpg",
+    alt: "Two strokes of a golden gel with suspended grains on a sand background.",
   },
 ] as const;
 
@@ -171,11 +171,11 @@ const CLOSING = {
  * 카드는 각지고 버튼만 둥근 대비가 이 톤의 핵심이라 radius를 섞지 않는다.
  */
 const eyebrowClass = "font-body-alt text-sm text-[#2A6DCB]";
-const sectionClass = "mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24";
+const sectionClass = "mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12";
 const h2Class =
   "mt-4 font-display text-[40px] leading-none tracking-[-0.05em] text-[#2A6DCB] sm:text-[48px]";
 const bodyClass = "font-body-alt text-base leading-relaxed text-[#68809A]";
-const panelClass = "rounded-3xl bg-[#F5F7FF] px-6 py-12 sm:px-10";
+const panelClass = "rounded-3xl bg-[#F5F7FF] px-6 py-10 sm:px-10";
 const cardClass = "rounded-[4px] bg-[#F5F7FF] p-7";
 const ctaClass =
   "inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2A6DCB] px-8 py-3.5 font-body-alt text-base text-white transition hover:bg-[#254F79] sm:w-auto";
@@ -204,7 +204,7 @@ export default async function KoreaLandingPageV2({
 
       {/* §1 히어로 — 표제 안 한 단어만 이탤릭으로 눌러준다 (dyou의 <shade> 자리) */}
       <section
-        className="mx-auto max-w-5xl px-4 py-24 sm:px-6 lg:px-8 lg:py-32"
+        className="mx-auto max-w-5xl px-4 pt-14 pb-4 sm:px-6 lg:px-8 lg:pt-20 lg:pb-6"
         data-section="hero"
       >
         <Reveal as="p" className={eyebrowClass}>
@@ -255,7 +255,7 @@ export default async function KoreaLandingPageV2({
 
         {/* 캐러셀은 리빌로 감싸지 않는다 — 안쪽 카드가 자기 리듬으로 들어오고,
             바깥이 같이 움직이면 가로 스크롤 위치가 첫 프레임에 흔들린다. */}
-        <div className="mt-12">
+        <div className="mt-8">
           <FormulaCarousel formulas={FORMULAS} />
         </div>
 
@@ -289,7 +289,7 @@ export default async function KoreaLandingPageV2({
           Four steps, and the first one is yours.
         </Reveal>
 
-        <div className="mt-12 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((step, index) => (
             // 순서대로 들어오게 벌린다. 네 장이라 80ms면 마지막이 320ms —
             // 이보다 벌리면 늦게 오는 카드가 고장처럼 보인다.
@@ -317,7 +317,7 @@ export default async function KoreaLandingPageV2({
           Three things we settle before a number goes out.
         </Reveal>
 
-        <div className="mt-12 grid gap-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-2 lg:grid-cols-3">
           {CHECKS.map((check, index) => (
             <Reveal key={check.title} delay={index * 80} className={cardClass}>
               <p className="font-display text-[26px] leading-tight tracking-[-0.04em] text-[#2A6DCB]">
@@ -333,7 +333,7 @@ export default async function KoreaLandingPageV2({
 
       {/* §6 물량 — 1만 개 필터. 거절이 아니라 자격 안내로 읽히게 성분 뒤에 둔다 */}
       <section
-        className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"
+        className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12"
         data-section="volume"
       >
         <Reveal as="p" className={eyebrowClass}>
@@ -370,7 +370,7 @@ export default async function KoreaLandingPageV2({
       <section
         id="brief"
         data-section="brief"
-        className="mx-auto max-w-2xl scroll-mt-8 px-4 py-20 sm:px-6 lg:px-8 lg:py-24"
+        className="mx-auto max-w-2xl scroll-mt-8 px-4 py-10 sm:px-6 lg:px-8 lg:py-12"
       >
         <Reveal
           as="h2"
@@ -397,7 +397,7 @@ export default async function KoreaLandingPageV2({
 
       {/* §9 FAQ — 뒤로가기가 될 반론 회수 */}
       <section
-        className="mx-auto max-w-3xl px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"
+        className="mx-auto max-w-3xl px-4 pb-10 sm:px-6 lg:px-8 lg:pb-12"
         data-section="faq"
       >
         <Reveal
@@ -417,7 +417,7 @@ export default async function KoreaLandingPageV2({
 
       {/* §10 서명 마무리 — 발신 계정이 둘이라 두 이름을 같이 쓴다 */}
       <section
-        className="mx-auto max-w-2xl px-4 pb-24 text-center sm:px-6 lg:px-8 lg:pb-32"
+        className="mx-auto max-w-2xl px-4 pb-12 text-center sm:px-6 lg:px-8 lg:pb-16"
         data-section="closing"
       >
         <Reveal
