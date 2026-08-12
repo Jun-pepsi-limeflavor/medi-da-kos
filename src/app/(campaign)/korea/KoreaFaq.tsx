@@ -23,7 +23,7 @@ const FAQ = [
   {
     id: "markets",
     q: "Which markets can you spec for?",
-    a: "Tell us where you're selling — US, EU, or both — and we'll factor those markets into the spec from the start rather than reworking it later.",
+    a: "Tell us where you're selling — wherever that is — and we'll factor those markets into the spec from the start rather than reworking it later.",
   },
   {
     id: "call",

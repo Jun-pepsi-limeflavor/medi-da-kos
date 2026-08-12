@@ -7,8 +7,8 @@ const organizationSchema = {
   url: SITE_URL,
   logo: `${SITE_URL}/icon-192.png`,
   description:
-    "Korean cosmetics OEM/ODM platform connecting US beauty brands with GMP-certified Korean manufacturers.",
-  areaServed: ["US", "CA", "GB", "AU"],
+    "Korean cosmetics OEM/ODM platform connecting global beauty brands with GMP-certified Korean manufacturers.",
+  areaServed: { "@type": "Place", name: "Worldwide" },
   serviceType: [
     "OEM Cosmetics Manufacturing",
     "ODM Cosmetics Development",

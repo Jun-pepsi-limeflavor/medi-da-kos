@@ -19,7 +19,7 @@ export function HowItWorksPage() {
         <div className="absolute inset-0">
           <Image
             src="/how_it_works_hero.png"
-            alt="Korean OEM/ODM manufacturing process — brief to sampling, payment, and US freight delivery"
+            alt="Korean OEM/ODM manufacturing process — brief to sampling, payment, and global freight delivery"
             fill
             priority
             className="object-cover object-center brightness-[1.12] contrast-[1.04] saturate-[1.15] hue-rotate-[-6deg]"

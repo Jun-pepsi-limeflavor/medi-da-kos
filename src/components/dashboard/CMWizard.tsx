@@ -262,7 +262,7 @@ const STEP1_OPTIONS: {
     desc: "Serums, creams, toners, cleansers, and treatments.",
     image: "/step1_skincare.png",
     imageAlt:
-      "Korean OEM/ODM skincare formulation — serum, cream, and toner for US beauty brands",
+      "Korean OEM/ODM skincare formulation — serum, cream, and toner for global beauty brands",
   },
   {
     id: "cosmetic",
@@ -270,7 +270,7 @@ const STEP1_OPTIONS: {
     desc: "Color cosmetics, makeup, and decorative products.",
     image: "/step1_cosmetic.png",
     imageAlt:
-      "Korean OEM/ODM color cosmetics manufacturing — makeup and decorative beauty products for US market",
+      "Korean OEM/ODM color cosmetics manufacturing — makeup and decorative beauty products for global markets",
   },
   {
     id: "rnd-agency",
@@ -1138,7 +1138,7 @@ function Step6({
           <Step6ExampleCard
             title="Restricted ingredients (free-from)"
             description="List ingredients that must not be used—based on your brand standards or retailer requirements."
-            tips="Common requests include excluding parabens, sulfates, phthalates, synthetic fragrance, or phenoxyethanol. Note any regional rules, such as PFAS restrictions in select US states."
+            tips="Common requests include excluding parabens, sulfates, phthalates, synthetic fragrance, or phenoxyethanol. Note any regional rules, such as PFAS restrictions in certain markets."
             example="No parabens, silicones, or synthetic dyes. Must meet Clean at Sephora requirements."
           />
           <Step6ExampleCard

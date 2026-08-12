@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: SITE_NAME,
     short_name: SITE_NAME,
     description:
-      "Korean cosmetics OEM/ODM platform for US beauty brands.",
+      "Korean cosmetics OEM/ODM platform for global beauty brands.",
     start_url: "/",
     display: "standalone",
     background_color: "#f6fbff",

@@ -46,13 +46,13 @@ const HERO_SLIDES = [
     src: "/medidakos_main2.webp",
     mobileSrc: "/medidakos_main2.webp",
     lightText: true,
-    alt: "Custom K-beauty skincare formulation for US indie beauty brands — sampling stage",
+    alt: "Custom K-beauty skincare formulation for global indie beauty brands — sampling stage",
   },
   {
     src: "/medidakos_main3.webp",
     mobileSrc: "/medidakos_main3_m.webp",
     lightText: false,
-    alt: "ISO 22716 GMP certified Korean beauty manufacturer — export-ready packaging for US market",
+    alt: "ISO 22716 GMP certified Korean beauty manufacturer — export-ready packaging for global markets",
   },
 ] as const;
 

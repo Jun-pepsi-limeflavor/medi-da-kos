@@ -55,16 +55,16 @@ export const metadata: Metadata = {
   },
   title: {
     default:
-      "Korean Cosmetics OEM & ODM Manufacturer for US Brands | Medidakos",
+      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    "Launch your K-beauty line in the US market. Medidakos connects you with GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, and direct US freight. Free consultation.",
+    "Launch your K-beauty line in global markets. Medidakos connects you with GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, and direct global freight. Free consultation.",
   keywords: [
     "Korean cosmetics OEM manufacturer",
     "Korean cosmetics ODM manufacturer",
-    "K-beauty private label US",
-    "Korean skincare manufacturer for US brands",
+    "K-beauty private label",
+    "Korean skincare manufacturer for global brands",
     "Korean beauty contract manufacturing",
     "custom K-beauty formulation",
     "Korean cosmetic white label",
@@ -72,7 +72,7 @@ export const metadata: Metadata = {
     "K-beauty indie brand manufacturer",
     "Korean ODM platform",
     "private label skincare Korea",
-    "K-beauty wholesale US",
+    "K-beauty wholesale",
     "Korean beauty brand launch",
   ],
   openGraph: {
@@ -81,15 +81,15 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: SITE_NAME,
     title:
-      "Korean Cosmetics OEM & ODM Manufacturer for US Brands | Medidakos",
+      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
     description:
-      "Launch your K-beauty line in the US market. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct US freight.",
+      "Launch your K-beauty line in global markets. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct global freight.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for US Beauty Brands",
+        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for Global Beauty Brands",
         type: "image/png",
       },
     ],
@@ -98,9 +98,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@medidakos",
     title:
-      "Korean Cosmetics OEM & ODM Manufacturer for US Brands | Medidakos",
+      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
     description:
-      "Launch your K-beauty line in the US market. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct US freight.",
+      "Launch your K-beauty line in global markets. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct global freight.",
     images: ["/og-image.png"],
   },
   alternates: {
