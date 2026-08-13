@@ -1,5 +1,6 @@
 import type { CMBrief } from "./types";
 import { getStep1Selection } from "./step1-utils";
+import { getOrderQuantity } from "./quantity-utils";
 
 export function stepHasContent(brief: CMBrief, step: number): boolean {
   switch (step) {
@@ -12,7 +13,8 @@ export function stepHasContent(brief: CMBrief, step: number): boolean {
     case 4:
       return Boolean(
         brief.step4?.volume ||
-          brief.step4?.moq ||
+          getOrderQuantity(brief.step4) ||
+          brief.step4?.orderQuantityTbd ||
           brief.step4?.shippingCountry,
       );
     case 5:
