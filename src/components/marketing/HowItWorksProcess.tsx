@@ -32,7 +32,7 @@ const PROCESS_STEPS: ProcessStep[] = [
     title: "Submit your brief",
     duration: "Day 1",
     summary:
-      "Complete your dashboard brief — category, formula, packaging, MOQ, target launch date, and certifications. No email required to get started.",
+      "Complete your dashboard brief — category, formula, packaging, order quantity, target launch date, and certifications. No email required to get started.",
     details: [
       {
         heading: "Platform",
@@ -40,7 +40,7 @@ const PROCESS_STEPS: ProcessStep[] = [
       },
       {
         heading: "You provide",
-        body: "Product concept, target MOQ, launch window, and certification requirements.",
+        body: "Product concept, target order quantity, launch window, and certification requirements.",
       },
     ],
     note: "Start in minutes, not email threads",

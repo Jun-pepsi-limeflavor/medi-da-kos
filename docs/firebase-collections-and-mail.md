@@ -159,7 +159,7 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 |------|---------|
 | `type` | `"custom"` |
 | `title` | `"Custom ODM — Skin Care"` 또는 `"Cosmetic"` |
-| `summary` | `"MOQ: 1000 · Volume: 50 ml · Packaging: ..."` |
+| `summary` | `"Order quantity: 5,000 · Volume: 50 ml · Packaging: ..."` (수량 미정 시 `"Order quantity: TBD"`) |
 | `referenceId` | `"custom-{uid}-{timestamp}"` |
 | `briefSnapshot` | 제출 시점 브리프 전체 (step3 logo binary 제외) |
 | `status` | `"submitted"` |
