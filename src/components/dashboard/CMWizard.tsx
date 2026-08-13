@@ -11,6 +11,13 @@ import type {
   Step1Selection,
 } from "@/lib/types";
 import { isOdmSelection, odmCategory } from "@/lib/step1-utils";
+import {
+  MIN_SUBMITTABLE_QUANTITY,
+  MOQ_PER_SKU,
+  getOrderQuantity,
+  isBlockingQuantityIssue,
+  orderQuantityIssue,
+} from "@/lib/quantity-utils";
 import { RndAgencySurveyPlaceholder } from "./RndAgencySurveyPlaceholder";
 import { LogoPackagingPreview } from "./LogoPackagingPreview";
 import {
@@ -45,7 +52,7 @@ const wizardSectionTitleClass = "text-lg font-semibold text-slate-800";
 const wizardSectionDescClass = "mt-1 text-sm leading-relaxed text-slate-600";
 const wizardLabelClass = "mb-2.5 block text-base font-semibold text-slate-700";
 const wizardInputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-base text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 md:py-4 md:text-lg";
+  "w-full rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-base text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:border-slate-200/70 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none disabled:placeholder:text-slate-300 md:py-4 md:text-lg";
 const wizardTextareaClass = `${wizardInputClass} min-h-[8.5rem] resize-y leading-relaxed`;
 const wizardHintClass = "mt-2 text-sm text-slate-500";
 const wizardExamplePanelClass =
@@ -81,6 +88,14 @@ export function CMWizard({ uid }: Props) {
 
   async function handleSubmit() {
     if (!brief) return;
+    if (isBlockingQuantityIssue(orderQuantityIssue(brief.step4))) {
+      setBrief({ ...brief, currentStep: 4 });
+      setMessage(
+        `Order quantity must be at least ${MIN_SUBMITTABLE_QUANTITY.toLocaleString()} units, or marked as undecided.`,
+      );
+      setTimeout(() => setMessage(""), 8000);
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -106,6 +121,8 @@ export function CMWizard({ uid }: Props) {
   }
 
   const step = brief.currentStep;
+  const quantityBlocked =
+    step === 4 && isBlockingQuantityIssue(orderQuantityIssue(brief.step4));
 
   // Below lg the height budget is viewport − 3.5rem mobile top bar − 3rem of
   // p-6. 100dvh there so the collapsing iOS URL bar can't cause overflow.
@@ -224,7 +241,7 @@ export function CMWizard({ uid }: Props) {
           {step < 6 ? (
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || quantityBlocked}
               onClick={() => persist(brief, true)}
               className="rounded-lg bg-sky-500/90 px-6 py-3 text-base font-semibold text-white shadow-sm shadow-sky-100/80 transition hover:bg-sky-600 disabled:opacity-60"
             >
@@ -651,24 +668,30 @@ function Step4({
   const v = value ?? {
     volume: "",
     unit: "ml" as const,
-    moq: "",
+    orderQuantity: "",
+    orderQuantityTbd: false,
     sampleRequestDate: "",
     targetLaunchDate: "",
     shippingCountry: "",
   };
   const set = (patch: Partial<typeof v>) => onChange({ ...v, ...patch });
+  const tbd = Boolean(v.orderQuantityTbd);
+  const quantityIssue = orderQuantityIssue(v);
 
   return (
     <div className={stepContentClass}>
-      <h2 className={stepTitleClass}>Volume, MOQ & timeline</h2>
+      <h2 className={stepTitleClass}>Volume, order quantity & timeline</h2>
       <p className={stepDescClass}>
       All dates are based on US Eastern Time. Sample requests require at least 2 weeks' lead time; target launch at least 6 weeks out.
       </p>
       <div className="mt-8 space-y-6">
         <section className={wizardPanelClass}>
-          <h3 className={wizardSectionTitleClass}>Product volume & MOQ</h3>
+          <h3 className={wizardSectionTitleClass}>
+            Product volume & order quantity
+          </h3>
           <p className={wizardSectionDescClass}>
-            Tell us the size you have in mind and your minimum order quantity.
+            Tell us the size you have in mind and how many units you plan to
+            order.
           </p>
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
             <div>
@@ -695,13 +718,59 @@ function Step4({
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className={wizardLabelClass}>Minimum Order Quantity (MOQ)</label>
+              <label
+                className={`${wizardLabelClass} ${tbd ? "text-slate-400" : ""}`}
+              >
+                Order Quantity
+              </label>
               <input
                 className={wizardInputClass}
-                value={v.moq}
-                onChange={(e) => set({ moq: e.target.value })}
-                placeholder="e.g. 3,000 units"
+                value={tbd ? "" : getOrderQuantity(v)}
+                disabled={tbd}
+                onChange={(e) => set({ orderQuantity: e.target.value })}
+                placeholder={tbd ? "To be decided later" : "e.g. 5,000"}
               />
+              <p
+                className={`${wizardHintClass} ${tbd ? "text-slate-400" : ""}`}
+              >
+                Minimum order quantity is {MOQ_PER_SKU.toLocaleString()} units
+                per SKU.
+              </p>
+              {!tbd && quantityIssue === "below-moq" && (
+                <p className="mt-2 text-sm text-amber-700">
+                  Below our {MOQ_PER_SKU.toLocaleString()}-unit minimum — we can
+                  still review it, but factory options and unit cost will be
+                  limited.
+                </p>
+              )}
+              {!tbd && quantityIssue === "below-min" && (
+                <p className="mt-2 text-sm text-rose-600">
+                  We can&apos;t run production below{" "}
+                  {MIN_SUBMITTABLE_QUANTITY.toLocaleString()} units. Raise the
+                  quantity or mark it as undecided below.
+                </p>
+              )}
+              {!tbd && quantityIssue === "invalid" && (
+                <p className="mt-2 text-sm text-rose-600">
+                  Enter the quantity as a number, e.g. 5,000.
+                </p>
+              )}
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-sky-100/80 bg-white/85 px-4 py-3.5 shadow-sm shadow-sky-100/30 transition hover:border-sky-200">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  checked={tbd}
+                  onChange={(e) => set({ orderQuantityTbd: e.target.checked })}
+                />
+                <span>
+                  <span className="block text-base font-medium text-slate-700">
+                    Not sure yet (TBD)
+                  </span>
+                  <span className="mt-0.5 block text-sm leading-relaxed text-slate-500">
+                    We&apos;ll size the run together with your project manager.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
         </section>

@@ -52,7 +52,12 @@ export interface CMBriefStep3 {
 export interface CMBriefStep4 {
   volume: string;
   unit: "ml" | "g" | "oz";
-  moq: string;
+  /** Units the customer wants to order */
+  orderQuantity?: string;
+  /** Customer hasn't decided the order quantity yet */
+  orderQuantityTbd?: boolean;
+  /** @deprecated use orderQuantity — kept for Firestore migration */
+  moq?: string;
   sampleRequestDate: string;
   targetLaunchDate: string;
   shippingCountry: string;

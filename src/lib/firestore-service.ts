@@ -23,6 +23,7 @@ import type {
   UserProfile,
 } from "./types";
 import { getStep1Selection, odmCategory } from "./step1-utils";
+import { getOrderQuantity } from "./quantity-utils";
 import { expectedVolumeLabel } from "./contact-form-options";
 import { isNonProductionEnv } from "./env-flags";
 import { getFirebaseDb } from "./firebase";
@@ -306,7 +307,12 @@ export async function submitCustomBrief(brief: CMBrief): Promise<Order> {
 
 function buildCustomOrderSummary(brief: CMBrief): string {
   const parts: string[] = [];
-  if (brief.step4?.moq) parts.push(`MOQ: ${brief.step4.moq}`);
+  if (brief.step4?.orderQuantityTbd) {
+    parts.push("Order quantity: TBD");
+  } else {
+    const orderQuantity = getOrderQuantity(brief.step4);
+    if (orderQuantity) parts.push(`Order quantity: ${orderQuantity}`);
+  }
   if (brief.step4?.volume)
     parts.push(`Volume: ${brief.step4.volume} ${brief.step4.unit}`);
   if (brief.step2?.selections?.length) {
