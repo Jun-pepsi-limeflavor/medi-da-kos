@@ -320,6 +320,13 @@ function buildCustomOrderSummary(brief: CMBrief): string {
       `Packaging: ${brief.step2.selections.map((s) => s.group).join(", ")}`,
     );
   }
+  // 알림 메일은 summary만 싣는다. 배송지가 없으면 담당자가 메일로 되물어야 한다.
+  const address = brief.shippingAddress;
+  const destination = [address?.city, address?.country]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ");
+  if (destination) parts.push(`Ship to: ${destination}`);
   return parts.join(" · ") || "Custom manufacturing brief submitted";
 }
 

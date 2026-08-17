@@ -15,7 +15,8 @@ export function stepHasContent(brief: CMBrief, step: number): boolean {
         brief.step4?.volume ||
           getOrderQuantity(brief.step4) ||
           brief.step4?.orderQuantityTbd ||
-          brief.step4?.shippingCountry,
+          brief.step4?.shippingCountry ||
+          brief.shippingAddress?.addressLine1,
       );
     case 5:
       return Boolean(

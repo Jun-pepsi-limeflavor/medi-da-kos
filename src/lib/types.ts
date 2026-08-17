@@ -60,7 +60,8 @@ export interface CMBriefStep4 {
   moq?: string;
   sampleRequestDate: string;
   targetLaunchDate: string;
-  shippingCountry: string;
+  /** @deprecated use CMBrief.shippingAddress.country — kept for Firestore migration */
+  shippingCountry?: string;
 }
 
 export interface CMBriefStep5 {
