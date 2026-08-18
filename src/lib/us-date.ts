@@ -25,9 +25,10 @@ export function getUSDatePlusWeeks(weeks: number): string {
 }
 
 export function minSampleRequestDate(): string {
-  return getUSDatePlusWeeks(2);
+  return getUSDatePlusWeeks(3);
 }
 
+/** ~2 months out */
 export function minTargetLaunchDate(): string {
-  return getUSDatePlusWeeks(6);
+  return getUSDatePlusWeeks(8);
 }

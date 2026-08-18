@@ -8,6 +8,7 @@ import type {
   CMBrief,
   PackagingSelection,
   ProductCategory,
+  ShippingAddress,
   Step1Selection,
 } from "@/lib/types";
 import { isOdmSelection, odmCategory } from "@/lib/step1-utils";
@@ -96,6 +97,14 @@ export function CMWizard({ uid }: Props) {
       setTimeout(() => setMessage(""), 8000);
       return;
     }
+    if (isShippingAddressIncomplete(brief.shippingAddress)) {
+      setBrief({ ...brief, currentStep: 4 });
+      setMessage(
+        "Complete the shipping address in Step 4 before submitting your brief.",
+      );
+      setTimeout(() => setMessage(""), 8000);
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -121,8 +130,10 @@ export function CMWizard({ uid }: Props) {
   }
 
   const step = brief.currentStep;
-  const quantityBlocked =
-    step === 4 && isBlockingQuantityIssue(orderQuantityIssue(brief.step4));
+  const step4Blocked =
+    step === 4 &&
+    (isBlockingQuantityIssue(orderQuantityIssue(brief.step4)) ||
+      isShippingAddressIncomplete(brief.shippingAddress));
 
   // Below lg the height budget is viewport − 3.5rem mobile top bar − 3rem of
   // p-6. 100dvh there so the collapsing iOS URL bar can't cause overflow.
@@ -204,7 +215,18 @@ export function CMWizard({ uid }: Props) {
         {step === 4 && (
           <Step4
             value={brief.step4}
+            address={brief.shippingAddress}
             onChange={(step4) => setBrief({ ...brief, step4 })}
+            onAddressChange={(shippingAddress) =>
+              setBrief({
+                ...brief,
+                shippingAddress,
+                // 기존 문서·요약이 참조하는 레거시 필드를 같이 맞춰둔다
+                step4: brief.step4
+                  ? { ...brief.step4, shippingCountry: shippingAddress.country }
+                  : brief.step4,
+              })
+            }
           />
         )}
         {step === 5 && (
@@ -241,7 +263,7 @@ export function CMWizard({ uid }: Props) {
           {step < 6 ? (
             <button
               type="button"
-              disabled={saving || quantityBlocked}
+              disabled={saving || step4Blocked}
               onClick={() => persist(brief, true)}
               className="rounded-lg bg-sky-500/90 px-6 py-3 text-base font-semibold text-white shadow-sm shadow-sky-100/80 transition hover:bg-sky-600 disabled:opacity-60"
             >
@@ -655,12 +677,45 @@ function normalizeHexInput(raw: string): string {
   return raw;
 }
 
+const EMPTY_SHIPPING_ADDRESS: ShippingAddress = {
+  recipientName: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  stateOrProvince: "",
+  postalCode: "",
+  country: "",
+  phone: "",
+};
+
+const SHIPPING_FIELDS: [keyof ShippingAddress, string][] = [
+  ["recipientName", "Recipient name"],
+  ["addressLine1", "Address line 1"],
+  ["addressLine2", "Address line 2 (optional)"],
+  ["city", "City"],
+  ["stateOrProvince", "State / Province"],
+  ["postalCode", "Postal code"],
+  ["country", "Country"],
+  ["phone", "Phone"],
+];
+
+/** addressLine2를 뺀 나머지가 하나라도 비면 Step 4를 넘길 수 없다 */
+function isShippingAddressIncomplete(address?: ShippingAddress): boolean {
+  return SHIPPING_FIELDS.some(
+    ([key]) => key !== "addressLine2" && !address?.[key]?.trim(),
+  );
+}
+
 function Step4({
   value,
+  address,
   onChange,
+  onAddressChange,
 }: {
   value?: CMBrief["step4"];
+  address?: ShippingAddress;
   onChange: (v: NonNullable<CMBrief["step4"]>) => void;
+  onAddressChange: (address: ShippingAddress) => void;
 }) {
   const minSample = minSampleRequestDate();
   const minLaunch = minTargetLaunchDate();
@@ -675,6 +730,13 @@ function Step4({
     shippingCountry: "",
   };
   const set = (patch: Partial<typeof v>) => onChange({ ...v, ...patch });
+  // 주소 이전 스키마(step4.shippingCountry 한 칸)로 저장된 초안 흡수
+  const addr: ShippingAddress = address ?? {
+    ...EMPTY_SHIPPING_ADDRESS,
+    country: v.shippingCountry ?? "",
+  };
+  const setAddr = (key: keyof ShippingAddress, next: string) =>
+    onAddressChange({ ...addr, [key]: next });
   const tbd = Boolean(v.orderQuantityTbd);
   const quantityIssue = orderQuantityIssue(v);
 
@@ -682,7 +744,7 @@ function Step4({
     <div className={stepContentClass}>
       <h2 className={stepTitleClass}>Volume, order quantity & timeline</h2>
       <p className={stepDescClass}>
-      All dates are based on US Eastern Time. Sample requests require at least 2 weeks' lead time; target launch at least 6 weeks out.
+      All dates are based on US Eastern Time. Sample requests require at least 3 weeks&apos; lead time; target launch at least 2 months out.
       </p>
       <div className="mt-8 space-y-6">
         <section className={wizardPanelClass}>
@@ -797,7 +859,7 @@ function Step4({
                 }}
               />
               <p className={wizardHintClass}>
-                Earliest available: {minSample} (at least 2 weeks from today)
+                Earliest available: {minSample} (at least 3 weeks from today)
               </p>
             </div>
             <div>
@@ -815,25 +877,41 @@ function Step4({
                 }}
               />
               <p className={wizardHintClass}>
-                Earliest available: {minLaunch} (at least 6 weeks from today)
+                Earliest available: {minLaunch} (about 2 months from today)
               </p>
             </div>
           </div>
         </section>
 
         <section className={wizardPanelClass}>
-          <h3 className={wizardSectionTitleClass}>Shipping destination</h3>
+          <h3 className={wizardSectionTitleClass}>Shipping address</h3>
           <p className={wizardSectionDescClass}>
-            Where should samples and production shipments be sent?
+            Where should samples and production shipments be sent? All fields
+            except address line 2 are required.
           </p>
-          <div className="mt-6">
-            <label className={wizardLabelClass}>Country</label>
-            <input
-              className={wizardInputClass}
-              value={v.shippingCountry}
-              onChange={(e) => set({ shippingCountry: e.target.value })}
-              placeholder="e.g. United States"
-            />
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            {SHIPPING_FIELDS.map(([key, label]) => (
+              <div
+                key={key}
+                className={
+                  key === "recipientName" ||
+                  key === "addressLine1" ||
+                  key === "addressLine2"
+                    ? "sm:col-span-2"
+                    : undefined
+                }
+              >
+                <label className={wizardLabelClass}>
+                  {label}
+                  {key !== "addressLine2" ? " *" : ""}
+                </label>
+                <input
+                  className={wizardInputClass}
+                  value={addr[key] ?? ""}
+                  onChange={(e) => setAddr(key, e.target.value)}
+                />
+              </div>
+            ))}
           </div>
         </section>
       </div>
