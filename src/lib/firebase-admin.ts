@@ -1,5 +1,5 @@
 import "server-only";
-import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import { cert, getApp, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 
 let app: App | undefined;
@@ -9,12 +9,22 @@ function getServiceAccount() {
   if (!raw?.trim()) {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_B64 is not set");
   }
-  return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+  try {
+    return JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+  } catch {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_B64 is not valid base64-encoded JSON");
+  }
 }
 
 export function getAdminApp(): App {
   if (!app) {
-    app = getApps()[0] ?? initializeApp({ credential: cert(getServiceAccount()) });
+    // getApps()[0] would grab whichever app happens to be first — not
+    // necessarily the default one. getApp() targets the default app by name.
+    try {
+      app = getApp();
+    } catch {
+      app = initializeApp({ credential: cert(getServiceAccount()) });
+    }
   }
   return app;
 }
