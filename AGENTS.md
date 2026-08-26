@@ -1,7 +1,9 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+
 <!-- END:nextjs-agent-rules -->
 
 # medidakos_web — 에이전트 작업 지침
@@ -9,10 +11,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Medidakos 웹사이트와 `/admin` 백오피스. 한국 화장품 제조사와 해외 바이어를 잇는 B2B 중개 사업의 운영 도구다.
 
 **현재 주 작업은 백오피스 v1이다.** 아홉 곳(Gmail 6개·Outlook·채널톡·웹 폼)에 흩어진 대화를 한 화면에 모으고, 바이어↔공장 양면 딜을 한 원장에서 굴린다.
-
-## 상위 저장소가 원칙을 갖고 있다
-
-이 저장소는 `Medidakos backoffice/` 안에 있고 **상위 폴더의 `AGENTS.md`·`CLAUDE.md`가 함께 로드된다.** 원가 분리·서버 인가·배포 승인·git 흐름 같은 **원칙은 상위가 정한다.** 이 파일은 그 원칙이 이 앱에서 어떤 모양인지만 적는다. 둘이 어긋나면 상위가 이긴다.
 
 ## 명령
 
@@ -28,11 +26,16 @@ Medidakos 웹사이트와 `/admin` 백오피스. 한국 화장품 제조사와 �
 
 **완료 판정은 `npm test` · `npm run typecheck` · `npm run lint` 셋이 통과한 상태다.** 셋을 안 돌렸으면 "됐다"고 보고하지 않는다. 화면을 바꿨으면 브라우저 확인이 추가된다.
 
+## 상위 저장소가 원칙을 갖고 있다
+
+이 저장소는 `Medidakos backoffice/` 안에 있고 **상위 폴더의 `AGENTS.md`·`CLAUDE.md`가 함께 로드된다.** 원가 분리·서버 인가·배포 승인·git 흐름 같은 **원칙은 상위가 정한다.** 이 파일은 그 원칙이 이 앱에서 어떤 모양인지만 적는다. 둘이 어긋나면 상위가 이긴다.
+
 ## 스택 (추측하지 말 것 — 이 버전이 맞다)
 
 - Next.js **16.2.6** App Router · React **19.2.4** · TypeScript strict · Tailwind **v4** (PostCSS 플러그인, `tailwind.config` 파일 없음) · Firebase JS SDK 12 · lucide-react · gsap
 - 서버 쪽은 `firebase-admin` · `zod` · `server-only`. 어드민은 **클라이언트 SDK를 쓰지 않는다**
 - 테스트는 Node 내장 **`node --test`**다. Node 26이 TypeScript를 그대로 돌린다. jest·vitest를 추가하지 않는다
+- 규칙 테스트는 Firestore 에뮬레이터를 띄운다(`firebase-tools`). **JDK 21+ 필요** — 이 맥 시스템 기본 `java`는 그보다 낮다. `npm test` 전에 `JAVA_HOME`이 21+을 가리키는지 확인할 것
 - `functions/`는 별도 패키지다. **JavaScript CommonJS + Node 20**, firebase-functions v6. TypeScript 아니다
 - 수집 함수는 `functions-ingest/` **별도 코드베이스**다. 기존 `functions/`와 배포가 분리돼 있다
 - Firebase 프로젝트 `medidakos`, 리전 **`asia-northeast3` 하나뿐**. 새 함수에도 리전을 명시한다. 안 하면 기본값 `us-central1`에 생긴다

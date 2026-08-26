@@ -42,5 +42,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Claude Code 세션 설정 (로컬 전용)
-.claude/
+# Claude Code 세션 설정 (로컬 전용) — settings.json과 hooks는 저장소 방어선이라 예외로 커밋한다
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/guard-destructive.sh
+!.claude/hooks/no-cost-leak.sh
+!.claude/hooks/typecheck-touched.sh
+
+# firebase emulator 실행 부산물
+firebase-debug.log
+firestore-debug.log

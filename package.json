@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "firebase emulators:exec --only firestore --project demo-medidakos 'out=$(node --test 2>&1); ec=$?; printf \"%s\\n\" \"$out\"; [ $ec -ne 0 ] && exit $ec; printf \"%s\\n\" \"$out\" | grep -qE \"tests [1-9]\" || { echo \"NO TESTS DISCOVERED\" >&2; exit 1; }'"
   },
   "dependencies": {
     "@channel.io/channel-web-sdk-loader": "^2.0.2",
@@ -17,6 +19,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
