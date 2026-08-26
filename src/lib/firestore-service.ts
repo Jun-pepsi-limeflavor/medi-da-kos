@@ -355,9 +355,22 @@ export async function saveTracking(
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
   if (useMockAuth()) return;
+  const { uid, email, displayName, phone, country, companyName, provider, createdAt } =
+    profile;
+  const ref = doc(getFirebaseDb(), "users", uid);
+  const existing = await getDoc(ref);
+  const mutable = {
+    displayName,
+    phone,
+    country,
+    companyName,
+    provider,
+    isTest: isNonProductionEnv(),
+  };
   await setDoc(
-    doc(getFirebaseDb(), "users", profile.uid),
-    stripUndefined({ isTest: isNonProductionEnv(), ...profile }),
+    ref,
+    stripUndefined(existing.exists() ? mutable : { uid, email, createdAt, ...mutable }),
+    { merge: true },
   );
 }
 

@@ -10,9 +10,19 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // users/{uid}: 본인만 읽기/쓰기
+    // users/{uid}: 본인만. 권한 필드는 클라이언트 요청에 들어오지 않는다.
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'phone', 'country', 'companyName',
+          'provider', 'createdAt', 'isTest'
+        ]);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'phone', 'country', 'companyName', 'provider', 'isTest'
+        ]);
+      allow delete: if false;
     }
 
     // cmBriefs/{uid}: 본인만 읽기/쓰기 (setDoc/merge 사용)
