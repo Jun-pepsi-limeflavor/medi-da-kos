@@ -1,8 +1,5 @@
 import "server-only";
-// "next/server.js" (아니라 확장자 없는 "next/server")로 쓴다: next 패키지에
-// exports map이 없어서, 이 파일을 node --test로 직접 import할 때 ESM 리졸버가
-// 확장자 없는 서브패스를 못 찾는다. 실제 경로라 Next 번들러 쪽 해석은 그대로다.
-import { NextResponse, type NextRequest } from "next/server.js";
+import { NextResponse, type NextRequest } from "next/server";
 import { getAdminAuth } from "@/lib/firebase-admin";
 import {
   ADMIN_SESSION_COOKIE,
@@ -17,7 +14,15 @@ export type AdminHandler = (
 ) => Promise<Response> | Response;
 
 function clearSessionCookie(res: NextResponse): NextResponse {
-  res.cookies.set(ADMIN_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  // session route의 DELETE 분기와 속성을 맞춘다 — 이름·도메인·path만 맞으면
+  // 브라우저는 지우지만, 두 자리가 다르면 다음 사람이 차이를 의미로 읽는다.
+  res.cookies.set(ADMIN_SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
   return res;
 }
 

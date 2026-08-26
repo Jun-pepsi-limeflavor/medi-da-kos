@@ -27,6 +27,10 @@ export default function AdminLoginPage() {
         setError("이 계정은 백오피스 접근 권한이 없습니다.");
         return;
       }
+      if (res.status >= 500) {
+        setError("서버 설정 오류입니다. 관리자에게 문의하세요.");
+        return;
+      }
       if (!res.ok) {
         setError("로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
         return;

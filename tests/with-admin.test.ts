@@ -1,12 +1,14 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { register } from "node:module";
-import { NextRequest } from "next/server.js";
 
-// with-admin.ts는 tsconfig의 "@/*" 별칭으로 다른 src/lib 파일을 가져온다.
-// node --test는 그 별칭도, 소스의 확장자 생략도 모른다 — 동적 import 전에
-// 등록해두는 최소 리졸버 훅으로 흉내낸다 (esm-alias-loader.mjs 참고).
+// with-admin.ts는 next/server를 확장자 없이, tsconfig의 "@/*" 별칭으로 다른
+// src/lib 파일을 가져온다. node --test는 그 확장자 생략도 별칭도 모른다 —
+// 동적 import 전에 등록해두는 최소 리졸버 훅으로 흉내낸다(esm-alias-loader.mjs
+// 참고). 정적 import는 register() 전에 이미 링크되므로 여기서도 next/server를
+// 동적으로 가져온다.
 register("./esm-alias-loader.mjs", import.meta.url);
+const { NextRequest } = await import("next/server");
 const { withAdmin } = await import("../src/lib/with-admin.ts");
 const { ADMIN_SESSION_COOKIE } = await import("../src/lib/admin-auth.ts");
 

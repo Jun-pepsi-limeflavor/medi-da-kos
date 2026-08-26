@@ -43,10 +43,13 @@ export async function POST(request: Request) {
   });
 
   const res = NextResponse.json({ ok: true });
+  // lax, not strict: a top-level nav from an email/Slack link must carry the cookie.
+  // Safe here because the only state-changing route (this POST) requires a bearer
+  // idToken in the body — there's no ambient-cookie CSRF surface for lax to widen.
   res.cookies.set(ADMIN_SESSION_COOKIE, sessionCookie, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
     path: "/",
     maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
   });
@@ -58,7 +61,7 @@ export async function DELETE() {
   res.cookies.set(ADMIN_SESSION_COOKIE, "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
     path: "/",
     maxAge: 0,
   });

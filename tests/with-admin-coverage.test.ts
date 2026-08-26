@@ -76,3 +76,20 @@ test("어드민 API 라우트는 전부 withAdmin 으로만 내보낸다", () =>
   }
   assert.deepEqual(offenders, [], `withAdmin 없이 내보낸 핸들러: ${offenders.join(", ")}`);
 });
+
+// firebase-admin은 Edge 런타임에서 죽는다. withAdmin으로 감쌌어도 라우트가
+// 기본값(Edge)으로 남아 있으면 배포 후에야 터진다 — 세션을 만드는
+// exempt 라우트도 firebase-admin을 쓰므로 예외 없이 전부 검사한다.
+test("어드민 API 라우트는 전부 nodejs 런타임을 선언한다", () => {
+  const files = routeFiles(ADMIN_API_DIR);
+  assert.ok(files.length > 0, "어드민 라우트가 하나도 없다 — 경로가 맞는지 확인");
+
+  const offenders: string[] = [];
+  for (const rel of files) {
+    const src = readFileSync(join(ADMIN_API_DIR, rel), "utf8");
+    if (!/export\s+const\s+runtime\s*=\s*["']nodejs["']/.test(src)) {
+      offenders.push(rel);
+    }
+  }
+  assert.deepEqual(offenders, [], `runtime = "nodejs" 선언이 없는 라우트: ${offenders.join(", ")}`);
+});
