@@ -93,6 +93,18 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
+    // 백오피스 원장 — 클라이언트는 어느 쪽에서도 닿을 수 없다.
+    // Admin SDK 는 규칙을 우회하므로 서버만 접근한다.
+    match /buyers/{id}    { allow read, write: if false; }
+    match /suppliers/{id} { allow read, write: if false; }
+    match /deals/{id} {
+      allow read, write: if false;
+      match /{sub=**} { allow read, write: if false; }
+    }
+    match /messages/{id}  { allow read, write: if false; }
+    match /threads/{id}   { allow read, write: if false; }
+    match /intakeReviews/{id} { allow read, write: if false; }
+
     // 그 외 모든 경로 차단
     match /{document=**} {
       allow read, write: if false;
