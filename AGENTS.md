@@ -48,11 +48,11 @@ src/app/(marketing)/      공개 마케팅 페이지
 src/app/(campaign)/       콜드메일 랜딩 (/korea)
 src/app/dashboard/        로그인 고객용 — 6단계 브리프, 주문, 배송 추적
 src/app/admin/login/      백오피스 로그인 — 게이트 밖
-src/app/admin/(dash)/     백오피스 본체. 레이아웃이 세션을 검증한다
+src/app/admin/            백오피스 본체(레이아웃 하나, 아직 (dash) 그룹도 서버 컴포넌트
+                          가드도 없다 — 계획 `docs/plans/2026-08-26-ledgers.md`가 추가한다)
 src/app/api/admin/        어드민 서버 라우트. 전부 withAdmin 으로만 내보낸다
 src/lib/admin-auth.ts     허용목록 판정 (순수 함수)
 src/lib/with-admin.ts     route handler 래퍼
-src/lib/admin-page.ts     서버 컴포넌트 가드
 src/lib/firebase-admin.ts Admin SDK 싱글턴. server-only
 src/lib/repo/             Firestore 접근. server-only
 src/lib/schemas/          Zod 스키마 — 검증과 타입이 한 곳에서 나온다
@@ -73,7 +73,7 @@ tests/                    node --test
 ## 보안 경계 (양보하지 않는다)
 
 - **어드민은 Firebase 클라이언트 SDK를 쓰지 않는다.** 읽기는 서버 컴포넌트가 Admin SDK로, 쓰기는 `withAdmin` route handler로 한다
-- **`buyers`·`suppliers`·`deals`·`messages`는 모든 클라이언트에게 `allow read, write: if false`다.** 브라우저가 닿는 경로 자체가 없다. 그래서 원가·마진은 딜 문서에 인라인으로 둔다 — 나눌 이유가 없고, 나누면 "이 필드는 어느 문서냐"를 매번 판단해야 하는 지점만 늘어난다
+- **`buyers`·`suppliers`·`deals`·`messages`는 모든 클라이언트에게 `allow read, write: if false`다.** 브라우저가 닿는 경로 자체가 없다. 그래도 원가·공급가·환율·마진은 `deals/{id}/private/finance`로 구조적으로 분리한다(`docs/backoffice-spec.md` §4.3) — 접근 제어와 응답 투영은 다른 문제라서, 일반 딜 조회가 실수로 재무 필드를 직렬화하는 경로 자체를 없앤다. 어드민 상세 저장소만 이 문서를 명시적으로 조인한다
 - **관리자 판정은 서버 허용목록(`BACKOFFICE_ADMIN_EMAILS`)이다.** `users/{uid}.role`을 쓰지 않는다 — 사용자가 쓰는 문서를 권한 근거로 삼지 않는다. 커스텀 클레임도 쓰지 않는다(회수가 즉시 반영되지 않는다)
 - `BACKOFFICE_ADMIN_EMAILS`가 비면 **500**이다. 빈 목록을 "전원 허용"으로 읽지 않는다
 - **기존 Functions 의 `ADMIN_EMAILS`와 다른 것이다.** 그건 알림 수신자 목록이다. 두 목록을 합치지 않는다
