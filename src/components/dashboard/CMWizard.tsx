@@ -445,9 +445,23 @@ function Step2({
   const activeSelection = selections[0];
   const activeGroup = activeSelection?.group;
 
+  /** Cosmetic Make Up / Accessory formats: at most one item. */
+  function isSingleItemGroup(group: string) {
+    return group === "Make Up" || group === "Accessory";
+  }
+
   useEffect(() => {
     if (selections.length > 1) {
       onChange([selections[selections.length - 1]!]);
+      return;
+    }
+    const only = selections[0];
+    if (
+      only &&
+      isSingleItemGroup(only.group) &&
+      only.items.length > 1
+    ) {
+      onChange([{ group: only.group, items: [only.items[only.items.length - 1]!] }]);
     }
   }, [selections, onChange]);
 
@@ -467,6 +481,18 @@ function Step2({
   function toggleItem(group: string, item: string) {
     const existing =
       activeSelection?.group === group ? activeSelection : undefined;
+
+    // Make Up / Accessory: optional single-select (click again to clear)
+    if (isSingleItemGroup(group)) {
+      if (existing?.items.length === 1 && existing.items[0] === item) {
+        onChange([{ group, items: [] }]);
+        return;
+      }
+      onChange([{ group, items: [item] }]);
+      return;
+    }
+
+    // Skin Care groups: keep multi-select
     if (!existing) {
       onChange([{ group, items: [item] }]);
       return;
@@ -489,7 +515,11 @@ function Step2({
       <h2 className={stepTitleClass}>Packaging options</h2>
       <p className={stepDescClass}>
         Choose one packaging category for your{" "}
-        {category === "skincare" ? "Skin Care" : "Cosmetic"} line. Formats and types below are optional
+        {category === "skincare" ? "Skin Care" : "Cosmetic"} line. Formats and
+        types below are optional
+        {category === "cosmetic"
+          ? " — Make Up and Accessory allow one format at a time."
+          : "."}
       </p>
 
       <div className="mt-8">
@@ -517,6 +547,9 @@ function Step2({
           <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50/40 p-5 sm:p-6">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
               Optional formats & types
+              {activeGroup && isSingleItemGroup(activeGroup)
+                ? " · pick one"
+                : ""}
             </p>
             <div className="mt-6">
               <h3 className="text-lg font-semibold text-slate-700">
