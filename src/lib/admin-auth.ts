@@ -40,3 +40,6 @@ export function assertAllowedAdmin(claims: DecodedLike): AdminIdentity {
 
   return { email };
 }
+
+export const ADMIN_SESSION_COOKIE = "mdk_admin_session";
+export const ADMIN_SESSION_MAX_AGE_SECONDS = 5 * 24 * 60 * 60;
