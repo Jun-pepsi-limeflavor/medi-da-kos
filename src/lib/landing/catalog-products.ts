@@ -17,6 +17,11 @@ const rawProducts: ReadonlyArray<[CatalogProduct["category"], string, string]> =
   ["mist", "RED ELIXIR JELLY MIST", "red-elixir-jelly-mist"], ["mist", "DEW LAYER SERUM MIST", "dew-layer-serum-mist"], ["mist", "RED REVIVE DUAL MIST", "red-revive-dual-mist"], ["mist", "COLLAGEN HYDROGEL MIST", "collagen-hydrogel-mist"],
 ];
 
+// The catalog image files are replaced in place as new source images arrive.
+// Keep this revision in the URL so Next/Image and browser caches do not render
+// a previous optimized placeholder for the same public file path.
+const CATALOG_IMAGE_REVISION = "20260827";
+
 const generic = (name: string, category: CatalogProduct["category"]): Omit<CatalogProduct, "id" | "name" | "category" | "image"> => ({
   description: `${name} is a proposal-ready ${category} developed for private-label beauty programs.`,
   differentiators: "A flexible concept that can be reviewed with the Medidakos formulation and packaging team.",
@@ -25,7 +30,7 @@ const generic = (name: string, category: CatalogProduct["category"]): Omit<Catal
   howToUse: "Use as directed after the final formula and packaging specification are confirmed.",
 });
 
-export const CATALOG_PRODUCTS: readonly CatalogProduct[] = rawProducts.map(([category, name, id]) => ({ id, name, category, image: `/landing/catalog/${id}.png`, ...generic(name, category) }));
+export const CATALOG_PRODUCTS: readonly CatalogProduct[] = rawProducts.map(([category, name, id]) => ({ id, name, category, image: `/landing/catalog/${id}.png?v=${CATALOG_IMAGE_REVISION}`, ...generic(name, category) }));
 
 const apple = CATALOG_PRODUCTS.find((product) => product.id === "green-apple-capsule-serum");
 if (apple) Object.assign(apple, { description: "A brightening serum in which refreshing green apple capsules burst to deliver moisture and nourishment, leaving skin smooth and dewy.", differentiators: "A multi-serum for exfoliating care, hydration, brightening, and firming, with a light water-gel feel and bursting green and yellow capsules.", technology: "Apple EV Technology, megasonic extraction of four green fruits, and a green capsule system.", keyIngredients: "SingGreen(S) 2%, Apple EVs, Niacinamide 2%, Adenosine, Panthenol.", howToUse: "After toner, spread an appropriate amount so the capsules burst fully, then let it absorb.", referencePrices: [{ units: "1,000", price: "$11.33" }, { units: "5,000", price: "$7.50" }] });
