@@ -4,6 +4,8 @@ import { getMessage } from "@/lib/repo/messages";
 import { getGmailToken } from "@/lib/gmail-auth";
 import { withAdmin } from "@/lib/with-admin";
 
+export const runtime = "nodejs";
+
 /**
  * RFC 5987/6266 filename*= encoding for non-ASCII filenames.
  * Returns both filename= and filename*= for compatibility.

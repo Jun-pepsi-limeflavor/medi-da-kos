@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function MailProvidersPage() {
   const states = await listIngestState();
 
-  function formatLastSuccess(lastSuccessAt: string | null, updatedAt: string): string {
+  function formatLastSuccess(lastSuccessAt: string | null): string {
     if (!lastSuccessAt) return "—";
     const lastSuccess = new Date(lastSuccessAt);
     const now = new Date();
@@ -64,7 +64,7 @@ export default async function MailProvidersPage() {
                       </div>
                     </td>
                     <td className="py-3 text-neutral-400">
-                      {formatLastSuccess(state.lastSuccessAt, state.updatedAt)}
+                      {formatLastSuccess(state.lastSuccessAt)}
                     </td>
                     <td className="py-3 text-neutral-400">{state.processedCount}통</td>
                     <td className="py-3 text-xs text-neutral-500">
