@@ -21,7 +21,7 @@ export default function ThreadActions({ thread }: { thread: Thread }) {
   const [showCorrection, setShowCorrection] = useState(false);
   const [correction, setCorrection] = useState<CorrectionForm>(EMPTY_CORRECTION);
 
-  async function handleAction(action: "archive" | "read", value?: string) {
+  async function handleAction(action: "archive" | "read") {
     setBusy(true);
     setError(null);
 

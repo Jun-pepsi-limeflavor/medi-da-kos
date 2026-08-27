@@ -1,4 +1,4 @@
-import { listThreads } from "@/lib/repo/threads";
+import { listThreads, type ThreadFilters } from "@/lib/repo/threads";
 import { listThreadMessages } from "@/lib/repo/messages";
 import type { Thread } from "@/lib/schemas/thread";
 import { needsReply } from "@/lib/schemas/thread";
@@ -38,12 +38,22 @@ export default async function InboxPage({
   const params = await searchParams;
 
   // Parse filters from URL
-  const filters: any = {};
-  if (params.readState) filters.readState = params.readState;
-  if (params.triageState) filters.triageState = params.triageState;
-  if (params.linkState) filters.linkState = params.linkState;
-  if (params.side) filters.side = params.side;
-  if (params.channel) filters.channel = params.channel;
+  const filters: ThreadFilters = {};
+  if (params.readState && typeof params.readState === "string") {
+    filters.readState = params.readState as Thread["readState"];
+  }
+  if (params.triageState && typeof params.triageState === "string") {
+    filters.triageState = params.triageState as Thread["triageState"];
+  }
+  if (params.linkState && typeof params.linkState === "string") {
+    filters.linkState = params.linkState as Thread["linkState"];
+  }
+  if (params.side && typeof params.side === "string") {
+    filters.side = params.side as Thread["side"];
+  }
+  if (params.channel && typeof params.channel === "string") {
+    filters.channel = params.channel as Thread["channel"];
+  }
   if (params.needsReply === "true") filters.needsReply = true;
 
   const threads = await listThreads(filters);
