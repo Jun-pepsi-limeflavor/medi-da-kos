@@ -68,3 +68,39 @@ test("모르는 필드는 떨어뜨린다", () => {
   assert.equal(parsed.unitCost, undefined);
   assert.equal(parsed.ownershipExclusivity, undefined);
 });
+
+import { buyerInputSchema } from "../src/lib/schemas/buyer.ts";
+
+const validBuyer = {
+  name: "Charity Kobia",
+  emails: ["candy@example.com"],
+  inflowChannel: "outlook" as const,
+  brandName: "TJ perfumes",
+  country: "Kenya",
+  phone: "",
+};
+
+test("바이어 정상 입력을 통과시킨다", () => {
+  const parsed = buyerInputSchema.parse(validBuyer);
+  assert.deepEqual(parsed.emails, ["candy@example.com"]);
+});
+
+test("이메일 배열을 소문자로 내리고 중복을 없앤다", () => {
+  const parsed = buyerInputSchema.parse({
+    ...validBuyer,
+    emails: ["Candy@Example.com", "candy@example.com", "  CANDY@EXAMPLE.COM  "],
+  });
+  assert.deepEqual(parsed.emails, ["candy@example.com"]);
+});
+
+test("이메일이 하나도 없으면 거부한다", () => {
+  assert.throws(() => buyerInputSchema.parse({ ...validBuyer, emails: [] }));
+});
+
+test("이름이 비면 거부한다", () => {
+  assert.throws(() => buyerInputSchema.parse({ ...validBuyer, name: "  " }));
+});
+
+test("모르는 유입경로를 거부한다", () => {
+  assert.throws(() => buyerInputSchema.parse({ ...validBuyer, inflowChannel: "instagram" }));
+});
