@@ -16,6 +16,11 @@
         "firebase-debug.*.log",
         "*.local"
       ]
+    },
+    {
+      "source": "functions-ingest",
+      "codebase": "ingest",
+      "ignore": ["node_modules", ".git", "*.local"]
     }
   ],
   "emulators": {
