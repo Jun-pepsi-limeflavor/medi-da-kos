@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { channelSchema, directionSchema, sideSchema, sideSourceSchema } from "./message.ts";
+import { channelSchema, directionSchema, sideSchema, sideSourceSchema, type Message } from "./message.ts";
 
 export const readStateSchema = z.enum(["unread", "read"]);
 export const triageStateSchema = z.enum(["open", "archived", "ignored"]);
@@ -60,6 +60,60 @@ export function nextAutoSide(
     return { side: current.side, sideSource: current.sideSource };
   }
   return proposed;
+}
+
+/**
+ * Task 3 Step 1 — 스레드의 마지막 메시지에서 상대(카운터파티) 주소를 뽑는다.
+ * 인바운드는 from, 아웃바운드는 우리 주소(ourAddress = thread.sourceAccount)를
+ * 제외한 to[]의 첫 주소를 쓴다. 아웃바운드인데 상대 주소가 없으면(우리끼리만
+ * 주고받은 경우 등) null이다.
+ */
+export function extractCounterpartyAddress(
+  messages: Pick<Message, "direction" | "from" | "to">[],
+  ourAddress: string,
+): string | null {
+  const latest = messages[messages.length - 1];
+  if (!latest) return null;
+
+  if (latest.direction === "in") {
+    const from = latest.from.trim().toLowerCase();
+    return from || null;
+  }
+
+  const our = ourAddress.trim().toLowerCase();
+  const candidate = latest.to.find((addr) => addr.trim().toLowerCase() !== our);
+  return candidate ? candidate.trim().toLowerCase() : null;
+}
+
+/**
+ * Task 3 Step 1 — 주소 매칭 결과로 side를 고칠지 정한다. sideSource='manual'은
+ * nextAutoSide()가 그대로 막는다.
+ *
+ * - side='unknown'일 때: 양쪽 중 정확히 하나만 매칭되면 그 side로 올린다.
+ *   둘 다 매칭되거나 아무 데도 없으면 unknown을 유지한다.
+ * - side가 이미 brand/factory일 때: 반대쪽에서만 매칭되면(=메일함 기본값과
+ *   모순되는 증거) 그 반대쪽으로 고친다. 같은 쪽이 확인되거나 증거가 없으면
+ *   기존 값을 그대로 둔다 — 등록된 상대가 아직 없다고 계정 기본값을 지우지 않는다.
+ */
+export function resolveAddressMatchSide(
+  current: Pick<Thread, "side" | "sideSource">,
+  match: { buyer: boolean; supplier: boolean },
+): Pick<Thread, "side" | "sideSource"> {
+  const onlyBuyer = match.buyer && !match.supplier;
+  const onlySupplier = match.supplier && !match.buyer;
+
+  let proposed: { side: Thread["side"]; sideSource: "address_match" } | null = null;
+  if (current.side === "unknown") {
+    if (onlyBuyer) proposed = { side: "brand", sideSource: "address_match" };
+    else if (onlySupplier) proposed = { side: "factory", sideSource: "address_match" };
+  } else if (current.side === "brand" && onlySupplier) {
+    proposed = { side: "factory", sideSource: "address_match" };
+  } else if (current.side === "factory" && onlyBuyer) {
+    proposed = { side: "brand", sideSource: "address_match" };
+  }
+
+  if (!proposed) return { side: current.side, sideSource: current.sideSource };
+  return nextAutoSide(current, proposed);
 }
 
 /**

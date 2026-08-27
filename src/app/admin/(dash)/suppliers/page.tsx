@@ -3,14 +3,20 @@ import SupplierForm from "./SupplierForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function SuppliersPage() {
+export default async function SuppliersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const suppliers = await listSuppliers();
+  const params = await searchParams;
+  const prefillEmail = typeof params.prefillEmail === "string" ? params.prefillEmail : undefined;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
         <h1 className="text-lg font-semibold">제조사 {suppliers.length}곳</h1>
-        <SupplierForm />
+        <SupplierForm prefillEmail={prefillEmail} />
       </div>
 
       {suppliers.length === 0 ? (

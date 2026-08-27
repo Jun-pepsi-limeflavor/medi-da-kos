@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Thread } from "@/lib/schemas/thread";
 
 const EMPTY_CORRECTION: CorrectionForm = {
@@ -14,7 +15,20 @@ type CorrectionForm = {
   reason: string;
 };
 
-export default function ThreadActions({ thread }: { thread: Thread }) {
+type BuyerCandidate = { id: string; name: string };
+type SupplierCandidate = { id: string; companyName: string };
+
+export default function ThreadActions({
+  thread,
+  counterpartyEmail,
+  buyerCandidate,
+  supplierCandidate,
+}: {
+  thread: Thread;
+  counterpartyEmail: string | null;
+  buyerCandidate: BuyerCandidate | null;
+  supplierCandidate: SupplierCandidate | null;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,14 +63,11 @@ export default function ThreadActions({ thread }: { thread: Thread }) {
     router.refresh();
   }
 
-  async function handleLink(type: "buyer" | "supplier") {
+  async function handleLink(type: "buyer" | "supplier", id: string) {
     setBusy(true);
     setError(null);
 
-    const payload =
-      type === "buyer"
-        ? { buyerId: "placeholder" }
-        : { supplierId: "placeholder" };
+    const payload = type === "buyer" ? { buyerId: id } : { supplierId: id };
 
     const res = await fetch(
       `/api/admin/threads/${encodeURIComponent(thread.threadKey)}/link`,
@@ -134,23 +145,57 @@ export default function ThreadActions({ thread }: { thread: Thread }) {
           {busy ? "처리 중…" : "보관"}
         </button>
 
-        <button
-          type="button"
-          onClick={() => handleLink("buyer")}
-          disabled={busy}
-          className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-300 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {busy ? "연결 중…" : "바이어 연결"}
-        </button>
+        {buyerCandidate ? (
+          <button
+            type="button"
+            onClick={() => handleLink("buyer", buyerCandidate.id)}
+            disabled={busy || thread.buyerId === buyerCandidate.id}
+            className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-300 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy ? "연결 중…" : thread.buyerId === buyerCandidate.id ? `바이어 연결됨: ${buyerCandidate.name}` : `바이어 연결: ${buyerCandidate.name}`}
+          </button>
+        ) : counterpartyEmail ? (
+          <Link
+            href={`/admin/buyers?prefillEmail=${encodeURIComponent(counterpartyEmail)}`}
+            className="text-xs px-3 py-1.5 rounded-lg border border-dashed border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+          >
+            이 주소로 바이어 만들기
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-500 opacity-50 cursor-not-allowed"
+          >
+            바이어 연결
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => handleLink("supplier")}
-          disabled={busy}
-          className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-300 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {busy ? "연결 중…" : "제조사 연결"}
-        </button>
+        {supplierCandidate ? (
+          <button
+            type="button"
+            onClick={() => handleLink("supplier", supplierCandidate.id)}
+            disabled={busy || thread.supplierId === supplierCandidate.id}
+            className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-300 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy ? "연결 중…" : thread.supplierId === supplierCandidate.id ? `제조사 연결됨: ${supplierCandidate.companyName}` : `제조사 연결: ${supplierCandidate.companyName}`}
+          </button>
+        ) : counterpartyEmail ? (
+          <Link
+            href={`/admin/suppliers?prefillEmail=${encodeURIComponent(counterpartyEmail)}`}
+            className="text-xs px-3 py-1.5 rounded-lg border border-dashed border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+          >
+            이 주소로 제조사 만들기
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-500 opacity-50 cursor-not-allowed"
+          >
+            제조사 연결
+          </button>
+        )}
 
         <button
           type="button"

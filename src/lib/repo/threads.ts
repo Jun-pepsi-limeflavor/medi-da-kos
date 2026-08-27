@@ -1,14 +1,20 @@
 import "server-only";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { AdminIdentity } from "@/lib/admin-auth";
-import { sideSchema } from "@/lib/schemas/message";
+import { sideSchema, type Message } from "@/lib/schemas/message";
 import {
   appendSideCorrection,
+  extractCounterpartyAddress,
   needsReply,
+  resolveAddressMatchSide,
   threadLinkInputSchema,
   threadStatePatchSchema,
   type Thread,
 } from "@/lib/schemas/thread";
+import { findBuyerByEmail } from "@/lib/repo/buyers";
+import { findSupplierByEmail } from "@/lib/repo/suppliers";
+import type { Buyer } from "@/lib/schemas/buyer";
+import type { Supplier } from "@/lib/schemas/supplier";
 
 const COLLECTION = "threads";
 
@@ -88,6 +94,62 @@ export async function linkThread(
     linkedAt: now,
     updatedAt: now,
   });
+}
+
+export type AddressMatchResult = {
+  thread: Thread;
+  counterpartyEmail: string | null;
+  buyerCandidate: Buyer | null;
+  supplierCandidate: Supplier | null;
+};
+
+/**
+ * Task 3 Step 1 — 스레드 상세를 열 때마다 부른다. 마지막 메시지의 상대 주소를
+ * buyers·suppliers 양쪽에서 조회하고, resolveAddressMatchSide()가 side를 고치라고
+ * 하면 Firestore에 반영한다. 원문 메시지는 건드리지 않는다. 사람이 아니라 이
+ * 판정이 쓴 것이므로 updatedBy는 이메일이 아니라 "system:address-match"다.
+ */
+export async function applyAddressMatch(
+  thread: Thread,
+  messages: Pick<Message, "direction" | "from" | "to">[],
+): Promise<AddressMatchResult> {
+  if (thread.sideSource === "manual") {
+    return { thread, counterpartyEmail: null, buyerCandidate: null, supplierCandidate: null };
+  }
+
+  const counterpartyEmail = extractCounterpartyAddress(messages, thread.sourceAccount);
+  if (!counterpartyEmail) {
+    return { thread, counterpartyEmail: null, buyerCandidate: null, supplierCandidate: null };
+  }
+
+  const [buyerCandidate, supplierCandidate] = await Promise.all([
+    findBuyerByEmail(counterpartyEmail),
+    findSupplierByEmail(counterpartyEmail),
+  ]);
+
+  const resolved = resolveAddressMatchSide(thread, {
+    buyer: !!buyerCandidate,
+    supplier: !!supplierCandidate,
+  });
+
+  if (resolved.side === thread.side && resolved.sideSource === thread.sideSource) {
+    return { thread, counterpartyEmail, buyerCandidate, supplierCandidate };
+  }
+
+  const now = new Date().toISOString();
+  await getAdminDb().collection(COLLECTION).doc(thread.threadKey).update({
+    side: resolved.side,
+    sideSource: resolved.sideSource,
+    updatedAt: now,
+    updatedBy: "system:address-match",
+  });
+
+  return {
+    thread: { ...thread, side: resolved.side, sideSource: resolved.sideSource, updatedAt: now },
+    counterpartyEmail,
+    buyerCandidate,
+    supplierCandidate,
+  };
 }
 
 /** 사유 없는 정정은 threadStatePatchSchema와 같은 이유로 거부한다 — appendSideCorrection이 검사한다. */

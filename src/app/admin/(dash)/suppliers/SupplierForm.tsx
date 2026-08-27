@@ -21,9 +21,9 @@ type FormState = {
   supportedCerts: string;
 };
 
-export default function SupplierForm({ supplier }: { supplier?: Supplier }) {
+export default function SupplierForm({ supplier, prefillEmail }: { supplier?: Supplier; prefillEmail?: string }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!prefillEmail);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(
@@ -35,7 +35,9 @@ export default function SupplierForm({ supplier }: { supplier?: Supplier }) {
           productionModels: supplier.productionModels,
           supportedCerts: supplier.supportedCerts.join(", "),
         }
-      : EMPTY,
+      : prefillEmail
+        ? { ...EMPTY, contacts: [{ ...EMPTY_CONTACT, email: prefillEmail }] }
+        : EMPTY,
   );
 
   function set(key: string, value: string | string[]) {

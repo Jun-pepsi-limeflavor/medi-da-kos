@@ -3,14 +3,20 @@ import BuyerForm from "./BuyerForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function BuyersPage() {
+export default async function BuyersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const buyers = await listBuyers();
+  const params = await searchParams;
+  const prefillEmail = typeof params.prefillEmail === "string" ? params.prefillEmail : undefined;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
         <h1 className="text-lg font-semibold">바이어 {buyers.length}명</h1>
-        <BuyerForm />
+        <BuyerForm prefillEmail={prefillEmail} />
       </div>
 
       {buyers.length === 0 ? (

@@ -9,13 +9,17 @@ const EMPTY = {
   brandName: "", country: "", phone: "",
 };
 
-export default function BuyerForm({ buyer }: { buyer?: Buyer }) {
+export default function BuyerForm({ buyer, prefillEmail }: { buyer?: Buyer; prefillEmail?: string }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!prefillEmail);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(
-    buyer ? { ...buyer, emails: buyer.emails.join("\n") } : EMPTY,
+    buyer
+      ? { ...buyer, emails: buyer.emails.join("\n") }
+      : prefillEmail
+        ? { ...EMPTY, emails: prefillEmail }
+        : EMPTY,
   );
 
   function set(key: string, value: string) {
