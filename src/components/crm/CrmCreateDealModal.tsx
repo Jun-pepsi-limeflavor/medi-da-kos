@@ -26,13 +26,7 @@ export default function CrmCreateDealModal({ onClose, onCreate }: Props) {
     if (!title.trim() || !buyerName.trim()) return;
 
     const buyerTotalValue = buyerTotalQty * buyerUnitPrice;
-    const supplierTotalCost = buyerTotalQty * supplierUnitPriceKrw;
-    const shippingCostUsd = 400;
-    const supplierTotalCostUsd = supplierTotalCost / 1350;
-    const grossProfitUsd = Math.max(0, buyerTotalValue - supplierTotalCostUsd - shippingCostUsd);
-    const marginPct = buyerTotalValue > 0 ? (grossProfitUsd / buyerTotalValue) * 100 : 0;
-
-    const newDeal: CrmDeal = {
+    const newDeal = {
       id: "deal-" + Date.now(),
       title,
       buyerId: "buyer-" + Date.now(),
@@ -41,16 +35,11 @@ export default function CrmCreateDealModal({ onClose, onCreate }: Props) {
       supplierId: "supp-" + Date.now(),
       supplierName,
       pmName,
-      stage: "inquiry",
+      stageBrand: 1,
       priority,
       buyerUnitPrice,
       buyerTotalQty,
       buyerTotalValue,
-      supplierUnitPrice: supplierUnitPriceKrw,
-      supplierTotalCost,
-      shippingCostUsd,
-      grossProfitUsd: Math.round(grossProfitUsd),
-      marginPct: parseFloat(marginPct.toFixed(1)),
       productSpec: {
         productType,
         volumeMl: 50,

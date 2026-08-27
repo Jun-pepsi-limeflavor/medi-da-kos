@@ -19,11 +19,11 @@
 | 1 | [인가 게이트](2026-08-26-admin-auth-gate.md) | — | 전체 | **구현 완료** (`feat/admin-auth-gate`, 미머지) |
 | 2 | [원장 — buyers·suppliers·intakeReviews](2026-08-26-ledgers.md) | 1 | 전체 | **구현 완료** (`feat/admin-auth-gate`, 미머지) |
 | 3 | [수집기 관통 — thomas@ 단독](2026-08-26-ingest-spike.md) | 1 + 승인 | 전체 | **구현 완료 + 실배포 확인** (`feat/admin-auth-gate`, 미머지). 실측 기록: `docs/gmail-response-shape.md` |
-| 4 | [받은편지함과 설정 화면](2026-08-26-inbox.md) | 3 | 구조 | 승인 반영, 미착수 |
-| 5 | [딜 보드와 파이프라인](2026-08-26-deals.md) | 2 | 구조 | 승인 반영, 미착수 |
+| 4 | [받은편지함과 설정 화면](2026-08-26-inbox.md) | 3 | 구조 | **구현 완료** (`feat/inbox`) |
+| 5 | [딜 보드와 파이프라인](2026-08-26-deals.md) | 2 | 구조 | **구현 완료** (`feat/inbox`) |
 | 6 | [파서와 평가](2026-08-26-parser.md) | 3, 5 | 구조 | 승인 반영, 미착수 |
 
-**2026-08-27 기준:** 계획 1·2·3이 전부 `feat/admin-auth-gate` 브랜치 한 곳에 로컬 커밋으로 쌓여 있고 `origin`엔 일부만 푸시돼 있다. 다음 세션 시작 시 `git log --oneline origin/feat/admin-auth-gate..HEAD`로 미푸시 커밋을 먼저 확인할 것. `npm test`(83건) · `npm run typecheck` 전부 통과 상태에서 마무리됐다.
+**2026-08-27 기준:** 계획 1·2·3에 이어 계획 4(받은편지함)와 계획 5(딜 보드와 파이프라인)가 `feat/inbox` 브랜치에 구현되었습니다. `npm test`(180건) · `npm run typecheck` 전부 무오류 통과 상태입니다.
 
 ## 밀도가 다른 이유
 

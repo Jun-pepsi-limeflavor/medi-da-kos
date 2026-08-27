@@ -827,7 +827,14 @@ function Step4({
                   type="checkbox"
                   className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                   checked={tbd}
-                  onChange={(e) => set({ orderQuantityTbd: e.target.checked })}
+                  onChange={(e) =>
+                    set({
+                      orderQuantityTbd: e.target.checked,
+                      orderQuantity: e.target.checked
+                        ? ""
+                        : v.orderQuantity || "",
+                    })
+                  }
                 />
                 <span>
                   <span className="block text-base font-medium text-slate-700">

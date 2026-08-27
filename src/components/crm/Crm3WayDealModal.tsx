@@ -145,58 +145,46 @@ export default function Crm3WayDealModal({ deal, onClose, onUpdateStage }: Props
                     <div className="space-y-2 text-xs text-neutral-300 border-t border-neutral-800/80 pt-3">
                       <div className="flex justify-between">
                         <span className="text-neutral-400">제시 단가 (Unit Price):</span>
-                        <span className="font-mono font-medium">${deal.buyerUnitPrice.toFixed(2)} / ea</span>
+                        <span className="font-mono font-medium">${deal.buyerUnitPrice ? deal.buyerUnitPrice.toFixed(2) : "0.00"} / ea</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-neutral-400">요청 수량 (Quantity):</span>
-                        <span className="font-mono">{deal.buyerTotalQty.toLocaleString()} 개</span>
+                        <span className="font-mono">{deal.buyerTotalQty ? deal.buyerTotalQty.toLocaleString() : "0"} 개</span>
                       </div>
                       <div className="flex justify-between pt-2 border-t border-neutral-800 font-medium">
                         <span className="text-blue-300">총 판매 금액 (Revenue):</span>
                         <span className="font-mono text-blue-400 text-sm font-bold">
-                          ${deal.buyerTotalValue.toLocaleString()} USD
+                          ${deal.buyerTotalValue ? deal.buyerTotalValue.toLocaleString() : "0"} USD
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 2. Medidakos Margin (Internal) */}
+                {/* 2. Medidakos Operations (Internal) */}
                 <div className="bg-neutral-950 border border-indigo-900/60 rounded-xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-600/10 rounded-full blur-xl pointer-events-none" />
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
-                        🏢 Medidakos (Margin)
+                        🏢 Medidakos
                       </span>
                       <span className="text-xs bg-indigo-950 text-indigo-300 border border-indigo-800/50 px-2 py-0.5 rounded font-semibold">
                         🔒 Internal Only
                       </span>
                     </div>
 
-                    <h3 className="font-semibold text-base text-neutral-100">마진 & 수익성 분석</h3>
+                    <h3 className="font-semibold text-base text-neutral-100">운영 현황</h3>
                     <p className="text-xs text-neutral-400 mb-4">담당 PM: {deal.pmName}</p>
 
                     <div className="space-y-2 text-xs text-neutral-300 border-t border-neutral-800/80 pt-3">
                       <div className="flex justify-between">
-                        <span className="text-neutral-400">예상 물류비 (Shipping):</span>
-                        <span className="font-mono text-neutral-300">${deal.shippingCostUsd.toLocaleString()} USD</span>
+                        <span className="text-neutral-400">우선순위:</span>
+                        <span className="font-mono text-neutral-200 uppercase">{deal.priority}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-neutral-400">공장 매입원가 (Cost):</span>
-                        <span className="font-mono text-neutral-300">₩{deal.supplierTotalCost.toLocaleString()} KRW</span>
-                      </div>
-                      <div className="flex justify-between pt-2 border-t border-neutral-800">
-                        <span className="text-indigo-300 font-semibold">예상 총 마진 (Gross Profit):</span>
-                        <span className="font-mono text-emerald-400 text-sm font-bold">
-                          ${deal.grossProfitUsd.toLocaleString()} USD
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-indigo-300 font-semibold">마진율 (Margin Rate):</span>
-                        <span className="font-mono text-emerald-400 text-sm font-extrabold">
-                          {deal.marginPct.toFixed(1)}%
-                        </span>
+                        <span className="text-neutral-400">국가:</span>
+                        <span className="font-mono text-neutral-200">{deal.buyerCountry}</span>
                       </div>
                     </div>
                   </div>

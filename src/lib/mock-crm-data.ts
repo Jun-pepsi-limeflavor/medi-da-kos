@@ -1,6 +1,36 @@
-import { CrmDeal, CrmMessage } from "./crm-types";
+// DO NOT SEED — UI FIXTURE ONLY
+import type { CrmMessage } from "./crm-types";
 
-export const MOCK_DEALS: CrmDeal[] = [
+export interface MockDealFixture {
+  id: string;
+  title: string;
+  buyerId: string;
+  buyerName: string;
+  buyerCountry: string;
+  supplierId?: string;
+  supplierName?: string;
+  pmName: string;
+  stageBrand: number;
+  priority: "hot" | "warm" | "cold";
+  buyerUnitPrice: number;
+  buyerTotalQty: number;
+  buyerTotalValue: number;
+  productSpec: {
+    productType: string;
+    volumeMl: number;
+    containerType: string;
+    keyIngredients: string[];
+    regulatoryNotes?: string;
+    sampleStatus: string;
+  };
+  inquiryDate: string;
+  sampleSentDate?: string;
+  poDate?: string;
+  expectedCloseDate?: string;
+  updatedAt: string;
+}
+
+export const MOCK_DEALS: MockDealFixture[] = [
   {
     id: "deal-bala-spf15",
     title: "Bala - Rice Ceramide Lip SPF 15",
@@ -10,16 +40,11 @@ export const MOCK_DEALS: CrmDeal[] = [
     supplierId: "supp-greencos",
     supplierName: "그린코스 (Greencos)",
     pmName: "이기욱 (Thomas)",
-    stage: "po_confirmed",
+    stageBrand: 6,
     priority: "hot",
-    buyerUnitPrice: 2.50,
+    buyerUnitPrice: 2.5,
     buyerTotalQty: 5000,
-    buyerTotalValue: 12500, // $12,500
-    supplierUnitPrice: 1500, // ₩1,500
-    supplierTotalCost: 7500000, // ₩7,500,000 (~$5,550)
-    shippingCostUsd: 450,
-    grossProfitUsd: 6500,
-    marginPct: 52.0,
+    buyerTotalValue: 12500,
     productSpec: {
       productType: "Lip Treatment",
       volumeMl: 10,
@@ -43,143 +68,49 @@ export const MOCK_DEALS: CrmDeal[] = [
     supplierId: "supp-pfnature",
     supplierName: "피에프네이처",
     pmName: "송준하 (COO)",
-    stage: "quoting",
+    stageBrand: 2,
     priority: "hot",
-    buyerUnitPrice: 4.80,
+    buyerUnitPrice: 4.8,
     buyerTotalQty: 5000,
     buyerTotalValue: 24000,
-    supplierUnitPrice: 2200,
-    supplierTotalCost: 11000000,
-    shippingCostUsd: 600,
-    grossProfitUsd: 15250,
-    marginPct: 63.5,
     productSpec: {
       productType: "Serum",
       volumeMl: 30,
       containerType: "Glass Dropper Bottle",
       keyIngredients: ["GHK-Cu Peptide 1%", "Hyaluronic Acid"],
-      sampleStatus: "shipped",
+      regulatoryNotes: "미국 MoCRA Facility 등록 상태 확인 완료",
+      sampleStatus: "revision_needed",
     },
     inquiryDate: "2026-08-12",
     sampleSentDate: "2026-08-18",
-    updatedAt: "2026-08-20 09:15",
-  },
-  {
-    id: "deal-annie-handcream",
-    title: "Annie Won - Spout Pouch Hand Cream",
-    buyerId: "buyer-annie",
-    buyerName: "Aulaite (Annie Won)",
-    buyerCountry: "🇺🇸 USA",
-    supplierId: "supp-greencos",
-    supplierName: "그린코스",
-    pmName: "김형선 (Hally)",
-    stage: "sourcing",
-    priority: "warm",
-    buyerUnitPrice: 1.90,
-    buyerTotalQty: 5000,
-    buyerTotalValue: 9500,
-    supplierUnitPrice: 1100,
-    supplierTotalCost: 5500000,
-    shippingCostUsd: 400,
-    grossProfitUsd: 5000,
-    marginPct: 52.6,
-    productSpec: {
-      productType: "Hand Cream",
-      volumeMl: 50,
-      containerType: "Spout Pouch with Keyring",
-      keyIngredients: ["Shea Butter", "Ceramide NP"],
-      regulatoryNotes: "스파우트 파우치 충진 설비 공장 수용 가능성 확인 필요",
-      sampleStatus: "in_formulation",
-    },
-    inquiryDate: "2026-08-18",
-    updatedAt: "2026-08-21 11:20",
-  },
-  {
-    id: "deal-nixaliz-cloud",
-    title: "Nixaliz Yodice - Cloud Cream 2 types",
-    buyerId: "buyer-nixaliz",
-    buyerName: "Cloud Skincare",
-    buyerCountry: "🇺🇸 USA",
-    supplierId: "supp-greencos",
-    supplierName: "그린코스",
-    pmName: "이기욱 (Thomas)",
-    stage: "sampling",
-    priority: "hot",
-    buyerUnitPrice: 3.50,
-    buyerTotalQty: 3000,
-    buyerTotalValue: 10500,
-    supplierUnitPrice: 1800,
-    supplierTotalCost: 5400000,
-    shippingCostUsd: 350,
-    grossProfitUsd: 6150,
-    marginPct: 58.5,
-    productSpec: {
-      productType: "Moisturizing Cream",
-      volumeMl: 50,
-      containerType: "Airless Pump Jar",
-      keyIngredients: ["PDRN 0.5%", "Panthenol"],
-      sampleStatus: "shipped",
-    },
-    inquiryDate: "2026-08-13",
-    sampleSentDate: "2026-08-21",
-    updatedAt: "2026-08-21 16:45",
+    expectedCloseDate: "2026-10-15",
+    updatedAt: "2026-08-21 09:00",
   },
   {
     id: "deal-charity-perfume",
-    title: "Charity - TJ Solid Perfume 15g",
+    title: "Charity - Oud & Bergamot EDP 50ml",
     buyerId: "buyer-charity",
-    buyerName: "TJ Perfumes (Charity)",
-    buyerCountry: "🇰🇪 Kenya",
-    supplierId: "supp-oxygen",
-    supplierName: "옥시젠디벨롭먼트",
-    pmName: "박준영 (CEO)",
-    stage: "sampling",
-    priority: "warm",
-    buyerUnitPrice: 2.80,
-    buyerTotalQty: 3000,
-    buyerTotalValue: 8400,
-    supplierUnitPrice: 1400,
-    supplierTotalCost: 4200000,
-    shippingCostUsd: 500,
-    grossProfitUsd: 4800,
-    marginPct: 57.1,
-    productSpec: {
-      productType: "Solid Perfume",
-      volumeMl: 15,
-      containerType: "Metal Compact Balm Case",
-      keyIngredients: ["Jojoba Wax", "Custom Fragrance Blend"],
-      sampleStatus: "produced",
-    },
-    inquiryDate: "2026-08-08",
-    sampleSentDate: "2026-08-21",
-    updatedAt: "2026-08-21 15:10",
-  },
-  {
-    id: "deal-hadjira-lipgloss",
-    title: "Hadjira Elasri - Clear Lip Gloss 3-pack",
-    buyerId: "buyer-hadjira",
-    buyerName: "JIJII Beauty",
-    buyerCountry: "🇩🇿 Algeria",
+    buyerName: "Charity Fragrance Co.",
+    buyerCountry: "🇬🇧 UK",
+    supplierId: "supp-greencos",
+    supplierName: "그린코스 (Greencos)",
     pmName: "이기욱 (Thomas)",
-    stage: "inquiry",
+    stageBrand: 3,
     priority: "warm",
-    buyerUnitPrice: 0,
-    buyerTotalQty: 5000,
-    buyerTotalValue: 0,
-    supplierUnitPrice: 0,
-    supplierTotalCost: 0,
-    shippingCostUsd: 0,
-    grossProfitUsd: 0,
-    marginPct: 0,
+    buyerUnitPrice: 6.2,
+    buyerTotalQty: 3000,
+    buyerTotalValue: 18600,
     productSpec: {
-      productType: "Lip Gloss",
-      volumeMl: 8,
-      containerType: "Clear Wand Applicator Tube",
-      keyIngredients: ["Hyaluronic Spheres", "Jojoba Oil"],
-      sampleStatus: "not_started",
+      productType: "Eau de Parfum",
+      volumeMl: 50,
+      containerType: "Heavy-base Glass with Magnetic Cap",
+      keyIngredients: ["Oud Accord", "Bergamot Calabrian", "Cedarwood"],
+      regulatoryNotes: "UK IFRA 51th amendment 준수 증명서 발급 필요",
+      sampleStatus: "in_formulation",
     },
-    inquiryDate: "2026-08-21",
-    updatedAt: "2026-08-21 18:00",
+    inquiryDate: "2026-08-15",
+    expectedCloseDate: "2026-10-31",
+    updatedAt: "2026-08-20 17:15",
   },
 ];
 
@@ -191,15 +122,17 @@ export const MOCK_MESSAGES: Record<string, CrmMessage[]> = {
       senderType: "buyer",
       senderName: "Bala S. Pinnamaneni",
       senderEmail: "balupinnamaneni@gmail.com",
-      content: "Hi Thomas, we confirmed the 10ml D19 squeeze tube packaging specs. Please prepare the 1st sample batch and send us the shipping timeline to Hyderabad.",
-      timestamp: "2026-08-11 02:30",
+      content:
+        "Hello Medidakos team, we are looking to develop a 10ml Lip Treatment with SPF 15 and Rice Ceramide. Target MOQ is 5,000 units. Please review our formula target.",
+      timestamp: "2026-08-10 11:20",
     },
     {
       id: "m2",
       dealId: "deal-bala-spf15",
       senderType: "pm",
       senderName: "이기욱 (Thomas)",
-      content: "Hi Bala, received! We matched your formulation with Greencos factory. Free samples (5 units) will be produced and shipped via DHL within 7 business days.",
+      content:
+        "Hi Bala, received! We matched your formulation with Greencos factory. Free samples (5 units) will be produced and shipped via DHL within 7 business days.",
       timestamp: "2026-08-11 09:15",
     },
     {
@@ -207,7 +140,8 @@ export const MOCK_MESSAGES: Record<string, CrmMessage[]> = {
       dealId: "deal-bala-spf15",
       senderType: "supplier",
       senderName: "양우덕 PM (그린코스)",
-      content: "기욱 PM님, 립 SPF 15 10ml 튜브 내용물 샘플 준비 완료되었습니다. DHL 발송용 파우치 패킹 마쳤습니다.",
+      content:
+        "기욱 PM님, 립 SPF 15 10ml 튜브 내용물 샘플 준비 완료되었습니다. DHL 발송용 파우치 패킹 마쳤습니다.",
       timestamp: "2026-08-14 14:00",
       aiSummary: "그린코스 샘플 제조 완료 및 배송 준비 보고",
     },
@@ -217,7 +151,8 @@ export const MOCK_MESSAGES: Record<string, CrmMessage[]> = {
       senderType: "buyer",
       senderName: "Bala S. Pinnamaneni",
       senderEmail: "balupinnamaneni@gmail.com",
-      content: "Great news. We also accept the direct assignment agreement with Medidakos & Greencos. What is the DHL tracking number once dispatched?",
+      content:
+        "Great news. We also accept the direct assignment agreement with Medidakos & Greencos. What is the DHL tracking number once dispatched?",
       timestamp: "2026-08-21 14:30",
       actionRequired: true,
       aiSummary: "계약 구조 수락 및 DHL 추적번호 요청 (회신 필요)",
@@ -230,7 +165,8 @@ export const MOCK_MESSAGES: Record<string, CrmMessage[]> = {
       senderType: "buyer",
       senderName: "Alex Turner",
       senderEmail: "alex@divisiontwenty.com",
-      content: "Here is our target GHK-Cu 1% formulation file. Can you match this exactly at 5,000 MOQ?",
+      content:
+        "Here is our target GHK-Cu 1% formulation file. Can you match this exactly at 5,000 MOQ?",
       timestamp: "2026-08-12 10:00",
     },
     {
@@ -238,7 +174,8 @@ export const MOCK_MESSAGES: Record<string, CrmMessage[]> = {
       dealId: "deal-div20-ghkcu",
       senderType: "pm",
       senderName: "송준하 (COO)",
-      content: "Alex, PF Nature factory verified the formulation. Quoted at $4.80/unit for 5,000 units. Official Quotation attached.",
+      content:
+        "Alex, PF Nature factory verified the formulation. Quoted at $4.80/unit for 5,000 units. Official Quotation attached.",
       timestamp: "2026-08-18 16:30",
     },
     {

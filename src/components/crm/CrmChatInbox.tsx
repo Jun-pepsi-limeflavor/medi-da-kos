@@ -129,8 +129,8 @@ export default function CrmChatInbox() {
             <span className="text-xs font-mono text-blue-400 font-semibold block">
               판가: ${activeDeal.buyerTotalValue.toLocaleString()} USD
             </span>
-            <span className="text-xs font-mono text-emerald-400 font-bold">
-              마진: {activeDeal.marginPct}% (${activeDeal.grossProfitUsd.toLocaleString()})
+            <span className="text-xs font-mono text-neutral-400 block">
+              단계: 브랜드 {activeDeal.stageBrand}
             </span>
           </div>
         </div>
