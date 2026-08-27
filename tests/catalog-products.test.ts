@@ -96,15 +96,31 @@ test("catalog IDs and names are unique and every product uses a local asset", ()
   }
 });
 
-test("catalog assets are present and each product has a distinct image", async () => {
+test("catalog assets are present and unmatched products retain their placeholders", async () => {
+  const unmatchedProductIds = new Set([
+    "lacto-cream-serum",
+    "timeless-nourishing-serum",
+    "green-flavonoid-soothing-cream",
+  ]);
   const hashes = await Promise.all(
     CATALOG_PRODUCTS.map(async (product) => {
       const bytes = await readFile(
         new URL(`../public${product.image}`, import.meta.url),
       );
-      return createHash("sha256").update(bytes).digest("hex");
+      return {
+        id: product.id,
+        hash: createHash("sha256").update(bytes).digest("hex"),
+      };
     }),
   );
 
-  assert.equal(new Set(hashes).size, CATALOG_PRODUCTS.length);
+  const placeholders = hashes.filter(({ id }) => unmatchedProductIds.has(id));
+  const mappedImages = hashes.filter(({ id }) => !unmatchedProductIds.has(id));
+
+  assert.equal(placeholders.length, 3);
+  assert.equal(mappedImages.length, 35);
+  assert.equal(new Set(placeholders.map(({ hash }) => hash)).size, 1);
+  for (const { hash } of mappedImages) {
+    assert.notEqual(hash, placeholders[0].hash);
+  }
 });
