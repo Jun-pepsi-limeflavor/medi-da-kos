@@ -1,6 +1,6 @@
 import { requireAdminPage } from "@/lib/admin-page";
 import { listDealsWithDetails } from "@/lib/repo/deals";
-import { listIntakeReviews } from "@/lib/repo/intake-reviews";
+import { listIntakeReviews, resolveQualifiedIntakeDetails } from "@/lib/repo/intake-reviews";
 import { getMessage } from "@/lib/repo/messages";
 import { intakeReviewId } from "@/lib/schemas/intake-review";
 import type { Extraction } from "@/lib/schemas/extraction";
@@ -27,10 +27,16 @@ export default async function DealsPage({
     createFromMessageId ? getMessage(createFromMessageId) : Promise.resolve(null),
   ]);
 
-  const qualifiedIntakes: QualifiedIntakeSummary[] = [];
+  const rawQualified: Array<{
+    id: string;
+    source: string;
+    externalId: string;
+    reviewedBy?: string;
+    reviewedAt?: string;
+  }> = [];
   for (const [id, r] of intakeReviewsMap.entries()) {
     if (r.status === "qualified" && !r.isTest && !r.dealId) {
-      qualifiedIntakes.push({
+      rawQualified.push({
         id,
         source: r.source,
         externalId: r.externalId,
@@ -39,6 +45,9 @@ export default async function DealsPage({
       });
     }
   }
+
+  const qualifiedIntakes: QualifiedIntakeSummary[] =
+    await resolveQualifiedIntakeDetails(rawQualified);
 
   let prefillData: DealPrefillData | undefined = undefined;
   let autoOpen = false;

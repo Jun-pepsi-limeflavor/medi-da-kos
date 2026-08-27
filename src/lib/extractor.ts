@@ -1,5 +1,5 @@
 import "server-only";
-import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 import {
@@ -206,13 +206,15 @@ export async function runMessageExtraction(
   confidence: ConfidenceMap;
 }> {
   try {
-    const require = createRequire(import.meta.url);
     const extractModulePath = path.resolve(
       process.cwd(),
       "functions-ingest/extract.js",
     );
     if (fs.existsSync(extractModulePath)) {
-      const { extractFromMessageText } = require(extractModulePath);
+      const dynamicImport = new Function("u", "return import(u)");
+      const mod = await dynamicImport(pathToFileURL(extractModulePath).href);
+      const extractFromMessageText =
+        mod?.extractFromMessageText || mod?.default?.extractFromMessageText;
       if (typeof extractFromMessageText === "function") {
         const res = await extractFromMessageText(bodyText, subject, from);
         if (res && typeof res === "object") {

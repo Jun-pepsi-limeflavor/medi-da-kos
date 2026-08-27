@@ -8,6 +8,9 @@ export interface QualifiedIntakeSummary {
   id: string; // intakeReviewId
   source: string;
   externalId: string;
+  email?: string;
+  companyName?: string;
+  contactName?: string;
   reviewedBy?: string;
   reviewedAt?: string;
 }
@@ -49,15 +52,27 @@ export default function CreateDealModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const initialIntake =
+    qualifiedIntakes.find((q) => q.id === prefillData?.intakeReviewId) ||
+    qualifiedIntakes[0];
+
   // Form State
   const [intakeReviewId, setIntakeReviewId] = useState(
     prefillData?.intakeReviewId || qualifiedIntakes[0]?.id || ""
   );
   const [reference, setReference] = useState(prefillData?.reference || "");
-  const [buyerId, setBuyerId] = useState(prefillData?.buyerId || "");
-  const [companyName, setCompanyName] = useState(prefillData?.companyName || "");
-  const [contactName, setContactName] = useState(prefillData?.contactName || "");
-  const [email, setEmail] = useState(prefillData?.email || "");
+  const [buyerId, setBuyerId] = useState(
+    prefillData?.buyerId || initialIntake?.email || ""
+  );
+  const [companyName, setCompanyName] = useState(
+    prefillData?.companyName || initialIntake?.companyName || ""
+  );
+  const [contactName, setContactName] = useState(
+    prefillData?.contactName || initialIntake?.contactName || ""
+  );
+  const [email, setEmail] = useState(
+    prefillData?.email || initialIntake?.email || ""
+  );
   const [phone, setPhone] = useState(prefillData?.phone || "");
   const [country, setCountry] = useState(prefillData?.country || "미국 (USA)");
 
@@ -200,13 +215,35 @@ export default function CreateDealModal({
                 {qualifiedIntakes.length > 0 ? (
                   <select
                     value={intakeReviewId}
-                    onChange={(e) => setIntakeReviewId(e.target.value)}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setIntakeReviewId(selectedId);
+                      const selected = qualifiedIntakes.find((q) => q.id === selectedId);
+                      if (selected?.email) {
+                        setEmail(selected.email);
+                        if (!buyerId || qualifiedIntakes.some((q) => q.email === buyerId)) {
+                          setBuyerId(selected.email);
+                        }
+                      }
+                      if (selected?.companyName && (!companyName || qualifiedIntakes.some((q) => q.companyName === companyName))) {
+                        setCompanyName(selected.companyName);
+                      }
+                      if (selected?.contactName && (!contactName || qualifiedIntakes.some((q) => q.contactName === contactName))) {
+                        setContactName(selected.contactName);
+                      }
+                    }}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-neutral-200 focus:outline-none focus:border-indigo-500"
                     required
                   >
+                    {prefillData?.intakeReviewId &&
+                      !qualifiedIntakes.some((q) => q.id === prefillData.intakeReviewId) && (
+                        <option value={prefillData.intakeReviewId}>
+                          [사전입력] {prefillData.email || prefillData.intakeReviewId}
+                        </option>
+                      )}
                     {qualifiedIntakes.map((intake) => (
                       <option key={intake.id} value={intake.id}>
-                        [{intake.source}] ID: {intake.externalId} (인테이크 키: {intake.id})
+                        [{intake.source}] {intake.email || `ID: ${intake.externalId}`}
                       </option>
                     ))}
                   </select>
