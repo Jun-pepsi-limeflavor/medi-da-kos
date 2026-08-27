@@ -1,0 +1,48 @@
+import { z } from "zod";
+
+// 계획 3의 functions-ingest/gmail.js normalizeMessage()가 실제로 쓰는 값들이다.
+// 지어내지 않는다 — 여기 없는 채널·필드가 필요해지면 수집기부터 먼저 바뀐다.
+export const channelSchema = z.enum([
+  "gmail_thomas", "gmail_hally", "gmail_rheekw", "gmail_songjh", "gmail_kimhs", "gmail_parkjy",
+  "outlook_support", "channeltalk", "web",
+]);
+
+export const sideSchema = z.enum(["brand", "factory", "unknown"]);
+export const sideSourceSchema = z.enum(["account_rule", "address_match", "manual"]);
+export const directionSchema = z.enum(["in", "out"]);
+export const parseStatusSchema = z.enum(["pending", "processing", "completed", "failed", "skipped"]);
+
+const attachmentSchema = z.object({
+  filename: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  attachmentId: z.string(),
+});
+
+export const messageSchema = z.object({
+  channel: channelSchema,
+  side: sideSchema,
+  sideSource: sideSourceSchema,
+  sourceAccount: z.string(),
+  externalId: z.string(),
+  providerThreadId: z.string(),
+  threadKey: z.string(),
+  historyId: z.string(),
+  direction: directionSchema,
+  from: z.string(),
+  fromName: z.string(),
+  to: z.array(z.string()),
+  subject: z.string(),
+  bodyText: z.string(),
+  attachments: z.array(attachmentSchema).default([]),
+  sentAt: z.string(),
+  parseStatus: parseStatusSchema,
+  createdAt: z.string(),
+  sourceUpdatedAt: z.string(),
+  // 파서(다음 계획)가 채운다. 지금 수집기는 쓰지 않는다 — 필수로 만들지 않는다.
+  extraction: z.record(z.string(), z.unknown()).optional(),
+  confidence: z.record(z.string(), z.unknown()).optional(),
+  accepted: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type Message = z.infer<typeof messageSchema> & { id: string };
