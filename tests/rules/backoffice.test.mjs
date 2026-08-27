@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getTestEnv } from "./helpers.mjs";
 
 const COLLECTIONS = [
-  "buyers", "suppliers", "deals", "messages", "threads", "intakeReviews",
+  "buyers", "suppliers", "deals", "messages", "threads", "intakeReviews", "ingestState",
 ];
 
 for (const col of COLLECTIONS) {
