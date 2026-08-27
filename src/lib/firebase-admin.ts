@@ -1,6 +1,7 @@
 import "server-only";
 import { cert, getApp, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 let app: App | undefined;
 
@@ -31,4 +32,8 @@ export function getAdminApp(): App {
 
 export function getAdminAuth(): Auth {
   return getAuth(getAdminApp());
+}
+
+export function getAdminDb(): Firestore {
+  return getFirestore(getAdminApp());
 }
