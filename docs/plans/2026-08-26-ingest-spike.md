@@ -1,8 +1,8 @@
 # 수집기 관통 계획 — thomas@ 한 계정
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:**  Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `thomas@medidakoslabs.com` 메일함 하나를 서버 자격증명으로 읽어 `messages` 컬렉션에 적재한다. 개인 노트북이 관여하지 않는다.
+**Goal:** `thomas@medidakoslabs.com` 메일함 하나를 서버 자격증명으로 읽어 불변 원문 `messages`와 사람의 작업 상태 `threads`에 안전하게 적재한다. 개인 노트북이 관여하지 않는다.
 
 **Architecture:** 도메인 전체 위임을 받은 서비스 계정이 메일함 주인을 가장해 Gmail API를 부른다. **키 파일을 만들지 않는다** — Cloud Functions 런타임이 IAM Credentials API로 JWT에 서명하고 그걸 액세스 토큰으로 바꾼다. 수집 함수는 기존 `functions/`와 분리된 `functions-ingest/` 코드베이스에 있어서 배포가 서로 닿지 않는다.
 
@@ -30,6 +30,9 @@
 - **서비스 계정 키 파일을 만들지 않는다.** 다운로드받는 순간 노트북에 비밀이 생긴다
 - 메일 본문을 **그대로 저장한다.** 재파싱과 평가가 여기 기댄다 (스펙 6.2)
 - 문서 ID는 `{channel}:{externalId}` 고정. 폴링 재실행이 중복을 만들지 않는다
+- 스레드 ID는 `{channel}:{account}:{providerThreadId}` 고정. 계정이 다른 같은 문자열을 합치지 않는다
+- 제공자 페이지를 끝까지 처리한 뒤에만 cursor를 전진시킨다
+- 재수집은 `threads`의 읽음·보관·연결·수동 side를 덮지 않는다
 - `firebase deploy --only functions` (전체)를 쓰지 않는다. `--only functions:ingest`로 좁힌다
 - **`git add -A`를 쓰지 않는다**
 
@@ -41,26 +44,28 @@ git switch -c feat/ingest-spike origin/dev
 
 ## File Structure
 
-| 파일 | 책임 |
-|---|---|
-| `firebase.json` (수정) | `functions-ingest` 코드베이스 등록 + 에뮬레이터 |
-| `functions-ingest/package.json` (신규) | Node 20, firebase-functions v6 |
-| `functions-ingest/index.js` (신규) | 스케줄 함수 진입점 |
-| `functions-ingest/google-auth.js` (신규) | 서비스 계정 → 가장 액세스 토큰 |
-| `functions-ingest/gmail.js` (신규) | Gmail REST 호출과 응답 정규화 |
-| `functions-ingest/store.js` (신규) | `messages` 문서 쓰기 + 수집 상태 |
-| `scripts/spike-gmail.js` (신규, 임시) | Task 2 전용. 끝나면 지운다 |
+| 파일                                       | 책임                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `firebase.json` (수정)                   | `functions-ingest` 코드베이스 등록 + 에뮬레이터                   |
+| `functions-ingest/package.json` (신규)   | Node 20, firebase-functions v6                                      |
+| `functions-ingest/index.js` (신규)       | 스케줄 함수 진입점                                                  |
+| `functions-ingest/google-auth.js` (신규) | 서비스 계정 → 가장 액세스 토큰                                     |
+| `functions-ingest/gmail.js` (신규)       | Gmail REST 호출과 응답 정규화                                       |
+| `functions-ingest/store.js` (신규)       | `messages` 원문·`threads` 요약을 트랜잭션으로 쓰기 + 수집 상태 |
+| `scripts/spike-gmail.js` (신규, 임시)    | Task 2 전용. 끝나면 지운다                                          |
 
 ---
 
 ### Task 1: `functions-ingest` 코드베이스
 
 **Files:**
+
 - Modify: `firebase.json`
 - Create: `functions-ingest/package.json`
 - Create: `functions-ingest/index.js`
 
 **Interfaces:**
+
 - Consumes: 없음
 - Produces: `exports.ingestGmail` — 스케줄 함수. Task 5에서 실제 동작이 붙는다
 
@@ -169,9 +174,11 @@ git commit -m "build: functions-ingest 코드베이스 분리
 ### Task 2: 자격증명 스파이크 — 메일 한 통
 
 **Files:**
+
 - Create: `scripts/spike-gmail.js` (임시)
 
 **Interfaces:**
+
 - Consumes: 없음
 - Produces: **답 두 개** — 위임이 되는가, 응답이 어떻게 생겼는가
 
@@ -330,12 +337,12 @@ main().catch((e) => {
 node scripts/spike-gmail.js thomas@medidakoslabs.com
 ```
 
-| 결과 | 뜻 | 다음 |
-|---|---|---|
-| `✅ 가장 토큰 발급됨` + 목록 | 위임 성공 | Task 3으로 |
-| `unauthorized_client` | 위임이 등록 안 됐거나 범위 불일치 | 관리콘솔의 클라이언트 ID·범위를 Step 1·2와 대조 |
-| `403 iam.serviceAccounts.signJwt` | 토큰 생성 권한 없음 | Step 3 다시 |
-| `400 invalid_grant` | `sub` 가 그 도메인 사용자가 아님 | 메일 주소 확인 |
+| 결과                                | 뜻                                 | 다음                                              |
+| ----------------------------------- | ---------------------------------- | ------------------------------------------------- |
+| `✅ 가장 토큰 발급됨` + 목록      | 위임 성공                          | Task 3으로                                        |
+| `unauthorized_client`             | 위임이 등록 안 됐거나 범위 불일치  | 관리콘솔의 클라이언트 ID·범위를 Step 1·2와 대조 |
+| `403 iam.serviceAccounts.signJwt` | 토큰 생성 권한 없음                | Step 3 다시                                       |
+| `400 invalid_grant`               | `sub` 가 그 도메인 사용자가 아님 | 메일 주소 확인                                    |
 
 **여기서 막히면 멈춘다.** Task 3 이후를 짓지 않고 무엇이 막혔는지 보고한다.
 
@@ -373,9 +380,11 @@ git commit -m "docs: Gmail 응답 구조 실측 기록
 ### Task 3: 자격증명 모듈
 
 **Files:**
+
 - Create: `functions-ingest/google-auth.js`
 
 **Interfaces:**
+
 - Consumes: 없음
 - Produces: `getGmailToken(subject: string): Promise<string>` — 가장 액세스 토큰. 1시간 캐시
 
@@ -466,16 +475,18 @@ git commit -m "feat(ingest): 키 파일 없는 메일함 가장 자격증명"
 ### Task 4: 메시지 정규화와 저장
 
 **Files:**
+
 - Create: `functions-ingest/gmail.js`
 - Create: `functions-ingest/store.js`
 - Test: `tests/gmail-normalize.test.mjs`
 
 **Interfaces:**
+
 - Consumes: `getGmailToken()` (Task 3)
 - Produces:
-  - `normalizeMessage(raw, { channel, side, account }): NormalizedMessage`
-  - `listMessageIds(token, { after })`, `getMessage(token, id)`
-  - `saveMessage(db, normalized): Promise<void>` — 결정적 ID로 upsert
+  - `normalizeMessage(raw, { channel, side, sideSource, account }): NormalizedMessage`
+  - `listMessagePage(token, { after, pageToken })`, `listAllMessageIds(token, { after })`, `getMessage(token, id)`
+  - `saveMessage(db, normalized): Promise<void>` — 원문·스레드 요약을 결정적 ID로 저장
   - `getIngestState(db, account)`, `setIngestState(db, account, state)`
 
 **Task 2의 산출물(`docs/gmail-response-shape.md`)을 먼저 읽는다.** 아래 헤더 이름과 파트 구조는 그 문서로 대조한 뒤 확정한다.
@@ -511,7 +522,12 @@ const raw = {
   },
 };
 
-const ctx = { channel: "gmail_thomas", side: "brand", account: "thomas@medidakoslabs.com" };
+const ctx = {
+  channel: "gmail_thomas",
+  side: "brand",
+  sideSource: "account_rule",
+  account: "thomas@medidakoslabs.com",
+};
 
 test("결정적 문서 ID 를 만든다", () => {
   const m = normalizeMessage(raw, ctx);
@@ -565,10 +581,13 @@ test("내가 보낸 메일이면 direction 이 out 이다", () => {
   assert.equal(normalizeMessage(sent, ctx).direction, "out");
 });
 
-test("side 와 account 를 그대로 싣는다", () => {
+test("side 근거와 namespaced threadKey 를 싣는다", () => {
   const m = normalizeMessage(raw, ctx);
   assert.equal(m.side, "brand");
-  assert.equal(m.account, "thomas@medidakoslabs.com");
+  assert.equal(m.sideSource, "account_rule");
+  assert.equal(m.sourceAccount, "thomas@medidakoslabs.com");
+  assert.equal(m.providerThreadId, "18f0aaa");
+  assert.equal(m.threadKey, "gmail_thomas:thomas@medidakoslabs.com:18f0aaa");
 });
 
 test("internalDate 를 ISO 로 바꾼다", () => {
@@ -613,10 +632,10 @@ function stripHtml(html) {
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/ /g, " ")
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -648,7 +667,7 @@ function collectAttachments(payload, out = []) {
   return out;
 }
 
-function normalizeMessage(raw, { channel, side, account }) {
+function normalizeMessage(raw, { channel, side, sideSource, account }) {
   const from = parseAddress(header(raw.payload, "From"));
   const plain = findBody(raw.payload, "text/plain");
   const bodyText = plain || stripHtml(findBody(raw.payload, "text/html"));
@@ -657,9 +676,11 @@ function normalizeMessage(raw, { channel, side, account }) {
     docId: `${channel}:${raw.id}`,
     channel,
     side,
-    account,
+    sideSource,
+    sourceAccount: account.toLowerCase(),
     externalId: raw.id,
-    threadId: raw.threadId,
+    providerThreadId: raw.threadId,
+    threadKey: `${channel}:${account.toLowerCase()}:${raw.threadId}`,
     historyId: raw.historyId,
     direction: from.email === account.toLowerCase() ? "out" : "in",
     from: from.email,
@@ -672,17 +693,32 @@ function normalizeMessage(raw, { channel, side, account }) {
     bodyText,
     attachments: collectAttachments(raw.payload),
     sentAt: new Date(Number(raw.internalDate)).toISOString(),
-    status: "new",
   };
 }
 
-async function listMessageIds(token, { after, max = 100 }) {
+async function listMessagePage(token, { after, pageToken, max = 100 }) {
   const q = after ? `after:${after}` : "newer_than:7d";
-  const url = `${GMAIL}/messages?maxResults=${max}&q=${encodeURIComponent(q)}`;
+  const params = new URLSearchParams({ maxResults: String(max), q });
+  if (pageToken) params.set("pageToken", pageToken);
+  const url = `${GMAIL}/messages?${params}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`목록 조회 실패 ${res.status}: ${await res.text()}`);
   const json = await res.json();
-  return (json.messages || []).map((m) => m.id);
+  return {
+    ids: (json.messages || []).map((m) => m.id),
+    nextPageToken: json.nextPageToken ?? null,
+  };
+}
+
+async function listAllMessageIds(token, { after }) {
+  const ids = [];
+  let pageToken;
+  do {
+    const page = await listMessagePage(token, { after, pageToken });
+    ids.push(...page.ids);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return ids;
 }
 
 async function getMessage(token, id) {
@@ -693,7 +729,9 @@ async function getMessage(token, id) {
   return res.json();
 }
 
-module.exports = { normalizeMessage, listMessageIds, getMessage, parseAddress, stripHtml };
+module.exports = {
+  normalizeMessage, listMessagePage, listAllMessageIds, getMessage, parseAddress, stripHtml,
+};
 ```
 
 증분 조회에 `historyId` 대신 `after:` 쿼리를 쓴다. `history.list`는 `historyId`가 너무 오래되면 404를 내고 그때 전체 재동기화 경로를 따로 짜야 한다. `after:` 는 그 분기가 없다.
@@ -703,10 +741,11 @@ ponytail: after: 쿼리는 초 단위라 같은 초에 온 메일을 중복 조�
           결정적 문서 ID 가 덮어쓰기로 흡수하므로 문제가 안 된다.
 ```
 
-- [ ] **Step 4: 통과 확인**
+cursor가 있으면 실제 조회는 `after = max(0, lastEpochSeconds - 5)`로 5초 겹친다. 같은 초 경계와 부분 지연을 흡수하고 중복은 결정적 ID가 제거한다.
 
-Run: `npm test`
-Expected: 8건 PASS
+- [ ] **Step 4: 페이지 순회 테스트를 추가하고 통과 확인**
+
+두 번째 응답에만 있는 메시지 ID가 결과에 포함되고, 두 번째 요청 URL에 첫 응답의 `nextPageToken`이 들어가는지 fetch mock으로 검증한다.
 
 - [ ] **Step 5: 저장 모듈**
 
@@ -714,19 +753,79 @@ Expected: 8건 PASS
 
 ```javascript
 const MESSAGES = "messages";
+const THREADS = "threads";
 const STATE = "ingestState";
 
 async function saveMessage(db, m) {
   const { docId, ...data } = m;
-  await db.collection(MESSAGES).doc(docId).set(
-    { ...data, updatedAt: new Date().toISOString() },
-    { merge: true },   // 재수집이 status·extraction 을 덮지 않게
-  );
+  const messageRef = db.collection(MESSAGES).doc(docId);
+  const threadRef = db.collection(THREADS).doc(m.threadKey);
+  const now = new Date().toISOString();
+
+  await db.runTransaction(async (tx) => {
+    const [messageSnap, threadSnap] = await Promise.all([
+      tx.get(messageRef), tx.get(threadRef),
+    ]);
+
+    const isNewMessage = !messageSnap.exists;
+    if (!isNewMessage) {
+      // source 필드만 갱신한다. parseStatus·extraction·accepted는 건드리지 않는다.
+      tx.update(messageRef, { ...data, sourceUpdatedAt: now });
+    } else {
+      tx.create(messageRef, {
+        ...data,
+        parseStatus: "pending",
+        createdAt: now,
+        sourceUpdatedAt: now,
+      });
+    }
+
+    const latest = !threadSnap.exists || m.sentAt >= (threadSnap.data().lastMessageAt ?? "");
+    if (!threadSnap.exists) {
+      tx.create(threadRef, {
+        channel: m.channel,
+        sourceAccount: m.sourceAccount,
+        providerThreadId: m.providerThreadId,
+        readState: m.direction === "in" ? "unread" : "read",
+        triageState: "open",
+        linkState: "unlinked",
+        side: m.side,
+        sideSource: m.sideSource,
+        sideHistory: [],
+        lastMessageAt: m.sentAt,
+        lastDirection: m.direction,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else if (latest) {
+      const update = {
+        lastMessageAt: m.sentAt,
+        lastDirection: m.direction,
+        updatedAt: now,
+      };
+      if (isNewMessage && m.direction === "in") {
+        update.readState = "unread";
+        if (threadSnap.data().triageState === "archived") {
+          update.triageState = "open";
+        }
+      }
+      if (threadSnap.data().sideSource !== "manual") {
+        update.side = m.side;
+        update.sideSource = m.sideSource;
+      }
+      tx.update(threadRef, update);
+    }
+  });
 }
 
 async function getIngestState(db, account) {
   const snap = await db.collection(STATE).doc(account).get();
-  return snap.exists ? snap.data() : { lastEpochSeconds: null };
+  return snap.exists ? snap.data() : {
+    lastEpochSeconds: null,
+    lastSuccessAt: null,
+    lastError: null,
+    processedCount: 0,
+  };
 }
 
 async function setIngestState(db, account, state) {
@@ -739,7 +838,9 @@ async function setIngestState(db, account, state) {
 module.exports = { saveMessage, getIngestState, setIngestState };
 ```
 
-`merge: true`가 중요하다. 사람이 검토해서 `status: reviewed`로 바꿔둔 문서를 재수집이 `new`로 되돌리면 안 된다.
+`merge: true`만으로 사람 상태를 보존할 수 없다. 전달한 필드는 merge에서도 덮인다. 신규 메시지에만 `parseStatus='pending'`을 만들고, 재수집은 source 필드만 갱신한다. 읽음·보관·연결은 별도 `threads` 문서라 수집기가 소유하지 않는다.
+
+새 인바운드 메시지가 추가될 때만 `readState='unread'`로 되돌리고, 보관된 스레드는 `open`으로 다시 연다. `ignored`는 자동으로 열지 않는다. 같은 메시지를 재수집한 경우에는 사람 상태가 그대로다.
 
 - [ ] **Step 6: `ingestState` 규칙 추가**
 
@@ -749,7 +850,7 @@ module.exports = { saveMessage, getIngestState, setIngestState };
     match /ingestState/{account} { allow read, write: if false; }
 ```
 
-`tests/rules/backoffice.test.mjs`의 `COLLECTIONS` 배열에 `"ingestState"`를 추가한다.
+`tests/rules/backoffice.test.mjs`의 `COLLECTIONS` 배열에 `"ingestState"`를 추가한다. `threads`는 계획 1에서 이미 포함된다.
 
 - [ ] **Step 7: 검사와 커밋**
 
@@ -766,9 +867,11 @@ git commit -m "feat(ingest): 메시지 정규화와 결정적 ID 저장"
 ### Task 5: 스케줄 함수 연결과 배포
 
 **Files:**
+
 - Modify: `functions-ingest/index.js`
 
 **Interfaces:**
+
 - Consumes: Task 3·4의 전부
 - Produces: 배포된 `ingestGmail`
 
@@ -779,10 +882,10 @@ git commit -m "feat(ingest): 메시지 정규화와 결정적 ID 저장"
 ```javascript
 const { getFirestore } = require("firebase-admin/firestore");
 const { getGmailToken } = require("./google-auth");
-const { listMessageIds, getMessage, normalizeMessage } = require("./gmail");
+const { listAllMessageIds, getMessage, normalizeMessage } = require("./gmail");
 const { saveMessage, getIngestState, setIngestState } = require("./store");
 
-// 메일함이 딜의 어느 쪽인지는 도메인으로 갈린다.
+// 메일함은 side 의 기본값일 뿐이다. 계획 4에서 주소 매칭·수동 정정이 가능하다.
 const SIDE_BY_DOMAIN = {
   "medidakoslabs.com": "brand",
   "medidakos.com": "brand",
@@ -790,7 +893,7 @@ const SIDE_BY_DOMAIN = {
 };
 
 function sideOf(account) {
-  return SIDE_BY_DOMAIN[account.split("@")[1]] ?? "brand";
+  return SIDE_BY_DOMAIN[account.split("@")[1]] ?? "unknown";
 }
 
 function channelOf(account) {
@@ -801,7 +904,10 @@ async function ingestOne(db, account) {
   const token = await getGmailToken(account);
   const state = await getIngestState(db, account);
 
-  const ids = await listMessageIds(token, { after: state.lastEpochSeconds });
+  const after = state.lastEpochSeconds == null
+    ? null
+    : Math.max(0, state.lastEpochSeconds - 5);
+  const ids = await listAllMessageIds(token, { after });
   let newest = state.lastEpochSeconds ?? 0;
 
   for (const id of ids) {
@@ -809,13 +915,19 @@ async function ingestOne(db, account) {
     const normalized = normalizeMessage(raw, {
       channel: channelOf(account),
       side: sideOf(account),
+      sideSource: "account_rule",
       account,
     });
     await saveMessage(db, normalized);
     newest = Math.max(newest, Math.floor(Number(raw.internalDate) / 1000));
   }
 
-  if (newest) await setIngestState(db, account, { lastEpochSeconds: newest });
+  await setIngestState(db, account, {
+    lastEpochSeconds: newest || state.lastEpochSeconds,
+    lastSuccessAt: new Date().toISOString(),
+    lastError: null,
+    processedCount: ids.length,
+  });
   return ids.length;
 }
 ```
@@ -837,13 +949,17 @@ exports.ingestGmail = onSchedule(
       } catch (err) {
         // 한 메일함이 실패해도 나머지는 계속한다.
         console.error(`ingestGmail ${account} 실패:`, err.message);
+        await setIngestState(db, account, {
+          lastAttemptAt: new Date().toISOString(),
+          lastError: err.message,
+        });
       }
     }
   },
 );
 ```
 
-한 계정의 실패가 전체를 멈추지 않는다. 토큰 하나가 깨져도 나머지 여섯이 계속 돈다.
+한 계정의 실패가 전체를 멈추지 않는다. 실패 경로는 `lastEpochSeconds`를 쓰지 않으므로 미처리 페이지를 건너뛰지 않는다. 토큰 하나가 깨져도 나머지 여섯이 계속 돈다.
 
 - [ ] **Step 2: 배포 전 마지막 확인**
 
@@ -871,11 +987,11 @@ firebase deploy --only functions:ingest --project medidakos
 firebase functions:list --project medidakos
 ```
 
-| 확인 | 기대 |
-|---|---|
-| `ingestGmail` | 있다. `asia-northeast3` |
-| `lifecycleScan` | **여전히 없다** |
-| 기존 넷 | 그대로 |
+| 확인              | 기대                     |
+| ----------------- | ------------------------ |
+| `ingestGmail`   | 있다.`asia-northeast3` |
+| `lifecycleScan` | **여전히 없다**    |
+| 기존 넷           | 그대로                   |
 
 **`lifecycleScan`이 생겼으면 코드베이스 분리가 안 먹은 것이다.** 즉시 보고한다.
 
@@ -897,13 +1013,16 @@ npm --prefix functions-ingest run logs
 
 Firebase 콘솔 → Firestore → `messages`
 
-| 확인 | 기대 |
-|---|---|
-| 문서 ID | `gmail_thomas:18f0abc` 형태 |
-| `bodyText` | 실제 본문이 들어 있다 |
-| `side` | `brand` |
-| `direction` | 받은 건 `in`, 보낸 건 `out` |
-| `ingestState/thomas@medidakoslabs.com` | `lastEpochSeconds`가 있다 |
+| 확인                                     | 기대                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| 문서 ID                                  | `gmail_thomas:18f0abc` 형태                                                           |
+| `bodyText`                             | 실제 본문이 들어 있다                                                                   |
+| `side`                                 | `brand`                                                                               |
+| `sideSource`                           | `account_rule`                                                                        |
+| `threadKey`                            | `gmail_thomas:thomas@medidakoslabs.com:{providerThreadId}`                            |
+| `direction`                            | 받은 건`in`, 보낸 건 `out`                                                          |
+| `threads/{threadKey}`                  | 원문과 별도로`readState`·`triageState`·`linkState`가 있다                       |
+| `ingestState/thomas@medidakoslabs.com` | `lastEpochSeconds`·`lastSuccessAt`·`processedCount`가 있고 `lastError`는 null |
 
 10분 더 기다린 뒤 다시 본다. **문서 수가 폭증하면 결정적 ID가 안 먹는 것이다.**
 
@@ -926,6 +1045,8 @@ PR 본문에 아래를 적는다. **계획 4·6이 이 답을 읽는다.**
 - 도메인 전체 위임이 동작했는가 / 막혔다면 무엇에
 - Gmail 응답 구조에서 예상과 달랐던 것
 - 5분 주기가 적절한가 — 한 번에 몇 통이 들어오는가
+- 두 페이지 이상인 조회에서 전 페이지가 저장되고 성공 뒤 cursor가 전진했는가
+- 정상 0건과 실패가 `ingestState`에서 구분되는가
 - 첨부가 실제로 얼마나 자주 오는가 (계획 6의 첨부 제외 결정에 영향)
 
 ## 다음 계획으로 넘기는 것

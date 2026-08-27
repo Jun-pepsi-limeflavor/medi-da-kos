@@ -798,6 +798,11 @@ function Step4({
                 Minimum order quantity is {MOQ_PER_SKU.toLocaleString()} units
                 per SKU.
               </p>
+              {!tbd && quantityIssue === "missing" && (
+                <p className="mt-2 text-sm text-rose-600">
+                  Enter a quantity or mark it as undecided below.
+                </p>
+              )}
               {!tbd && quantityIssue === "below-moq" && (
                 <p className="mt-2 text-sm text-amber-700">
                   Below our {MOQ_PER_SKU.toLocaleString()}-unit minimum — we can

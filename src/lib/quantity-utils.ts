@@ -5,7 +5,11 @@ export const MOQ_PER_SKU = 3000;
 /** Hard floor — briefs below this cannot be submitted. */
 export const MIN_SUBMITTABLE_QUANTITY = 1000;
 
-export type OrderQuantityIssue = "invalid" | "below-min" | "below-moq";
+export type OrderQuantityIssue =
+  | "missing"
+  | "invalid"
+  | "below-min"
+  | "below-moq";
 
 /** Reads the order quantity, falling back to the legacy `moq` field. */
 export function getOrderQuantity(step4?: CMBriefStep4): string {
@@ -24,15 +28,16 @@ export function parseOrderQuantity(raw?: string): number | null {
 }
 
 /**
- * Blocking (`invalid`, `below-min`) or advisory (`below-moq`) problem with the
- * entered quantity. Empty input and the TBD checkbox both mean "no problem".
+ * Blocking (`missing`, `invalid`, `below-min`) or advisory (`below-moq`)
+ * problem with the entered quantity. The TBD checkbox is the only way to
+ * skip entering a quantity.
  */
 export function orderQuantityIssue(
   step4?: CMBriefStep4,
 ): OrderQuantityIssue | null {
   if (step4?.orderQuantityTbd) return null;
   const raw = getOrderQuantity(step4).trim();
-  if (!raw) return null;
+  if (!raw) return "missing";
   const n = parseOrderQuantity(raw);
   if (n === null) return "invalid";
   if (n < MIN_SUBMITTABLE_QUANTITY) return "below-min";
@@ -43,5 +48,5 @@ export function orderQuantityIssue(
 export function isBlockingQuantityIssue(
   issue: OrderQuantityIssue | null,
 ): boolean {
-  return issue === "invalid" || issue === "below-min";
+  return issue === "missing" || issue === "invalid" || issue === "below-min";
 }

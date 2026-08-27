@@ -1,6 +1,6 @@
 # 어드민 인가 게이트 구현 계획
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `/admin`을 서버에서 검증되는 이메일 허용목록 뒤에 두고, 백오피스 컬렉션을 모든 클라이언트로부터 차단한다.
 
@@ -209,12 +209,12 @@ case "$f" in *.ts|*.tsx|*.js|*.jsx|*.mjs) ;; *) exit 0 ;; esac
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 rel=${f#"$root"/}
 
-# 원가를 다뤄도 되는 곳
+# 원가를 다뤄도 되는 곳. 일반 딜 스키마·저장소는 허용하지 않는다.
 case "$rel" in
-  src/app/admin/*|src/app/api/admin/*|functions-ingest/*|tests/*) exit 0 ;;
+  src/lib/schemas/deal-finance.ts|src/lib/repo/deal-finance.ts|src/app/admin/*|src/app/api/admin/*|functions-ingest/*|tests/*) exit 0 ;;
 esac
 
-SECRETS='unitCost|supplierCost|factoryPrice|margin|markup|\bmoq\b|leadTime|supplierContacts|ownershipExclusivity'
+SECRETS='unitCost|supplierCost|factoryPrice|internalCosts|supplierQuotes|grossProfit|margin|markup|fxSnapshot'
 hits=$(grep -nE "$SECRETS" "$f" 2>/dev/null | head -10)
 [ -z "$hits" ] && exit 0
 
@@ -222,7 +222,7 @@ hits=$(grep -nE "$SECRETS" "$f" 2>/dev/null | head -10)
   echo "COST LEAK RISK — $rel 는 어드민 경로 밖인데 원가·제조사 필드를 참조한다:"
   echo "$hits"
   echo
-  echo "허용 경로: src/app/admin/** · src/app/api/admin/** · functions-ingest/** · tests/**"
+  echo "허용 경로: deal-finance 스키마·저장소 · src/app/admin/** · src/app/api/admin/** · functions-ingest/** · tests/**"
   echo "여기서 다뤄야 한다면 이 훅의 화이트리스트를 넓히되, 넓힌 이유를 커밋 메시지에 남긴다."
 } >&2
 exit 2
@@ -309,15 +309,16 @@ import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { getTestEnv } from "./helpers.mjs";
 
 const UID = "buyer-1";
-const base = {
+const safeProfile = {
   uid: UID, email: "b@example.com", displayName: "B",
   companyName: "", phone: "", country: "", provider: "google",
-  role: "user", createdAt: "2026-01-01T00:00:00.000Z",
+  createdAt: "2026-01-01T00:00:00.000Z", isTest: false,
 };
+const existing = { ...safeProfile, role: "user" };
 
 async function seed(env) {
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), "users", UID), base);
+    await setDoc(doc(ctx.firestore(), "users", UID), existing);
   });
 }
 
@@ -328,20 +329,20 @@ test("본인 문서를 읽을 수 있다", async () => {
   await assertSucceeds(getDoc(doc(db, "users", UID)));
 });
 
-test("가입 시 role: user 로 생성할 수 있다", async () => {
+test("가입 시 권한 필드 없이 안전 프로필을 생성할 수 있다", async () => {
   const env = await getTestEnv();
   const db = env.authenticatedContext("new-uid").firestore();
   await assertSucceeds(
-    setDoc(doc(db, "users", "new-uid"), { ...base, uid: "new-uid" }),
+    setDoc(doc(db, "users", "new-uid"), { ...safeProfile, uid: "new-uid" }),
   );
 });
 
-test("role 을 그대로 두고 다른 필드는 수정할 수 있다", async () => {
+test("안전 필드만 merge 수정할 수 있다", async () => {
   const env = await getTestEnv();
   await seed(env);
   const db = env.authenticatedContext(UID).firestore();
   await assertSucceeds(
-    setDoc(doc(db, "users", UID), { ...base, phone: "010-0000-0000" }),
+    setDoc(doc(db, "users", UID), { phone: "010-0000-0000" }, { merge: true }),
   );
 });
 
@@ -350,15 +351,24 @@ test("role 을 admin 으로 바꿀 수 없다", async () => {
   await seed(env);
   const db = env.authenticatedContext(UID).firestore();
   await assertFails(
-    setDoc(doc(db, "users", UID), { ...base, role: "admin" }),
+    setDoc(doc(db, "users", UID), { role: "admin" }, { merge: true }),
   );
 });
 
-test("가입 시에도 role: admin 으로 생성할 수 없다", async () => {
+test("가입 시 role: user 도 클라이언트가 쓰지 못한다", async () => {
   const env = await getTestEnv();
   const db = env.authenticatedContext("evil-uid").firestore();
   await assertFails(
-    setDoc(doc(db, "users", "evil-uid"), { ...base, uid: "evil-uid", role: "admin" }),
+    setDoc(doc(db, "users", "evil-uid"), { ...safeProfile, uid: "evil-uid", role: "user" }),
+  );
+});
+
+test("permissions 필드를 추가할 수 없다", async () => {
+  const env = await getTestEnv();
+  await seed(env);
+  const db = env.authenticatedContext(UID).firestore();
+  await assertFails(
+    setDoc(doc(db, "users", UID), { permissions: ["admin"] }, { merge: true }),
   );
 });
 
@@ -380,7 +390,7 @@ test("남의 문서는 읽을 수 없다", async () => {
 - [ ] **Step 2: 실행해서 실패 확인**
 
 Run: `npm test`
-Expected: "role 을 admin 으로 바꿀 수 없다", "가입 시에도 role: admin 으로 생성할 수 없다", "문서를 삭제할 수 없다" 3건 FAIL. 나머지는 PASS.
+Expected: role 변경·role 포함 생성·permissions 추가·삭제 테스트가 FAIL. 현재 규칙은 소유자의 모든 쓰기를 허용하므로 이 네 동작이 성공해 테스트가 실패해야 한다.
 
 현재 규칙이 `allow read, write: if isOwner(uid)`라 셋 다 통과해버리는 것이 정상적인 실패다.
 
@@ -389,11 +399,18 @@ Expected: "role 을 admin 으로 바꿀 수 없다", "가입 시에도 role: adm
 `firestore.rules`의 `users` 블록을 통째로 교체한다.
 
 ```
-    // users/{uid}: 본인만. role 은 클라이언트가 바꿀 수 없다.
+    // users/{uid}: 본인만. 권한 필드는 클라이언트 요청에 들어오지 않는다.
     match /users/{uid} {
       allow read:   if isOwner(uid);
-      allow create: if isOwner(uid) && request.resource.data.role == 'user';
-      allow update: if isOwner(uid) && request.resource.data.role == resource.data.role;
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'phone', 'country', 'companyName',
+          'provider', 'createdAt', 'isTest'
+        ]);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'phone', 'country', 'companyName', 'provider', 'isTest'
+        ]);
       allow delete: if false;
     }
 ```
@@ -401,18 +418,40 @@ Expected: "role 을 admin 으로 바꿀 수 없다", "가입 시에도 role: adm
 - [ ] **Step 4: 실행해서 전부 통과 확인**
 
 Run: `npm test`
-Expected: 8건 전부 PASS (smoke 1 + users 7)
+Expected: 전부 PASS (권한 필드가 요청에 들어오지 않는 경계 포함)
 
-- [ ] **Step 5: 앱이 안 깨지는지 눈으로 대조**
+- [ ] **Step 5: 프로필 저장에서 권한 필드를 제거한다**
 
-`src/lib/firestore-service.ts`의 `saveUserProfile()`이 `setDoc(doc(db,"users",uid), { isTest, ...profile })`로 통째 덮어쓰고, `src/lib/auth-context.tsx`의 `mapFirebaseUser()`가 `role: extra?.role ?? "user"`로 항상 role을 채운다. 즉 앱은 읽은 role을 그대로 되쓴다 — `update` 규칙의 비교가 항상 성립한다.
+`src/lib/firestore-service.ts`의 `saveUserProfile()`을 안전 필드 merge로 바꾼다. `role`·`permissions`를 인자로 받거나 Firestore 요청에 넣지 않는다.
+
+```typescript
+export async function saveUserProfile(profile: UserProfile): Promise<void> {
+  if (useMockAuth()) return;
+  const { uid, email, displayName, phone, country, companyName, provider, createdAt } = profile;
+  const ref = doc(getFirebaseDb(), "users", uid);
+  const existing = await getDoc(ref);
+  const mutable = {
+    displayName, phone, country, companyName, provider,
+    isTest: isNonProductionEnv(),
+  };
+  await setDoc(
+    ref,
+    stripUndefined(existing.exists()
+      ? mutable
+      : { uid, email, createdAt, ...mutable }),
+    { merge: true },
+  );
+}
+```
+
+신규 문서만 `uid`·`email`·`createdAt`을 쓰고 이후 로그인은 변경 가능한 프로필 필드만 merge한다. 신규 문서는 `role` 없이 생성된다. 앱의 `mapFirebaseUser()`는 필드가 없으면 이미 `user`로 해석한다. 기존 문서의 `role: "user"`는 merge가 보존하지만 클라이언트가 더 이상 전송하거나 바꿀 수 없다. `getDoc` import를 같은 파일의 Firestore import에 추가한다.
 
 `deleteDoc`·`deleteUser`는 `src/` 전체에 없다. 위 두 파일을 열어 실제로 그런지 확인한다.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add firestore.rules tests/rules/users.test.mjs
+git add firestore.rules tests/rules/users.test.mjs src/lib/firestore-service.ts
 git commit -m "fix(rules): users.role 클라이언트 쓰기 차단
 
 role 을 읽는 코드는 아직 없지만, 어드민 시스템을 옆에 만드는 참이라
@@ -441,7 +480,9 @@ import { assertFails } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getTestEnv } from "./helpers.mjs";
 
-const COLLECTIONS = ["buyers", "suppliers", "deals", "messages"];
+const COLLECTIONS = [
+  "buyers", "suppliers", "deals", "messages", "threads", "intakeReviews",
+];
 
 for (const col of COLLECTIONS) {
   test(`로그인 사용자가 ${col} 를 읽을 수 없다`, async () => {
@@ -463,11 +504,15 @@ for (const col of COLLECTIONS) {
   });
 }
 
-test("deals 하위 events 서브컬렉션도 막힌다", async () => {
-  const env = await getTestEnv();
-  const db = env.authenticatedContext("anyone").firestore();
-  await assertFails(getDoc(doc(db, "deals", "d1", "events", "e1")));
-});
+for (const sub of [
+  "items", "supplierEngagements", "private", "sampleRounds", "shipments", "tasks", "events",
+]) {
+  test(`deals 하위 ${sub} 서브컬렉션도 막힌다`, async () => {
+    const env = await getTestEnv();
+    const db = env.authenticatedContext("anyone").firestore();
+    await assertFails(getDoc(doc(db, "deals", "d1", sub, "x")));
+  });
+}
 ```
 
 - [ ] **Step 2: 실행해서 통과하는지 확인**
@@ -491,12 +536,14 @@ catch-all에 기대지 않고 의도를 문서화한다. `match /{document=**}` 
       match /{sub=**} { allow read, write: if false; }
     }
     match /messages/{id}  { allow read, write: if false; }
+    match /threads/{id}   { allow read, write: if false; }
+    match /intakeReviews/{id} { allow read, write: if false; }
 ```
 
 - [ ] **Step 4: 실행해서 여전히 통과하는지 확인**
 
 Run: `npm test`
-Expected: 전부 PASS (smoke 1 + users 7 + backoffice 13)
+Expected: 전부 PASS (신설 컬렉션과 딜 하위 7종 포함)
 
 - [ ] **Step 5: 커밋**
 
@@ -1147,11 +1194,11 @@ gh pr create --base dev --title "feat(admin): 인가 게이트" --body "스펙 d
 
 | 계획 | 작업 | 선행 |
 |---|---|---|
-| `buyers`·`suppliers` 원장 | 4 | 이 계획 |
+| `buyers`·`suppliers`·`intakeReviews` 원장 | 4 | 이 계획 |
 | 수집기 (`thomas@` 단독 관통) | 5 | 이 계획 + 관리자 승인 |
 | 받은편지함·설정 화면 | 6 | 수집기 |
 | 나머지 여섯 함 + 채널톡 + 폼 | 7 | 수집기 |
-| `deals` + 파이프라인 보드 | 8 | `buyers`·`suppliers` |
+| `deals` + 파이프라인 보드 | 8·9 | `buyers`·`suppliers`·`intakeReviews` |
 | 파서 + eval | 10 | 7, 8 |
 
-작업 9(`supplierContacts` + 원가)는 8과 같은 계획에 넣는다 — 원가 필드가 딜 문서에 인라인이라(스펙 4.3) 쪼개면 스키마가 두 번 바뀐다.
+작업 9(`sampleRounds`·`shipments`·`private/finance`)는 8과 같은 계획에 넣는다. 일반 딜 저장소와 재무 저장소는 파일을 분리하되 같은 PR에서 규칙·타입·UI를 함께 검증한다.
