@@ -2,8 +2,10 @@ import { applyAddressMatch, getThread } from "@/lib/repo/threads";
 import { listThreadMessages } from "@/lib/repo/messages";
 import { getIntakeReview, setIntakeReview } from "@/lib/repo/intake-reviews";
 import type { Message } from "@/lib/schemas/message";
+import type { IntakeReview } from "@/lib/schemas/intake-review";
 import { requireAdminPage } from "@/lib/admin-page";
 import ThreadActions from "../ThreadActions";
+import ExtractionPanel from "./ExtractionPanel";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -49,13 +51,20 @@ export default async function ThreadDetailPage({
   const { thread, counterpartyEmail, buyerCandidate, supplierCandidate } =
     await applyAddressMatch(rawThread, messages);
 
+  // 최신 인바운드 메시지(앵커 메시지) 탐색
+  const anchorMessage =
+    [...messages].reverse().find((m) => m.direction === "in") ??
+    messages[messages.length - 1] ??
+    null;
+
   // Task 3 Step 4 — web 채널은 폼 제출 쪽 인테이크가 따로 있다. 메일함
   // 채널(gmail_*·outlook_*·channeltalk)로 들어온 스레드를 처음 열었을 때만
   // raw 판정을 만든다. 이미 있으면 손대지 않는다 — 상태를 덮지 않는다.
+  let existingReview: IntakeReview | null = null;
   if (thread.channel !== "web") {
-    const existingReview = await getIntakeReview("message", decodedKey);
+    existingReview = await getIntakeReview("message", decodedKey);
     if (!existingReview) {
-      await setIntakeReview(
+      existingReview = await setIntakeReview(
         "message",
         decodedKey,
         {
@@ -113,42 +122,77 @@ export default async function ThreadDetailPage({
         />
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-neutral-300">메시지 ({messages.length}개)</h2>
-        {messages.length === 0 ? (
-          <p className="text-xs text-neutral-500">메시지가 없습니다.</p>
-        ) : (
-          <div className="space-y-4 divide-y divide-neutral-800">
-            {messages.map((msg: Message) => (
-              <div key={msg.id} className="pt-4 first:pt-0">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm text-neutral-100">{msg.fromName || msg.from}</span>
-                    <span className="text-xs text-neutral-500">({msg.from})</span>
+      {/* 2-column or Side-by-Side: Left Messages, Right ExtractionPanel */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        {/* Left Column: 메시지 목록 */}
+        <div className="xl:col-span-6 space-y-4">
+          <h2 className="text-sm font-semibold text-neutral-300">원문 대화 메시지 ({messages.length}개)</h2>
+          {messages.length === 0 ? (
+            <p className="text-xs text-neutral-500">메시지가 없습니다.</p>
+          ) : (
+            <div className="space-y-4 divide-y divide-neutral-800">
+              {messages.map((msg: Message) => (
+                <div key={msg.id} className="pt-4 first:pt-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm text-neutral-100">{msg.fromName || msg.from}</span>
+                      <span className="text-xs text-neutral-500">({msg.from})</span>
+                      {msg.direction === "in" ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800">
+                          수신
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400">
+                          발신
+                        </span>
+                      )}
+                      {anchorMessage && msg.id === anchorMessage.id && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-700">
+                          추출 대상 (앵커)
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-neutral-500">{formatDatetime(msg.sentAt)}</span>
                   </div>
-                  <span className="text-xs text-neutral-500">{formatDatetime(msg.sentAt)}</span>
-                </div>
-                <div className="text-xs text-neutral-400 mb-2">{msg.subject}</div>
-                <div className="bg-neutral-800 rounded p-3 text-sm text-neutral-200 whitespace-pre-wrap mb-2 break-words max-h-96 overflow-y-auto">
-                  {msg.bodyText}
-                </div>
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="text-xs text-neutral-400 space-y-1">
-                    <div className="font-medium text-neutral-300">첨부 {msg.attachments.length}개:</div>
-                    <ul className="list-disc list-inside">
-                      {msg.attachments.map((att) => (
-                        <li key={att.attachmentId} className="ml-2">
-                          {att.filename} ({(att.size / 1024).toFixed(1)}KB)
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="text-xs text-neutral-300 font-medium mb-2">{msg.subject}</div>
+                  <div className="bg-neutral-800 rounded p-3 text-sm text-neutral-200 whitespace-pre-wrap mb-2 break-words max-h-96 overflow-y-auto">
+                    {msg.bodyText}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="text-xs text-neutral-400 space-y-1">
+                      <div className="font-medium text-neutral-300">첨부 {msg.attachments.length}개:</div>
+                      <ul className="list-disc list-inside">
+                        {msg.attachments.map((att) => (
+                          <li key={att.attachmentId} className="ml-2">
+                            {att.filename} ({(att.size / 1024).toFixed(1)}KB)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: AI 추출 패널 */}
+        <div className="xl:col-span-6 xl:sticky xl:top-6">
+          {anchorMessage ? (
+            <ExtractionPanel
+              anchorMessage={anchorMessage}
+              threadKey={decodedKey}
+              thread={thread}
+              intakeReview={existingReview}
+            />
+          ) : (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 text-center text-neutral-500 text-sm">
+              분석할 수신 메시지가 없습니다.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+

@@ -43,6 +43,8 @@ export const messageSchema = z.object({
   extraction: z.record(z.string(), z.unknown()).optional(),
   confidence: z.record(z.string(), z.unknown()).optional(),
   accepted: z.record(z.string(), z.unknown()).optional(),
+  acceptedBy: z.string().optional(),
+  acceptedAt: z.string().optional(),
 });
 
 export type Message = z.infer<typeof messageSchema> & { id: string };

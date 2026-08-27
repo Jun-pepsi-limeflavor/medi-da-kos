@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "eval": "node scripts/eval.mjs",
     "test": "firebase emulators:exec --only firestore --project demo-medidakos 'out=$(node --test 2>&1); ec=$?; printf \"%s\\n\" \"$out\"; [ $ec -ne 0 ] && exit $ec; printf \"%s\\n\" \"$out\" | grep -qE \"tests [1-9]\" || { echo \"NO TESTS DISCOVERED\" >&2; exit 1; }'"
   },
   "dependencies": {

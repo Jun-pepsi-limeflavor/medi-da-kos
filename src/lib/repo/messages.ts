@@ -1,6 +1,10 @@
 import "server-only";
 import { getAdminDb } from "@/lib/firebase-admin";
-import type { Message } from "@/lib/schemas/message";
+import type { Message, parseStatusSchema } from "@/lib/schemas/message";
+import type { Extraction, ConfidenceMap } from "@/lib/schemas/extraction";
+import { z } from "zod";
+
+type ParseStatus = z.infer<typeof parseStatusSchema>;
 
 const COLLECTION = "messages";
 
@@ -20,3 +24,57 @@ export async function listThreadMessages(threadKey: string): Promise<Message[]> 
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Message);
 }
+
+/** 메시지 추출 결과 확정 저장 */
+export async function acceptMessageExtraction(
+  id: string,
+  accepted: Extraction,
+  actorEmail: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await getAdminDb()
+    .collection(COLLECTION)
+    .doc(id)
+    .update({
+      accepted,
+      parseStatus: "completed",
+      acceptedBy: actorEmail,
+      acceptedAt: now,
+      sourceUpdatedAt: now,
+    });
+}
+
+/** 메시지 재추출 결과 갱신 */
+export async function updateMessageExtraction(
+  id: string,
+  extraction: Extraction,
+  confidence: ConfidenceMap,
+  parseStatus: ParseStatus = "completed",
+): Promise<void> {
+  const now = new Date().toISOString();
+  await getAdminDb()
+    .collection(COLLECTION)
+    .doc(id)
+    .update({
+      extraction,
+      confidence,
+      parseStatus,
+      sourceUpdatedAt: now,
+    });
+}
+
+/** 메시지 파싱 상태 갱신 (예: 무시 처리 시 'skipped') */
+export async function setMessageParseStatus(
+  id: string,
+  parseStatus: ParseStatus,
+): Promise<void> {
+  const now = new Date().toISOString();
+  await getAdminDb()
+    .collection(COLLECTION)
+    .doc(id)
+    .update({
+      parseStatus,
+      sourceUpdatedAt: now,
+    });
+}
+

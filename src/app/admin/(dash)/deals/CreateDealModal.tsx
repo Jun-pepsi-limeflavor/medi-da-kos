@@ -12,39 +12,69 @@ export interface QualifiedIntakeSummary {
   reviewedAt?: string;
 }
 
-interface Props {
-  qualifiedIntakes: QualifiedIntakeSummary[];
+export interface DealPrefillData {
+  intakeReviewId?: string;
+  reference?: string;
+  buyerId?: string;
+  companyName?: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  recipientName?: string;
+  addressLine1?: string;
+  city?: string;
+  shippingCountry?: string;
+  postalCode?: string;
+  taxId?: string;
+  targetSampleDate?: string;
+  targetDeliveryDate?: string;
+  certifications?: string;
+  additionalRequests?: string;
 }
 
-export default function CreateDealModal({ qualifiedIntakes }: Props) {
+interface Props {
+  qualifiedIntakes: QualifiedIntakeSummary[];
+  prefillData?: DealPrefillData;
+  autoOpen?: boolean;
+}
+
+export default function CreateDealModal({
+  qualifiedIntakes,
+  prefillData,
+  autoOpen = false,
+}: Props) {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(autoOpen);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form State
   const [intakeReviewId, setIntakeReviewId] = useState(
-    qualifiedIntakes[0]?.id || ""
+    prefillData?.intakeReviewId || qualifiedIntakes[0]?.id || ""
   );
-  const [reference, setReference] = useState("");
-  const [buyerId, setBuyerId] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [country, setCountry] = useState("미국 (USA)");
+  const [reference, setReference] = useState(prefillData?.reference || "");
+  const [buyerId, setBuyerId] = useState(prefillData?.buyerId || "");
+  const [companyName, setCompanyName] = useState(prefillData?.companyName || "");
+  const [contactName, setContactName] = useState(prefillData?.contactName || "");
+  const [email, setEmail] = useState(prefillData?.email || "");
+  const [phone, setPhone] = useState(prefillData?.phone || "");
+  const [country, setCountry] = useState(prefillData?.country || "미국 (USA)");
 
-  const [recipientName, setRecipientName] = useState("");
-  const [addressLine1, setAddressLine1] = useState("");
-  const [city, setCity] = useState("");
-  const [shippingCountry, setShippingCountry] = useState("미국 (USA)");
-  const [postalCode, setPostalCode] = useState("");
-  const [taxId, setTaxId] = useState("");
+  const [recipientName, setRecipientName] = useState(prefillData?.recipientName || "");
+  const [addressLine1, setAddressLine1] = useState(prefillData?.addressLine1 || "");
+  const [city, setCity] = useState(prefillData?.city || "");
+  const [shippingCountry, setShippingCountry] = useState(
+    prefillData?.shippingCountry || prefillData?.country || "미국 (USA)"
+  );
+  const [postalCode, setPostalCode] = useState(prefillData?.postalCode || "");
+  const [taxId, setTaxId] = useState(prefillData?.taxId || "");
 
-  const [targetSampleDate, setTargetSampleDate] = useState("");
-  const [targetDeliveryDate, setTargetDeliveryDate] = useState("");
-  const [certifications, setCertifications] = useState("CPNP, FDA");
-  const [additionalRequests, setAdditionalRequests] = useState("");
+  const [targetSampleDate, setTargetSampleDate] = useState(prefillData?.targetSampleDate || "");
+  const [targetDeliveryDate, setTargetDeliveryDate] = useState(prefillData?.targetDeliveryDate || "");
+  const [certifications, setCertifications] = useState(prefillData?.certifications || "CPNP, FDA");
+  const [additionalRequests, setAdditionalRequests] = useState(prefillData?.additionalRequests || "");
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,17 +1,30 @@
 import { requireAdminPage } from "@/lib/admin-page";
 import { listDealsWithDetails } from "@/lib/repo/deals";
 import { listIntakeReviews } from "@/lib/repo/intake-reviews";
+import { getMessage } from "@/lib/repo/messages";
+import { intakeReviewId } from "@/lib/schemas/intake-review";
+import type { Extraction } from "@/lib/schemas/extraction";
 import CrmKanbanBoard from "@/components/crm/CrmKanbanBoard";
-import CreateDealModal, { type QualifiedIntakeSummary } from "./CreateDealModal";
+import CreateDealModal, {
+  type QualifiedIntakeSummary,
+  type DealPrefillData,
+} from "./CreateDealModal";
 
 export const dynamic = "force-dynamic";
 
-export default async function DealsPage() {
+export default async function DealsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ createFromMessage?: string }>;
+}) {
   await requireAdminPage();
+  const params = await searchParams;
+  const createFromMessageId = params?.createFromMessage;
 
-  const [deals, intakeReviewsMap] = await Promise.all([
+  const [deals, intakeReviewsMap, prefillMsg] = await Promise.all([
     listDealsWithDetails(),
     listIntakeReviews(),
+    createFromMessageId ? getMessage(createFromMessageId) : Promise.resolve(null),
   ]);
 
   const qualifiedIntakes: QualifiedIntakeSummary[] = [];
@@ -25,6 +38,43 @@ export default async function DealsPage() {
         reviewedAt: r.reviewedAt,
       });
     }
+  }
+
+  let prefillData: DealPrefillData | undefined = undefined;
+  let autoOpen = false;
+
+  if (prefillMsg) {
+    const ext =
+      (prefillMsg.accepted as Extraction) ??
+      (prefillMsg.extraction as Extraction) ??
+      {};
+    const matchedIntakeId = intakeReviewId("message", prefillMsg.threadKey);
+    const company = ext.buyer?.brandName || "";
+    const contact = ext.buyer?.name || prefillMsg.fromName || "";
+    const email = ext.buyer?.email || prefillMsg.from || "";
+    const itemSummary = ext.items?.[0]?.productName || "";
+    const ref = company
+      ? `${company} ${itemSummary ? itemSummary + " " : ""}PO`
+      : itemSummary
+        ? `${itemSummary} Inquiry`
+        : `Message Deal (${prefillMsg.id.slice(0, 8)})`;
+
+    prefillData = {
+      intakeReviewId: matchedIntakeId,
+      reference: ref,
+      buyerId: email.toLowerCase(),
+      companyName: company || contact,
+      contactName: contact || company,
+      email: email,
+      country: ext.buyer?.country || ext.shipping?.country || "미국 (USA)",
+      shippingCountry: ext.shipping?.country || ext.buyer?.country || "미국 (USA)",
+      city: ext.shipping?.city || "",
+      targetSampleDate: ext.timeline?.sampleTargetDate || "",
+      targetDeliveryDate: ext.timeline?.targetLaunchDate || "",
+      certifications:
+        (ext.certifications?.requiredCerts || []).join(", ") || "CPNP, FDA",
+    };
+    autoOpen = true;
   }
 
   return (
@@ -43,8 +93,13 @@ export default async function DealsPage() {
           </p>
         </div>
 
-        <CreateDealModal qualifiedIntakes={qualifiedIntakes} />
+        <CreateDealModal
+          qualifiedIntakes={qualifiedIntakes}
+          prefillData={prefillData}
+          autoOpen={autoOpen}
+        />
       </div>
+
 
       {/* Main Kanban Board */}
       <CrmKanbanBoard deals={deals} />
