@@ -1,26 +1,19 @@
 import "server-only";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { withAdmin } from "@/lib/with-admin";
 import { getGmailToken } from "@/lib/gmail-auth";
 
-async function handler(
-  req: NextRequest,
-  { params }: { params: Promise<{ account: string }> }
-) {
-  const { account } = await params;
+export const runtime = "nodejs";
 
-  if (req.method !== "POST") {
-    return NextResponse.json({ error: "method not allowed" }, { status: 405 });
-  }
+export const POST = withAdmin(async (req: NextRequest) => {
+  const account = req.nextUrl.pathname.split("/").filter(Boolean).pop();
+  if (!account) return NextResponse.json({ error: "account required" }, { status: 400 });
 
   try {
     await getGmailToken(account);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "unknown error";
+    const message = err instanceof Error ? err.message : "unknown error";
     return NextResponse.json({ ok: false, error: message });
   }
-}
-
-export const POST = withAdmin(handler);
+});
