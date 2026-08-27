@@ -5,6 +5,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { buildLifecycleList, SEGMENT_ORDER } = require("./lifecycle");
+const { buildLandingRequestEmail } = require("./landing-request-email");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -295,6 +296,24 @@ exports.onKoreaLeadCreated = onDocumentCreated(
           </p>
         </div>`,
       },
+    });
+  },
+);
+
+exports.onLandingRequestCreated = onDocumentCreated(
+  "landingRequests/{requestId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const request = snap.data();
+    if (request.isTest === true) {
+      console.log(`landingRequests/${event.params.requestId} isTest — 알림 생략.`);
+      return;
+    }
+    const requestId = event.params.requestId;
+    await queueEmail(`landing_request_admin_${requestId}`, {
+      to: getAdminEmails(),
+      message: buildLandingRequestEmail(requestId, request, formatKoDate()),
     });
   },
 );

@@ -1,4 +1,4 @@
-import { isNonProductionEnv } from "@/lib/env-flags";
+import { isNonProductionEnv } from "./env-flags";
 
 /**
  * 모든 GA4 이벤트에 `is_test`를 붙인다.

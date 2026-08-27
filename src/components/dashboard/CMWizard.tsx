@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { gsap } from "gsap";
 import { BookOpen, Info, Upload } from "lucide-react";
 import type {
   CMBrief,
@@ -39,6 +40,8 @@ import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
 import { trackConversionEvent } from "@/lib/analytics";
+import { trackLandingEvent } from "@/lib/landing/analytics";
+import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import { Top10Products } from "./Top10Products";
 
 const stepContentClass = "min-h-[min(58vh,520px)] py-2";
@@ -61,20 +64,36 @@ const wizardExamplePanelClass =
 const wizardExampleBadgeClass =
   "inline-flex items-center gap-1.5 rounded-full bg-sky-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700";
 
-interface Props {
-  uid: string;
-}
+interface Props { uid?: string; mode?: "order" | "consultation"; onConsultationReady?: (brief: CMBrief) => void; }
 
-export function CMWizard({ uid }: Props) {
+export function CMWizard({ uid = "landing", mode = "order", onConsultationReady }: Props) {
   const router = useRouter();
   const { brief, loading, setBrief, persistBrief, refreshBrief } =
     useDashboardBrief();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const stepContentRef = useRef<HTMLDivElement>(null);
+  const currentStep = brief?.currentStep;
+
+  useEffect(() => {
+    if (mode !== "consultation" || !currentStep || shouldReduceLandingMotion() || !stepContentRef.current) return;
+    const stepContent = stepContentRef.current;
+    const context = gsap.context(() => {
+      gsap.fromTo(
+        stepContent,
+        { autoAlpha: 0, y: 14 },
+        { autoAlpha: 1, y: 0, duration: 0.3, ease: "power2.out", clearProps: "transform,visibility" },
+      );
+    }, stepContentRef);
+    return () => context.revert();
+  }, [currentStep, mode]);
 
   async function persist(next: CMBrief, advance = false) {
     setSaving(true);
     const updated = await persistBrief(next, advance);
+    if (mode === "consultation") {
+      trackLandingEvent("dashboard_step_view", "dashboard", { dashboard_step: updated.currentStep });
+    }
     setSaving(false);
     setMessage(
       advance
@@ -95,6 +114,10 @@ export function CMWizard({ uid }: Props) {
         `Order quantity must be at least ${MIN_SUBMITTABLE_QUANTITY.toLocaleString()} units, or marked as undecided.`,
       );
       setTimeout(() => setMessage(""), 8000);
+      return;
+    }
+    if (mode === "consultation") {
+      onConsultationReady?.(brief);
       return;
     }
     if (isShippingAddressIncomplete(brief.shippingAddress)) {
@@ -133,7 +156,7 @@ export function CMWizard({ uid }: Props) {
   const step4Blocked =
     step === 4 &&
     (isBlockingQuantityIssue(orderQuantityIssue(brief.step4)) ||
-      isShippingAddressIncomplete(brief.shippingAddress));
+      (mode === "order" && isShippingAddressIncomplete(brief.shippingAddress)));
 
   // Below lg the height budget is viewport − 3.5rem mobile top bar − 3rem of
   // p-6. 100dvh there so the collapsing iOS URL bar can't cause overflow.
@@ -141,9 +164,7 @@ export function CMWizard({ uid }: Props) {
     <div className="flex min-h-[calc(100dvh-6.5rem)] flex-col lg:min-h-[calc(100vh-5rem)]">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Product Manufacturing Brief
-          </h1>
+          <h1 className="text-2xl font-semibold text-slate-800">Product Manufacturing Brief</h1>
           <p className="mt-1 text-sm text-slate-500">
             Step {step} of 6 — complete each section to build your ODM request.
           </p>
@@ -161,6 +182,7 @@ export function CMWizard({ uid }: Props) {
         }`}
       >
         <div className="flex flex-1 flex-col p-6 lg:p-10">
+        <div ref={stepContentRef} key={step} data-landing-wizard-step>
         {step === 1 && (
           <Step1
             step1={brief.step1}
@@ -241,6 +263,7 @@ export function CMWizard({ uid }: Props) {
             onChange={(step6) => setBrief({ ...brief, step6 })}
           />
         )}
+        </div>
 
         <div className="mt-auto flex flex-wrap gap-3 border-t border-slate-100 pt-8">
           {step > 1 && (
@@ -252,14 +275,14 @@ export function CMWizard({ uid }: Props) {
               Back
             </button>
           )}
-          <button
+          {mode === "order" && <button
             type="button"
             disabled={saving}
             onClick={() => persist(brief, false)}
             className="rounded-lg border border-sky-200/90 bg-white/80 px-6 py-3 text-base font-medium text-sky-700 transition hover:bg-sky-50/70 disabled:opacity-60"
           >
             Save draft
-          </button>
+          </button>}
           {step < 6 ? (
             <button
               type="button"
@@ -276,14 +299,14 @@ export function CMWizard({ uid }: Props) {
               onClick={handleSubmit}
               className="rounded-lg bg-sky-500/90 px-6 py-3 text-base font-semibold text-white shadow-sm shadow-sky-100/80 transition hover:bg-sky-600 disabled:opacity-60"
             >
-              Submit brief
+              {mode === "consultation" ? "Continue to consultation" : "Submit brief"}
             </button>
           )}
         </div>
         </div>
       </div>
 
-      {step === 1 && <Top10Products uid={uid} compact />}
+      {mode === "order" && step === 1 && <Top10Products uid={uid} compact />}
     </div>
   );
 }
@@ -428,6 +451,17 @@ function Step2({
   selections: PackagingSelection[];
   onChange: (s: PackagingSelection[]) => void;
 }) {
+  useEffect(() => {
+    if (selections.length > 1) {
+      onChange([selections[selections.length - 1]!]);
+      return;
+    }
+    const only = selections[0];
+    if (only && isSingleItemGroup(only.group) && only.items.length > 1) {
+      onChange([{ group: only.group, items: [only.items[only.items.length - 1]!] }]);
+    }
+  }, [selections, onChange]);
+
   if (!category) {
     return (
       <div className={stepContentClass}>
@@ -449,21 +483,6 @@ function Step2({
   function isSingleItemGroup(group: string) {
     return group === "Make Up" || group === "Accessory";
   }
-
-  useEffect(() => {
-    if (selections.length > 1) {
-      onChange([selections[selections.length - 1]!]);
-      return;
-    }
-    const only = selections[0];
-    if (
-      only &&
-      isSingleItemGroup(only.group) &&
-      only.items.length > 1
-    ) {
-      onChange([{ group: only.group, items: [only.items[only.items.length - 1]!] }]);
-    }
-  }, [selections, onChange]);
 
   function isGroupSelected(group: string) {
     return activeGroup === group;
