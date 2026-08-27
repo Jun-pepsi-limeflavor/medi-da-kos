@@ -28,6 +28,9 @@ function getSideBadgeStyle(side: Thread["side"]): string {
 
 interface ThreadWithAttachments extends Thread {
   hasAttachments: boolean;
+  senderName: string;
+  subject: string;
+  bodySnippet: string;
 }
 
 export default async function InboxPage({
@@ -58,14 +61,22 @@ export default async function InboxPage({
 
   const threads = await listThreads(filters);
 
-  // Compute attachments for each thread
+  // 목록 한 줄에 보일 발신자·제목·본문 미리보기·첨부 여부 — 마지막 메시지 기준.
+  // listThreadMessages()는 sentAt 오름차순이라 배열의 마지막이 최신이다.
   const threadsWithAttachments: ThreadWithAttachments[] = await Promise.all(
     threads.map(async (thread) => {
       const messages = await listThreadMessages(thread.threadKey);
       const hasAttachments = messages.some(
         (msg) => msg.attachments && msg.attachments.length > 0
       );
-      return { ...thread, hasAttachments };
+      const latest = messages[messages.length - 1];
+      return {
+        ...thread,
+        hasAttachments,
+        senderName: latest?.fromName || latest?.from || thread.sourceAccount,
+        subject: latest?.subject ?? "",
+        bodySnippet: (latest?.bodyText ?? "").replace(/\s+/g, " ").trim().slice(0, 80),
+      };
     })
   );
 
@@ -94,9 +105,7 @@ export default async function InboxPage({
                 >
                   <div className="flex items-center gap-3 mb-1">
                     <span className={`text-base ${dotColor}`}>●</span>
-                    <span className="flex-1 text-sm truncate">
-                      {thread.sourceAccount && `${thread.sourceAccount} `}
-                    </span>
+                    <span className="flex-1 text-sm truncate">{thread.senderName}</span>
                     <span
                       className={`text-[10px] uppercase px-2 py-0.5 rounded-full border ${getSideBadgeStyle(thread.side)}`}
                     >
@@ -111,7 +120,9 @@ export default async function InboxPage({
                     </span>
                   </div>
                   <div className="text-xs text-neutral-400 truncate ml-7">
-                    (no subject preview)
+                    {thread.subject && <span className="text-neutral-300">{thread.subject}</span>}
+                    {thread.subject && thread.bodySnippet && " — "}
+                    {thread.bodySnippet}
                   </div>
                 </div>
               </Link>
