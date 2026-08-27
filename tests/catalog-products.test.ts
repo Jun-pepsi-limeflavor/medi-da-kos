@@ -43,7 +43,6 @@ const expectedNames = {
     "QUERCETIN 1000 CALMING CREAM",
     "GREEN BALANCING CREAM",
     "BERRY BOUNCE BALM",
-    "R.E.D BLEMISH CLEAR MOISTURE CREAM",
   ],
   mist: [
     "RED ELIXIR JELLY MIST",
@@ -62,7 +61,7 @@ test("catalog has the approved category counts and category order", () => {
     {},
   );
 
-  assert.deepEqual(counts, { serum: 22, toner: 4, cream: 5, mist: 4 });
+  assert.deepEqual(counts, { serum: 22, toner: 4, cream: 4, mist: 4 });
   assert.deepEqual(CATALOG_CATEGORY_ORDER, ["serum", "toner", "cream", "mist"]);
 });
 
@@ -80,8 +79,8 @@ test("catalog IDs and names are unique and every product uses a local asset", ()
   const ids = new Set(CATALOG_PRODUCTS.map((product) => product.id));
   const names = new Set(CATALOG_PRODUCTS.map((product) => product.name));
 
-  assert.equal(ids.size, 35);
-  assert.equal(names.size, 35);
+  assert.equal(ids.size, 34);
+  assert.equal(names.size, 34);
   for (const product of CATALOG_PRODUCTS) {
     assert.match(product.image, /^\/landing\/catalog\//);
     assert.doesNotMatch(product.image, /^https?:\/\//);
@@ -90,6 +89,29 @@ test("catalog IDs and names are unique and every product uses a local asset", ()
     assert.ok(product.technology.trim().length > 0, product.name);
     assert.ok(product.keyIngredients.length > 0, product.name);
     assert.ok(product.howToUse.trim().length > 0, product.name);
+  }
+});
+
+test("catalog card descriptions use the extracted catalog copy", () => {
+  assert.ok(
+    CATALOG_PRODUCTS.every(
+      (product) => !product.description.includes("proposal-ready"),
+    ),
+  );
+  assert.equal(
+    CATALOG_PRODUCTS.find((product) => product.id === "niacinamide-2-saponin-pink-serum")?.description,
+    "A brightening pomegranate fondant serum richly infused with revitalizing fruit essence.",
+  );
+  assert.equal(
+    CATALOG_PRODUCTS.find((product) => product.id === "red-blemish-clear-moisture-cream"),
+    undefined,
+  );
+});
+
+test("catalog product data does not expose customer-facing price information", () => {
+  for (const product of CATALOG_PRODUCTS) {
+    const serialized = JSON.stringify(product).toLowerCase();
+    assert.doesNotMatch(serialized, /price|pricing|unit price|estimate|estimated|usd|\$/);
   }
 });
 
@@ -106,6 +128,6 @@ test("catalog assets are present for every displayed product", async () => {
     }),
   );
 
-  assert.equal(hashes.length, 35);
+  assert.equal(hashes.length, 34);
   assert.ok(new Set(hashes.map(({ hash }) => hash)).size > 1);
 });

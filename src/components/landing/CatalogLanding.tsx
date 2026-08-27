@@ -185,7 +185,7 @@ export function CatalogLanding() {
         {products.map((product) => (
           <article key={product.id} data-catalog-tile className="overflow-hidden rounded-xl border border-stone-200 bg-white">
             <button type="button" onClick={() => { setDetail(product); trackLandingEvent("catalog_product_view", "catalog", { product_id: product.id, product_category: product.category }); }} className="block w-full text-left">
-              <div className="relative aspect-[4/3] bg-stone-100"><Image src={product.image} alt="" fill unoptimized className="object-contain p-5" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
+              <div className="relative aspect-[4/3] overflow-hidden bg-stone-100"><Image src={product.image} alt="" fill unoptimized className="object-cover object-center" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
               <div className="p-5"><p className="text-xs font-medium uppercase tracking-wide text-sky-700">{product.category}</p><h2 className="mt-2 font-semibold leading-snug">{product.name}</h2><p className="mt-2 line-clamp-2 text-sm text-slate-600">{product.description}</p></div>
             </button>
             <div className="px-5 pb-5"><button type="button" onClick={() => { selectProduct(product); }} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Add to consultation</button></div>
@@ -204,7 +204,7 @@ export function CatalogLanding() {
           <div data-catalog-dialog-backdrop className="absolute inset-0 bg-slate-950/40" aria-hidden />
           <div data-catalog-dialog-panel className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex justify-between gap-4"><div><p className="text-sm capitalize text-sky-700">{detail.category}</p><h2 className="mt-1 text-2xl font-semibold">{detail.name}</h2></div><button type="button" onClick={closeDetail} className="rounded p-2 text-slate-600 hover:bg-slate-100" aria-label="Close product details">×</button></div>
-            <div className="mt-5 grid gap-4 text-sm leading-relaxed text-slate-700"><Detail label="Description" value={detail.description} /><Detail label="What makes it different" value={detail.differentiators} /><Detail label="Technology" value={detail.technology} /><Detail label="Key ingredients" value={detail.keyIngredients} /><Detail label="How to use" value={detail.howToUse} />{detail.referencePrices && <Detail label="Reference prices (informational only)" value={detail.referencePrices.map((price) => `${price.units} units: ${price.price}`).join(" · ")} />}</div>
+            <div className="mt-5 grid gap-4 text-sm leading-relaxed text-slate-700"><Detail label="Description" value={detail.description} /><Detail label="What makes it different" value={detail.differentiators} /><Detail label="Technology" value={detail.technology} /><Detail label="Key ingredients" value={detail.keyIngredients} /><Detail label="How to use" value={detail.howToUse} /></div>
             <div className="mt-6 flex gap-3"><button type="button" onClick={() => { const next = selectProduct(detail); if (next) { setFormItems(next); setForm(true); } }} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Discuss this product</button><button type="button" onClick={() => { selectProduct(detail); }} className="rounded-lg border border-slate-300 px-4 py-2 font-semibold">Add to consultation</button></div>
           </div>
         </div>
