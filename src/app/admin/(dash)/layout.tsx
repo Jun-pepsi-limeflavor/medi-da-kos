@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { LayoutDashboard, Factory, Users, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Factory, Users, ShieldCheck, Inbox } from "lucide-react";
 import { requireAdminPage } from "@/lib/admin-page";
 import LogoutButton from "./LogoutButton";
 
@@ -31,6 +31,9 @@ export default async function AdminLayout({
               </Link>
               <Link href="/admin/suppliers" className="px-3 py-2 rounded-md hover:text-white hover:bg-neutral-800 flex items-center gap-1.5">
                 <Factory className="w-4 h-4" /> 제조사
+              </Link>
+              <Link href="/admin/intakes" className="px-3 py-2 rounded-md hover:text-white hover:bg-neutral-800 flex items-center gap-1.5">
+                <Inbox className="w-4 h-4" /> 인테이크
               </Link>
             </nav>
           </div>
