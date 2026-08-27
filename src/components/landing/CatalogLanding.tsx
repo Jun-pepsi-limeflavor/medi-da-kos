@@ -185,7 +185,7 @@ export function CatalogLanding() {
         {products.map((product) => (
           <article key={product.id} data-catalog-tile className="overflow-hidden rounded-xl border border-stone-200 bg-white">
             <button type="button" onClick={() => { setDetail(product); trackLandingEvent("catalog_product_view", "catalog", { product_id: product.id, product_category: product.category }); }} className="block w-full text-left">
-              <div className="relative aspect-[4/3] bg-stone-100"><Image src={product.image} alt="" fill className="object-contain p-5" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
+              <div className="relative aspect-[4/3] bg-stone-100"><Image src={product.image} alt="" fill unoptimized className="object-contain p-5" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
               <div className="p-5"><p className="text-xs font-medium uppercase tracking-wide text-sky-700">{product.category}</p><h2 className="mt-2 font-semibold leading-snug">{product.name}</h2><p className="mt-2 line-clamp-2 text-sm text-slate-600">{product.description}</p></div>
             </button>
             <div className="px-5 pb-5"><button type="button" onClick={() => { selectProduct(product); }} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Add to consultation</button></div>

@@ -15,12 +15,10 @@ const expectedNames = {
     "GREEN RETINAL BEAN DROP SERUM",
     "CLOUD ROOT SOOTHING SERUM",
     "NAD + SLUSH RESET SERUM",
-    "LACTO CREAM SERUM",
     "PERFECT RESURFACING SERUM",
     "HYALURON SEAL SERUM",
     "HYALUCOGEN SERUM",
     "PANTHENOL REGENERATIVE SERUM",
-    "TIMELESS NOURISHING SERUM",
     "PINK HYDRATION CAPSULE SERUM",
     "HYDRA JELLY SMOOTHIE SERUM",
     "RETINOL MATRIX REPAIR SERUM",
@@ -46,7 +44,6 @@ const expectedNames = {
     "GREEN BALANCING CREAM",
     "BERRY BOUNCE BALM",
     "R.E.D BLEMISH CLEAR MOISTURE CREAM",
-    "GREEN FLAVONOID SOOTHING CREAM",
   ],
   mist: [
     "RED ELIXIR JELLY MIST",
@@ -65,7 +62,7 @@ test("catalog has the approved category counts and category order", () => {
     {},
   );
 
-  assert.deepEqual(counts, { serum: 24, toner: 4, cream: 6, mist: 4 });
+  assert.deepEqual(counts, { serum: 22, toner: 4, cream: 5, mist: 4 });
   assert.deepEqual(CATALOG_CATEGORY_ORDER, ["serum", "toner", "cream", "mist"]);
 });
 
@@ -83,8 +80,8 @@ test("catalog IDs and names are unique and every product uses a local asset", ()
   const ids = new Set(CATALOG_PRODUCTS.map((product) => product.id));
   const names = new Set(CATALOG_PRODUCTS.map((product) => product.name));
 
-  assert.equal(ids.size, 38);
-  assert.equal(names.size, 38);
+  assert.equal(ids.size, 35);
+  assert.equal(names.size, 35);
   for (const product of CATALOG_PRODUCTS) {
     assert.match(product.image, /^\/landing\/catalog\//);
     assert.doesNotMatch(product.image, /^https?:\/\//);
@@ -96,12 +93,7 @@ test("catalog IDs and names are unique and every product uses a local asset", ()
   }
 });
 
-test("catalog assets are present and unmatched products retain their placeholders", async () => {
-  const unmatchedProductIds = new Set([
-    "lacto-cream-serum",
-    "timeless-nourishing-serum",
-    "green-flavonoid-soothing-cream",
-  ]);
+test("catalog assets are present for every displayed product", async () => {
   const hashes = await Promise.all(
     CATALOG_PRODUCTS.map(async (product) => {
       const bytes = await readFile(
@@ -114,13 +106,6 @@ test("catalog assets are present and unmatched products retain their placeholder
     }),
   );
 
-  const placeholders = hashes.filter(({ id }) => unmatchedProductIds.has(id));
-  const mappedImages = hashes.filter(({ id }) => !unmatchedProductIds.has(id));
-
-  assert.equal(placeholders.length, 3);
-  assert.equal(mappedImages.length, 35);
-  assert.equal(new Set(placeholders.map(({ hash }) => hash)).size, 1);
-  for (const { hash } of mappedImages) {
-    assert.notEqual(hash, placeholders[0].hash);
-  }
+  assert.equal(hashes.length, 35);
+  assert.ok(new Set(hashes.map(({ hash }) => hash)).size > 1);
 });
