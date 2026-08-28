@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
@@ -6,6 +7,7 @@ const { defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { buildLifecycleList, SEGMENT_ORDER } = require("./lifecycle");
 const { buildLandingRequestEmail } = require("./landing-request-email");
+const { materializeWebSubmission } = require("./web-message-materializer");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -159,6 +161,8 @@ exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event
   const contactId = event.params.contactId;
   const submittedAt = formatKoDate();
 
+  await materializeWebSubmission(db, "contact", contactId, contact);
+
   const utmParts = [
     contact.utmSource && `source=${contact.utmSource}`,
     contact.utmMedium && `medium=${contact.utmMedium}`,
@@ -193,6 +197,8 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
 
   const order = snap.data();
   const orderId = event.params.orderId;
+
+  await materializeWebSubmission(db, "orders", orderId, order);
 
   const isSample = order.type === "sample";
   const label = isSample ? "샘플 주문" : "일반 주문";
@@ -269,6 +275,8 @@ exports.onKoreaLeadCreated = onDocumentCreated(
     const leadId = event.params.leadId;
     const submittedAt = formatKoDate();
 
+    await materializeWebSubmission(db, "koreaLeads", leadId, lead, { skipTest: true });
+
     await queueEmail(`korea_lead_admin_${leadId}`, {
       to: getAdminEmails(),
       message: {
@@ -297,6 +305,25 @@ exports.onKoreaLeadCreated = onDocumentCreated(
         </div>`,
       },
     });
+  },
+);
+
+// sampleRequests에는 기존 알림 트리거가 없지만, 인박스에서는 주문과 같은
+// 웹 인바운드 원문으로 보여야 한다. 테스트 제출은 운영 수집에서 제외한다.
+exports.onSampleRequestCreated = onDocumentCreated(
+  "sampleRequests/{sampleRequestId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const sample = snap.data();
+    await materializeWebSubmission(
+      db,
+      "sampleRequests",
+      event.params.sampleRequestId,
+      sample,
+      { skipTest: true },
+    );
   },
 );
 

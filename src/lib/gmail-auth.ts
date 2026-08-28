@@ -7,19 +7,53 @@ import { createSign } from "crypto";
 const INGEST_SERVICE_ACCOUNT =
   process.env.INGEST_SERVICE_ACCOUNT || "mail-ingest@medidakos.iam.gserviceaccount.com";
 
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 const CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const signJwtEndpoint = (sa: string) =>
   `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${sa}:signJwt`;
 
-// ponytail: token cache per-subject in-memory Map, swap for a shared cache (Redis)
-// if multiple Vercel instances hammering the token endpoint separately becomes a problem.
+// Per-instance cache; a shared cache is unnecessary until multiple instances
+// materially increase token traffic.
 interface CachedToken {
   token: string;
   expiresAt: number;
 }
 const tokenCache = new Map<string, CachedToken>();
+
+const APPROVED_GMAIL_MAILBOXES = new Map([
+  ["thomas@medidakoslabs.com", true],
+  ["hally@medidakoslabs.com", true],
+  ["rheekw@techasset.co.kr", false],
+  ["songjh@techasset.co.kr", false],
+  ["kimhs@techasset.co.kr", false],
+  ["parkjy@techasset.co.kr", false],
+]);
+
+export function isApprovedGmailMailbox(subject: string): boolean {
+  try {
+    const account = normalizeMailbox(subject);
+    return APPROVED_GMAIL_MAILBOXES.get(account) === true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeMailbox(subject: string): string {
+  const account = subject.trim().toLowerCase();
+  if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(account)) {
+    throw new Error("Gmail mailbox is invalid");
+  }
+  return account;
+}
+
+function normalizeGmailScope(purpose: "read" | "send" | "readwrite" = "read"): string {
+  if (purpose === "read") return GMAIL_READ_SCOPE;
+  if (purpose === "send") return GMAIL_SEND_SCOPE;
+  if (purpose === "readwrite") return `${GMAIL_READ_SCOPE} ${GMAIL_SEND_SCOPE}`;
+  throw new Error("Unsupported Gmail OAuth purpose");
+}
 
 function getServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
@@ -47,7 +81,9 @@ async function exchangeJwtForToken(
   });
   const json = (await res.json()) as Record<string, unknown>;
   if (!res.ok || !json.access_token) {
-    throw new Error(`OAuth token exchange failed: ${JSON.stringify(json)}`);
+    // OAuth error payloads can contain provider diagnostics. They are not
+    // useful to callers and must not become a route response or log entry.
+    throw new Error("OAuth token exchange failed");
   }
   return {
     accessToken: json.access_token as string,
@@ -100,8 +136,17 @@ async function selfSignAndExchange(params: {
  *      on mail-ingest — a human IAM grant, not something this code can set up.
  *   3. Exchange that IAM-signed JWT for the actual Gmail-scoped access token.
  */
-export async function getGmailToken(subject: string): Promise<string> {
-  const cached = tokenCache.get(subject);
+export async function getGmailToken(
+  subject: string,
+  options: { purpose?: "read" | "send" | "readwrite" } = {},
+): Promise<string> {
+  const account = normalizeMailbox(subject);
+  const approved = APPROVED_GMAIL_MAILBOXES.get(account);
+  if (approved === undefined) throw new Error(`Gmail mailbox is not approved: ${account}`);
+  if (!approved) throw new Error(`Gmail mailbox delegation is not verified: ${account}`);
+  const scope = normalizeGmailScope(options.purpose);
+  const cacheKey = `${account}|${scope}`;
+  const cached = tokenCache.get(cacheKey);
   // Keep 60s buffer before expiry
   if (cached && cached.expiresAt > Date.now() + 60_000) {
     return cached.token;
@@ -128,8 +173,8 @@ export async function getGmailToken(subject: string): Promise<string> {
     body: JSON.stringify({
       payload: JSON.stringify({
         iss: INGEST_SERVICE_ACCOUNT,
-        sub: subject,
-        scope: GMAIL_SCOPE,
+        sub: account,
+        scope,
         aud: TOKEN_ENDPOINT,
         iat: now,
         exp: now + 3600,
@@ -138,8 +183,9 @@ export async function getGmailToken(subject: string): Promise<string> {
   });
   const signJwtJson = (await signJwtRes.json()) as Record<string, unknown>;
   if (!signJwtRes.ok || !signJwtJson.signedJwt) {
+    const reason = typeof signJwtJson.error === "string" ? signJwtJson.error : "unknown_error";
     throw new Error(
-      `IAM signJwt failed for ${INGEST_SERVICE_ACCOUNT} (subject ${subject}): ${JSON.stringify(signJwtJson)}`,
+      `IAM signJwt failed for ${INGEST_SERVICE_ACCOUNT} (subject ${account}): ${reason}`,
     );
   }
 
@@ -148,6 +194,6 @@ export async function getGmailToken(subject: string): Promise<string> {
     signJwtJson.signedJwt as string,
   );
 
-  tokenCache.set(subject, { token: accessToken, expiresAt: Date.now() + expiresIn * 1000 });
+  tokenCache.set(cacheKey, { token: accessToken, expiresAt: Date.now() + expiresIn * 1000 });
   return accessToken;
 }

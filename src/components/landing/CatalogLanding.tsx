@@ -12,6 +12,7 @@ import { trackLandingEvent } from "@/lib/landing/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import type { LandingCatalogItem } from "@/lib/landing/types";
 import { ConsultationForm } from "./ConsultationForm";
+import { SpecularButton } from "./SpecularButton";
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
@@ -192,10 +193,26 @@ export function CatalogLanding() {
           </article>
         ))}
       </div>
-      <aside ref={trayRef} className="sticky bottom-3 mt-10 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur">
+      <aside ref={trayRef} className="sticky bottom-3 mt-10 rounded-2xl border border-white/[.44] bg-white/[.48] p-4 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-[4.9px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><strong>{selected.length} item{selected.length === 1 ? "" : "s"} selected</strong>{selected.length > 0 ? <div className="mt-1 flex flex-wrap gap-2">{selected.map((item) => <button type="button" onClick={() => setSelected((items) => items.filter((selectedItem) => selectedItem.id !== item.id))} key={item.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">{item.name} ×</button>)}</div> : <p className="mt-1 text-sm text-slate-600">Add at least one product to start a consultation.</p>}</div>
-          <button type="button" disabled={selected.length === 0} onClick={() => { setFormItems(selected); setForm(true); }} className="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Request a consultation</button>
+          <SpecularButton
+            data-catalog-consultation-cta
+            disabled={selected.length === 0}
+            onClick={() => { setFormItems(selected); setForm(true); }}
+            size="sm"
+            radius={8}
+            textColor="#f8fafc"
+            lineColor="#e0f2fe"
+            baseColor="#475569"
+            intensity={1.7}
+            shineSize={22}
+            shineFade={58}
+            proximity={420}
+            followMouse
+          >
+            Request a consultation
+          </SpecularButton>
         </div>
         {notice && <p className="mt-2 text-sm text-red-700" role="status">{notice}</p>}
       </aside>

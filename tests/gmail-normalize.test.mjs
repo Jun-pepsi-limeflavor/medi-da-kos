@@ -97,6 +97,23 @@ test("internalDate 를 ISO 로 바꾼다", () => {
   assert.equal(m.sentAt, new Date(1755000000000).toISOString());
 });
 
+test("회신에 필요한 RFC 메타데이터를 원문에서만 보존한다", () => {
+  const m = normalizeMessage({
+    ...raw,
+    payload: {
+      ...raw.payload,
+      headers: [
+        ...raw.payload.headers,
+        { name: "In-Reply-To", value: "<parent@example.com>" },
+        { name: "References", value: "<root@example.com> <parent@example.com>" },
+      ],
+    },
+  }, ctx);
+  assert.equal(m.messageId, "<abc@mail.example.com>");
+  assert.equal(m.inReplyTo, "<parent@example.com>");
+  assert.equal(m.references, "<root@example.com> <parent@example.com>");
+});
+
 import { listAllMessageIds } from "../functions-ingest/gmail.js";
 
 test("두 페이지 조회에서 모든 메시지 ID 를 모은다", async () => {

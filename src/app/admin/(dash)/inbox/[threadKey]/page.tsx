@@ -1,11 +1,13 @@
 import { applyAddressMatch, getThread } from "@/lib/repo/threads";
 import { listThreadMessages } from "@/lib/repo/messages";
 import { getIntakeReview, setIntakeReview } from "@/lib/repo/intake-reviews";
+import { isApprovedGmailMailbox } from "@/lib/gmail-auth";
 import type { Message } from "@/lib/schemas/message";
 import type { IntakeReview } from "@/lib/schemas/intake-review";
 import { requireAdminPage } from "@/lib/admin-page";
 import ThreadActions from "../ThreadActions";
 import ExtractionPanel from "./ExtractionPanel";
+import ThreadReplyForm from "./ThreadReplyForm";
 import Link from "next/link";
 import {
   ArrowDownLeft,
@@ -256,6 +258,9 @@ export default async function ThreadDetailPage({
                 );
               })}
             </div>
+          )}
+          {thread.channel.startsWith("gmail_") && isApprovedGmailMailbox(thread.sourceAccount) && (
+            <ThreadReplyForm threadKey={decodedKey} />
           )}
         </section>
 

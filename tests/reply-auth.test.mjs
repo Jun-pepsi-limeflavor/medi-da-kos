@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFile } from "node:fs/promises";
+import {
+  DEFAULT_GMAIL_MAILBOXES,
+  GMAIL_READ_SCOPE,
+  GMAIL_SEND_SCOPE,
+  normalizeGmailScopes,
+  normalizeMailboxConfig,
+} from "../functions-ingest/google-auth.js";
+
+test("Gmail mailbox config is an exact approved six-account allowlist", () => {
+  const config = normalizeMailboxConfig();
+  assert.deepEqual(config.map(({ account }) => account), DEFAULT_GMAIL_MAILBOXES.map(({ account }) => account));
+  assert.deepEqual(config.filter((mailbox) => mailbox.enabled).map(({ account }) => account), [
+    "thomas@medidakoslabs.com",
+    "hally@medidakoslabs.com",
+  ]);
+  assert.throws(
+    () => normalizeMailboxConfig([{ account: "attacker@example.com", channel: "gmail_thomas" }]),
+    /not approved/,
+  );
+  assert.throws(
+    () => normalizeMailboxConfig([
+      { account: "thomas@medidakoslabs.com", channel: "gmail_thomas" },
+      { account: "THOMAS@MEDIDAKOSLABS.COM", channel: "gmail_thomas" },
+    ]),
+    /Duplicate/,
+  );
+});
+
+test("only approved read/send Gmail OAuth scopes can be requested", () => {
+  assert.deepEqual(normalizeGmailScopes(), [GMAIL_READ_SCOPE]);
+  assert.deepEqual(normalizeGmailScopes("send"), [GMAIL_SEND_SCOPE]);
+  assert.deepEqual(normalizeGmailScopes({ purpose: "readwrite" }), [GMAIL_READ_SCOPE, GMAIL_SEND_SCOPE]);
+  assert.throws(() => normalizeGmailScopes({ scopes: ["cloud-platform"] }), /Unsupported/);
+});
+
+test("reply route is admin-only and chooses send credentials server-side", async () => {
+  const source = await readFile(new URL("../src/app/api/admin/threads/[threadKey]/reply/route.ts", import.meta.url), "utf8");
+  assert.match(source, /withAdmin\(async/);
+  assert.match(source, /purpose: "send"/);
+  assert.match(source, /getThread\(threadKey\)/);
+  assert.match(source, /listThreadMessages\(threadKey\)/);
+  assert.doesNotMatch(source, /body\.(from|to|subject|threadId)/);
+});
+
