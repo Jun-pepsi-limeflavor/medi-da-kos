@@ -68,15 +68,15 @@ after(async () => {
 
 test("unauthenticated buyers can create valid catalog and dashboard requests", async () => {
   await assertSucceeds(setDoc(await unauthenticatedDoc("valid-catalog"), catalogRequest()));
-  const twelveItems = Array.from({ length: 12 }, (_, index) => ({
+  const fiveItems = Array.from({ length: 5 }, (_, index) => ({
     id: `serum-${index + 1}`,
     name: `Serum ${index + 1}`,
     category: "serum",
   }));
   await assertSucceeds(
     setDoc(
-      await unauthenticatedDoc("valid-catalog-twelve-items"),
-      catalogRequest({ catalogItems: twelveItems }),
+      await unauthenticatedDoc("valid-catalog-five-items"),
+      catalogRequest({ catalogItems: fiveItems }),
     ),
   );
   await assertSucceeds(
@@ -104,8 +104,8 @@ test("rules reject malformed emails and missing required fields", async () => {
   );
 });
 
-test("rules reject unknown keys, oversized messages, and more than twelve catalog items", async () => {
-  const items = Array.from({ length: 13 }, (_, index) => ({
+test("rules reject unknown keys, oversized messages, and more than five catalog items", async () => {
+  const items = Array.from({ length: 6 }, (_, index) => ({
     id: `serum-${index}`,
     name: `Serum ${index}`,
     category: "serum",

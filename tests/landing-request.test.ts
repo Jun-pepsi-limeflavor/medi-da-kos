@@ -132,15 +132,15 @@ test("dashboard input cannot carry catalog items", () => {
   );
 });
 
-test("a catalog consultation is capped at twelve products", () => {
-  const items = Array.from({ length: 13 }, (_, index) => ({
+test("a catalog consultation is capped at five products", () => {
+  const items = Array.from({ length: 6 }, (_, index) => ({
     ...catalogItem,
     id: `${catalogItem.id}-${index}`,
   }));
 
   assert.throws(
     () => buildLandingRequest(catalogInput({ catalogItems: items }), context),
-    /12|twelve/i,
+    /5|five/i,
   );
 });
 

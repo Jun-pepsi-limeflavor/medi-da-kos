@@ -3,11 +3,13 @@ import { z } from "zod";
 import { withAdmin } from "@/lib/with-admin";
 import {
   supplierEngagementInputSchema,
+  supplierEngagementPatchSchema,
 } from "@/lib/schemas/deal";
 import {
   addSupplierEngagement,
   updateSupplierEngagement,
   DealNotFoundError,
+  EngagementNotFoundError,
 } from "@/lib/repo/deals";
 
 export const runtime = "nodejs";
@@ -16,7 +18,7 @@ const patchEngagementSchema = z
   .object({
     engagementId: z.string().trim().min(1, { message: "engagementId는 필수입니다" }),
   })
-  .and(supplierEngagementInputSchema.partial());
+  .and(supplierEngagementPatchSchema);
 
 function extractDealId(pathname: string): string | null {
   const segments = pathname.split("/").filter(Boolean);
@@ -63,6 +65,13 @@ export const PATCH = withAdmin(async (req, actor) => {
   }
 
   const { engagementId, ...patch } = parsed.data;
-  await updateSupplierEngagement(id, engagementId, patch, actor);
-  return NextResponse.json({ ok: true, id: engagementId }, { status: 200 });
+  try {
+    await updateSupplierEngagement(id, engagementId, patch, actor);
+    return NextResponse.json({ ok: true, id: engagementId }, { status: 200 });
+  } catch (err) {
+    if (err instanceof DealNotFoundError || err instanceof EngagementNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    throw err;
+  }
 });

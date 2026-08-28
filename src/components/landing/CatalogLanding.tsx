@@ -105,8 +105,8 @@ export function CatalogLanding() {
 
   const selectProduct = (product: CatalogProduct): LandingCatalogItem[] | null => {
     if (selected.some((item) => item.id === product.id)) return selected;
-    if (selected.length >= 12) {
-      setNotice("You can add up to 12 products to one consultation.");
+    if (selected.length >= 5) {
+      setNotice("You can add up to 5 products to one consultation.");
       return null;
     }
     const next = [...selected, { id: product.id, name: product.name, category: product.category }];

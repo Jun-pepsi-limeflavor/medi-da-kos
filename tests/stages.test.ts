@@ -8,6 +8,7 @@ import {
   findViolations,
   checkGate,
   canAutoSyncMainShipment,
+  canAutoSyncMainShipmentForEngagement,
   type GateSnapshot,
 } from "../src/lib/stages.ts";
 
@@ -722,4 +723,17 @@ test("canAutoSyncMainShipment: kind='main' && route='supplier_to_buyer' && facto
     }),
     false
   );
+});
+
+test("canAutoSyncMainShipmentForEngagement: 같은 제조사 관계의 유효 운송장만 자동 동기화한다", () => {
+  const base = {
+    kind: "main",
+    route: "supplier_to_buyer",
+    trackingNumber: "TRACK-001",
+    factoryStage: 9,
+    targetEngagementId: "eng_new",
+  };
+  assert.equal(canAutoSyncMainShipmentForEngagement({ ...base, shipmentEngagementId: "eng_new" }), true);
+  assert.equal(canAutoSyncMainShipmentForEngagement({ ...base, shipmentEngagementId: "eng_old" }), false);
+  assert.equal(canAutoSyncMainShipmentForEngagement({ ...base, shipmentEngagementId: "eng_new", trackingNumber: "  " }), false);
 });

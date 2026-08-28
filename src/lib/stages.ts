@@ -417,3 +417,20 @@ export function canAutoSyncMainShipment(params: {
     params.factoryStage === 9
   );
 }
+
+/** A factory's stage 9 may only use that same engagement's tracked shipment. */
+export function canAutoSyncMainShipmentForEngagement(params: {
+  kind: string;
+  route: string;
+  trackingNumber?: string | null;
+  shipmentEngagementId?: string | null;
+  targetEngagementId: string;
+  factoryStage: number;
+}): boolean {
+  return (
+    params.shipmentEngagementId === params.targetEngagementId &&
+    typeof params.trackingNumber === "string" &&
+    params.trackingNumber.trim().length > 0 &&
+    canAutoSyncMainShipment(params)
+  );
+}

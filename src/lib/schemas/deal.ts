@@ -90,6 +90,10 @@ export const supplierEngagementInputSchema = z.object({
   ipTerms: ipTermsSchema,
 });
 
+export const supplierEngagementPatchSchema = supplierEngagementInputSchema
+  .partial()
+  .omit({ supplierId: true, stageFactory: true });
+
 export const supplierEngagementSchema = supplierEngagementInputSchema.extend({
   id: z.string(),
   createdAt: z.string(),
@@ -111,6 +115,7 @@ export const sampleVerdictSchema = z.enum(SAMPLE_VERDICTS);
 
 const sampleRoundRawSchema = z.object({
   itemId: z.string().trim().min(1, { message: "제품 ID는 필수입니다" }),
+  engagementId: z.string().trim().min(1, { message: "공급자 관계 ID는 필수입니다" }),
   supplierId: z.string().trim().min(1, { message: "공급자 ID는 필수입니다" }),
   roundNo: z.number().int().positive({ message: "회차 번호는 1 이상의 정수여야 합니다" }),
   requestNotes: z.string().trim().optional(),
@@ -155,7 +160,20 @@ function refineSampleRound(
 }
 
 export const sampleRoundInputSchema = sampleRoundRawSchema.superRefine(refineSampleRound);
-export const sampleRoundPatchSchema = sampleRoundRawSchema.partial();
+// Patch schemas intentionally have no defaults: an omitted field must not reset
+// stored state while an admin changes an unrelated field.
+export const sampleRoundPatchSchema = z.object({
+  requestNotes: z.string().trim().optional(),
+  producedQty: z.number().int().nonnegative().optional(),
+  retainedQty: z.number().int().nonnegative().optional(),
+  receivedAt: z.string().optional(),
+  qcStatus: qcStatusSchema.optional(),
+  qcNotes: z.string().trim().optional(),
+  qcWaiverReason: z.string().trim().optional(),
+  verdict: sampleVerdictSchema.optional(),
+  feedbackAt: z.string().optional(),
+  feedbackNotes: z.string().trim().optional(),
+});
 
 export const sampleRoundSchema = sampleRoundRawSchema
   .extend({
@@ -214,6 +232,7 @@ export const shipmentCustomsSnapshotSchema = z
 const shipmentRawSchema = z.object({
   kind: shipmentKindSchema,
   route: shipmentRouteSchema,
+  engagementId: z.string().trim().optional(),
   sampleRoundId: z.string().trim().optional(),
   trackingNumber: z.string().trim().optional(),
   carrier: z.string().trim().optional(),
@@ -227,6 +246,8 @@ const shipmentRawSchema = z.object({
 function refineShipment(
   value: {
     kind: "sample" | "main";
+    route: "supplier_to_hq" | "hq_to_buyer" | "supplier_to_buyer";
+    engagementId?: string;
     sampleRoundId?: string;
   },
   ctx: z.RefinementCtx
@@ -249,10 +270,33 @@ function refineShipment(
       });
     }
   }
+  const supplierOrigin = value.route === "supplier_to_hq" || value.route === "supplier_to_buyer";
+  if (supplierOrigin && !value.engagementId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["engagementId"],
+      message: "공급자 출발 배송에는 engagementId가 필수입니다",
+    });
+  }
+  if (value.route === "hq_to_buyer" && value.engagementId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["engagementId"],
+      message: "HQ 출발 배송에는 engagementId를 지정할 수 없습니다",
+    });
+  }
 }
 
 export const shipmentInputSchema = shipmentRawSchema.superRefine(refineShipment);
-export const shipmentPatchSchema = shipmentRawSchema.partial();
+export const shipmentPatchSchema = z.object({
+  trackingNumber: z.string().trim().optional(),
+  carrier: z.string().trim().optional(),
+  status: shipmentStatusSchema.optional(),
+  shippedAt: z.string().optional(),
+  deliveredAt: z.string().optional(),
+  addressSnapshot: shipmentAddressSnapshotSchema.optional(),
+  customsSnapshot: shipmentCustomsSnapshotSchema.optional(),
+});
 
 export const shipmentSchema = shipmentRawSchema
   .extend({

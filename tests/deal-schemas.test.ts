@@ -6,9 +6,11 @@ import {
   supplierEngagementInputSchema,
   supplierEngagementSchema,
   sampleRoundInputSchema,
+  sampleRoundPatchSchema,
   sampleRoundSchema,
   sampleRoundDocId,
   shipmentInputSchema,
+  shipmentPatchSchema,
   shipmentSchema,
   dealTaskInputSchema,
   dealTaskSchema,
@@ -161,6 +163,7 @@ test("supplierEngagementInputSchema: stageFactory는 1~9 사이 정수여야 한
 test("sampleRoundInputSchema: 정상 입력을 파싱한다", () => {
   const input = {
     itemId: "item_01",
+    engagementId: "eng_01",
     supplierId: "sup_01",
     roundNo: 1,
     requestNotes: "1차 제형 샘플 의뢰",
@@ -181,6 +184,7 @@ test("sampleRoundInputSchema: 정상 입력을 파싱한다", () => {
 test("sampleRoundInputSchema: roundNo는 양의 정수여야 한다", () => {
   const base = {
     itemId: "item_01",
+    engagementId: "eng_01",
     supplierId: "sup_01",
   };
 
@@ -193,6 +197,7 @@ test("sampleRoundInputSchema: roundNo는 양의 정수여야 한다", () => {
 test("sampleRoundInputSchema: retainedQty는 producedQty를 초과할 수 없다", () => {
   const base = {
     itemId: "item_01",
+    engagementId: "eng_01",
     supplierId: "sup_01",
     roundNo: 1,
   };
@@ -219,6 +224,7 @@ test("sampleRoundInputSchema: retainedQty는 producedQty를 초과할 수 없다
 test("sampleRoundInputSchema: qcStatus가 waived이면 qcWaiverReason이 필수다", () => {
   const base = {
     itemId: "item_01",
+    engagementId: "eng_01",
     supplierId: "sup_01",
     roundNo: 1,
   };
@@ -298,6 +304,7 @@ test("shipmentInputSchema: 본품 배송(kind='main')은 sampleRoundId를 지정
   const base = {
     kind: "main" as const,
     route: "supplier_to_buyer" as const,
+    engagementId: "eng_01",
     trackingNumber: "MAIN987654",
     addressSnapshot: {
       recipientName: "Jane Doe",
@@ -315,6 +322,42 @@ test("shipmentInputSchema: 본품 배송(kind='main')은 sampleRoundId를 지정
   assert.throws(
     () => shipmentInputSchema.parse({ ...base, sampleRoundId: "round_01" }),
     /본품 배송에는 sampleRoundId를 지정할 수 없습니다/
+  );
+});
+
+test("shipmentInputSchema: 공급자 출발 배송은 engagementId가 필수이고 HQ 출발에는 금지된다", () => {
+  const base = {
+    kind: "main" as const,
+    route: "supplier_to_buyer" as const,
+    trackingNumber: "MAIN987654",
+    addressSnapshot: {
+      recipientName: "Jane Doe",
+      address: "123 Main St, New York, NY",
+      country: "USA",
+    },
+  };
+
+  assert.throws(
+    () => shipmentInputSchema.parse(base),
+    /공급자 출발 배송에는 engagementId가 필수입니다/
+  );
+  assert.doesNotThrow(() => shipmentInputSchema.parse({ ...base, engagementId: "eng_01" }));
+  assert.throws(
+    () => shipmentInputSchema.parse({ ...base, route: "hq_to_buyer", engagementId: "eng_01" }),
+    /HQ 출발 배송에는 engagementId를 지정할 수 없습니다/
+  );
+});
+
+test("sampleRoundPatchSchema: item·공급자·engagement·회차 정체성은 수정할 수 없다", () => {
+  assert.deepEqual(sampleRoundPatchSchema.parse({ qcStatus: "passed" }), { qcStatus: "passed" });
+  assert.deepEqual(sampleRoundPatchSchema.parse({ itemId: "other", supplierId: "other", engagementId: "other", roundNo: 9 }), {});
+});
+
+test("shipmentPatchSchema: 배송 정체성과 경로는 수정할 수 없다", () => {
+  assert.deepEqual(shipmentPatchSchema.parse({ trackingNumber: "NEW" }), { trackingNumber: "NEW" });
+  assert.deepEqual(
+    shipmentPatchSchema.parse({ kind: "sample", route: "supplier_to_buyer", engagementId: "other", sampleRoundId: "other" }),
+    {}
   );
 });
 

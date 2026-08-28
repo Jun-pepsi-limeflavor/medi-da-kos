@@ -106,26 +106,18 @@ service cloud.firestore {
         && item.keys().hasOnly(['id', 'name', 'category'])
         && validLandingString(item.id, 200)
         && validLandingString(item.name, 200)
-        && item.category is string
         && item.category in ['serum', 'toner', 'cream', 'mist'];
     }
 
     function validCatalogItems(items) {
       return items is list
         && items.size() > 0
-        && items.size() <= 12
+        && items.size() <= 5
         && validCatalogItem(items[0])
         && (items.size() < 2 || validCatalogItem(items[1]))
         && (items.size() < 3 || validCatalogItem(items[2]))
         && (items.size() < 4 || validCatalogItem(items[3]))
-        && (items.size() < 5 || validCatalogItem(items[4]))
-        && (items.size() < 6 || validCatalogItem(items[5]))
-        && (items.size() < 7 || validCatalogItem(items[6]))
-        && (items.size() < 8 || validCatalogItem(items[7]))
-        && (items.size() < 9 || validCatalogItem(items[8]))
-        && (items.size() < 10 || validCatalogItem(items[9]))
-        && (items.size() < 11 || validCatalogItem(items[10]))
-        && (items.size() < 12 || validCatalogItem(items[11]));
+        && (items.size() < 5 || validCatalogItem(items[4]));
     }
 
     function validLandingCommon() {

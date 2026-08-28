@@ -7,9 +7,12 @@ import {
   dealInputSchema,
   dealItemInputSchema,
   supplierEngagementInputSchema,
+  supplierEngagementPatchSchema,
   sampleRoundInputSchema,
+  sampleRoundPatchSchema,
   sampleRoundDocId,
   shipmentInputSchema,
+  shipmentPatchSchema,
   dealTaskInputSchema,
   type Deal,
   type DealDetails,
@@ -48,6 +51,20 @@ export class DuplicateSampleRoundError extends Error {
   constructor(itemId: string, roundNo: number) {
     super(`해당 제품(${itemId})의 ${roundNo}회차 샘플이 이미 존재합니다.`);
     this.name = "DuplicateSampleRoundError";
+  }
+}
+
+export class EngagementNotFoundError extends Error {
+  constructor(engagementId: string) {
+    super(`공급자 관계를 찾을 수 없습니다: ${engagementId}`);
+    this.name = "EngagementNotFoundError";
+  }
+}
+
+export class InvalidEngagementReferenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidEngagementReferenceError";
   }
 }
 
@@ -329,24 +346,107 @@ export async function updateSupplierEngagement(
   dealId: string,
   engagementId: string,
   patch: Partial<SupplierEngagementInput>,
-  _actor: AdminIdentity
+  actor: AdminIdentity
 ): Promise<void> {
+  const parsed = supplierEngagementPatchSchema.parse(patch);
+  const db = getAdminDb();
+  const dealRef = db.collection(DEALS_COLLECTION).doc(dealId);
+  const engagementRef = dealRef.collection("supplierEngagements").doc(engagementId);
+  const eventRef = dealRef.collection("events").doc();
   const now = new Date().toISOString();
-  await getAdminDb()
-    .collection(DEALS_COLLECTION)
-    .doc(dealId)
-    .collection("supplierEngagements")
-    .doc(engagementId)
-    .update({
-      ...stripUndefined(patch),
+
+  await db.runTransaction(async (tx) => {
+    const [dealDoc, engagementDoc] = await Promise.all([
+      tx.get(dealRef),
+      tx.get(engagementRef),
+    ]);
+    if (!dealDoc.exists) throw new DealNotFoundError(dealId);
+    if (!engagementDoc.exists) throw new EngagementNotFoundError(engagementId);
+
+    tx.update(engagementRef, {
+      ...stripUndefined(parsed),
       updatedAt: now,
+      updatedBy: actor.email,
     });
+    tx.update(dealRef, { updatedAt: now, updatedBy: actor.email });
+    tx.set(eventRef, {
+      type: "note",
+      actor: actor.email,
+      at: now,
+      body: `공급자 관계 수정: ${engagementId}`,
+    });
+  });
+}
+
+export async function replaceSupplierEngagement(
+  dealId: string,
+  oldEngagementId: string,
+  replacement: SupplierEngagementInput,
+  reason: string,
+  actor: AdminIdentity,
+  sourceRefs: string[] = [],
+): Promise<string> {
+  const parsed = supplierEngagementInputSchema.parse(replacement);
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) throw new InvalidEngagementReferenceError("공급자 교체 사유는 필수입니다.");
+
+  const db = getAdminDb();
+  const dealRef = db.collection(DEALS_COLLECTION).doc(dealId);
+  const oldEngagementRef = dealRef.collection("supplierEngagements").doc(oldEngagementId);
+  const newEngagementRef = dealRef.collection("supplierEngagements").doc();
+  const eventRef = dealRef.collection("events").doc();
+  const now = new Date().toISOString();
+
+  await db.runTransaction(async (tx) => {
+    const [dealDoc, oldEngagementDoc] = await Promise.all([
+      tx.get(dealRef),
+      tx.get(oldEngagementRef),
+    ]);
+    if (!dealDoc.exists) throw new DealNotFoundError(dealId);
+    if (!oldEngagementDoc.exists) throw new EngagementNotFoundError(oldEngagementId);
+
+    const oldSupplierId = oldEngagementDoc.data()?.supplierId;
+    if (oldEngagementDoc.data()?.contactStatus === "drop") {
+      throw new InvalidEngagementReferenceError("이미 종료된 공급자 관계는 교체할 수 없습니다.");
+    }
+    if (oldSupplierId === parsed.supplierId) {
+      throw new InvalidEngagementReferenceError("교체 대상과 새 공급자는 달라야 합니다.");
+    }
+
+    tx.update(oldEngagementRef, {
+      contactStatus: "drop",
+      updatedAt: now,
+      updatedBy: actor.email,
+    });
+    tx.set(newEngagementRef, {
+      ...stripUndefined({ ...parsed, contactStatus: "ing", stageFactory: 1 }),
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actor.email,
+      updatedBy: actor.email,
+    });
+    tx.update(dealRef, {
+      supplierIds: FieldValue.arrayUnion(parsed.supplierId),
+      updatedAt: now,
+      updatedBy: actor.email,
+    });
+    tx.set(eventRef, stripUndefined({
+      type: "note",
+      actor: actor.email,
+      at: now,
+      body: `공급자 교체: ${oldSupplierId} -> ${parsed.supplierId}; 사유: ${trimmedReason}`,
+      reason: trimmedReason,
+      sourceRefs,
+    }));
+  });
+
+  return newEngagementRef.id;
 }
 
 export async function addSampleRound(
   dealId: string,
   round: SampleRoundInput,
-  _actor: AdminIdentity
+  actor: AdminIdentity
 ): Promise<string> {
   const parsed = sampleRoundInputSchema.parse(round);
   const docId = sampleRoundDocId(parsed.itemId, parsed.roundNo);
@@ -356,10 +456,22 @@ export async function addSampleRound(
     .doc(dealId)
     .collection("sampleRounds")
     .doc(docId);
+  const dealRef = db.collection(DEALS_COLLECTION).doc(dealId);
+  const engagementRef = dealRef.collection("supplierEngagements").doc(parsed.engagementId);
+  const eventRef = dealRef.collection("events").doc();
   const now = new Date().toISOString();
 
   await db.runTransaction(async (tx) => {
-    const existing = await tx.get(roundRef);
+    const [dealDoc, engagementDoc, existing] = await Promise.all([
+      tx.get(dealRef),
+      tx.get(engagementRef),
+      tx.get(roundRef),
+    ]);
+    if (!dealDoc.exists) throw new DealNotFoundError(dealId);
+    if (!engagementDoc.exists) throw new EngagementNotFoundError(parsed.engagementId);
+    if (engagementDoc.data()?.supplierId !== parsed.supplierId) {
+      throw new InvalidEngagementReferenceError("샘플의 supplierId와 engagementId가 일치하지 않습니다.");
+    }
     if (existing.exists) {
       throw new DuplicateSampleRoundError(parsed.itemId, parsed.roundNo);
     }
@@ -371,6 +483,12 @@ export async function addSampleRound(
         updatedAt: now,
       })
     );
+    tx.set(eventRef, {
+      type: "note",
+      actor: actor.email,
+      at: now,
+      body: `샘플 회차 등록: ${docId}`,
+    });
   });
 
   return docId;
@@ -382,6 +500,7 @@ export async function updateSampleRound(
   patch: Partial<SampleRoundInput>,
   _actor: AdminIdentity
 ): Promise<void> {
+  const parsed = sampleRoundPatchSchema.parse(patch);
   const now = new Date().toISOString();
   await getAdminDb()
     .collection(DEALS_COLLECTION)
@@ -389,7 +508,7 @@ export async function updateSampleRound(
     .collection("sampleRounds")
     .doc(roundId)
     .update({
-      ...stripUndefined(patch),
+      ...stripUndefined(parsed),
       updatedAt: now,
     });
 }
@@ -397,30 +516,74 @@ export async function updateSampleRound(
 export async function upsertShipment(
   dealId: string,
   shipment: ShipmentInput | Partial<ShipmentInput>,
-  _actor: AdminIdentity,
+  actor: AdminIdentity,
   shipmentId?: string
 ): Promise<string> {
   const now = new Date().toISOString();
-  const colRef = getAdminDb()
+  const db = getAdminDb();
+  const dealRef = db
     .collection(DEALS_COLLECTION)
-    .doc(dealId)
-    .collection("shipments");
+    .doc(dealId);
+  const colRef = dealRef.collection("shipments");
 
   if (shipmentId) {
-    await colRef.doc(shipmentId).update({
-      ...stripUndefined(shipment),
-      updatedAt: now,
+    const shipmentRef = colRef.doc(shipmentId);
+    const eventRef = dealRef.collection("events").doc();
+    const parsed = shipmentPatchSchema.parse(shipment);
+    await db.runTransaction(async (tx) => {
+      const [dealDoc, shipmentDoc] = await Promise.all([
+        tx.get(dealRef),
+        tx.get(shipmentRef),
+      ]);
+      if (!dealDoc.exists) throw new DealNotFoundError(dealId);
+      if (!shipmentDoc.exists) throw new InvalidEngagementReferenceError(`배송을 찾을 수 없습니다: ${shipmentId}`);
+      tx.update(shipmentRef, {
+        ...stripUndefined(parsed),
+        updatedAt: now,
+      });
+      tx.set(eventRef, {
+        type: "note",
+        actor: actor.email,
+        at: now,
+        body: `배송 수정: ${shipmentId}`,
+      });
     });
     return shipmentId;
   } else {
     const parsed = shipmentInputSchema.parse(shipment as ShipmentInput);
-    const ref = await colRef.add(
-      stripUndefined({
-        ...parsed,
-        createdAt: now,
-        updatedAt: now,
-      })
-    );
+    const ref = colRef.doc();
+    const eventRef = dealRef.collection("events").doc();
+    await db.runTransaction(async (tx) => {
+      const dealDoc = await tx.get(dealRef);
+      if (!dealDoc.exists) throw new DealNotFoundError(dealId);
+
+      let engagementData: FirebaseFirestore.DocumentData | undefined;
+      if (parsed.engagementId) {
+        const engagementDoc = await tx.get(dealRef.collection("supplierEngagements").doc(parsed.engagementId));
+        if (!engagementDoc.exists) throw new EngagementNotFoundError(parsed.engagementId);
+        engagementData = engagementDoc.data();
+      }
+      if (parsed.kind === "sample") {
+        const roundDoc = await tx.get(dealRef.collection("sampleRounds").doc(parsed.sampleRoundId!));
+        if (!roundDoc.exists) {
+          throw new InvalidEngagementReferenceError(`샘플 회차를 찾을 수 없습니다: ${parsed.sampleRoundId}`);
+        }
+        const roundData = roundDoc.data();
+        if (parsed.engagementId && roundData?.engagementId !== parsed.engagementId) {
+          throw new InvalidEngagementReferenceError("배송의 engagementId와 샘플 회차의 engagementId가 일치하지 않습니다.");
+        }
+        if (engagementData && engagementData.supplierId !== roundData?.supplierId) {
+          throw new InvalidEngagementReferenceError("배송의 engagementId와 샘플 회차의 supplierId가 일치하지 않습니다.");
+        }
+      }
+      tx.set(ref, stripUndefined({ ...parsed, createdAt: now, updatedAt: now }));
+      tx.set(eventRef, {
+        type: "note",
+        actor: actor.email,
+        at: now,
+        body: `배송 등록: ${ref.id}`,
+      });
+    });
     return ref.id;
   }
 }

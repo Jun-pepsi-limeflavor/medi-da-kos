@@ -40,6 +40,7 @@ import {
 interface Props {
   initialDeal: DealDetails;
   allSuppliers: Supplier[];
+  conversation: React.ReactNode;
 }
 
 const WAITING_ON_BADGES: Record<string, { label: string; bg: string }> = {
@@ -56,7 +57,7 @@ const QC_STATUS_BADGES: Record<string, { label: string; bg: string }> = {
   waived: { label: "직송 면제", bg: "bg-purple-950 text-purple-300 border-purple-800" },
 };
 
-export default function DealDetailClient({ initialDeal, allSuppliers }: Props) {
+export default function DealDetailClient({ initialDeal, allSuppliers, conversation }: Props) {
   const router = useRouter();
   const [dealData, setDealData] = useState<DealDetails>(initialDeal);
   const dealId = dealData.deal.id;
@@ -83,6 +84,7 @@ export default function DealDetailClient({ initialDeal, allSuppliers }: Props) {
   // Modals for subcollections
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [isAddEngagementModalOpen, setIsAddEngagementModalOpen] = useState(false);
+  const [replacementEngagement, setReplacementEngagement] = useState<SupplierEngagement | null>(null);
   const [isAddSampleModalOpen, setIsAddSampleModalOpen] = useState(false);
   const [isAddShipmentModalOpen, setIsAddShipmentModalOpen] = useState(false);
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
@@ -287,6 +289,8 @@ export default function DealDetailClient({ initialDeal, allSuppliers }: Props) {
       </div>
 
       {/* 2. Stage Transition Controller (Core Feature) */}
+      {conversation}
+
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
           <div>
@@ -629,6 +633,14 @@ export default function DealDetailClient({ initialDeal, allSuppliers }: Props) {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {eng.contactStatus !== "drop" && (
+                            <button
+                              onClick={() => setReplacementEngagement(eng)}
+                              className="rounded border border-amber-800/70 bg-amber-950/30 px-2 py-1 text-[10px] text-amber-300 transition hover:bg-amber-950/60"
+                            >
+                              제조사 교체
+                            </button>
+                          )}
                           <span className="text-xs text-neutral-400">
                             공장 단계:{" "}
                             <strong className="text-neutral-200">
@@ -1076,6 +1088,19 @@ export default function DealDetailClient({ initialDeal, allSuppliers }: Props) {
         />
       )}
 
+      {replacementEngagement && (
+        <AddEngagementModal
+          dealId={dealId}
+          allSuppliers={allSuppliers}
+          replacementEngagement={replacementEngagement}
+          onClose={() => setReplacementEngagement(null)}
+          onSuccess={async () => {
+            setReplacementEngagement(null);
+            await reloadDeal();
+          }}
+        />
+      )}
+
       {/* MODAL: Add Sample Modal */}
       {isAddSampleModalOpen && (
         <AddSampleModal
@@ -1095,6 +1120,7 @@ export default function DealDetailClient({ initialDeal, allSuppliers }: Props) {
         <AddShipmentModal
           dealId={dealId}
           sampleRounds={dealData.sampleRounds}
+          engagements={dealData.supplierEngagements}
           onClose={() => setIsAddShipmentModalOpen(false)}
           onSuccess={async () => {
             setIsAddShipmentModalOpen(false);
@@ -1244,19 +1270,23 @@ function AddItemModal({
 function AddEngagementModal({
   dealId,
   allSuppliers,
+  replacementEngagement,
   onClose,
   onSuccess,
 }: {
   dealId: string;
   allSuppliers: Supplier[];
+  replacementEngagement?: SupplierEngagement | null;
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [supplierId, setSupplierId] = useState(allSuppliers[0]?.id || "");
+  const availableSuppliers = allSuppliers.filter((supplier) => supplier.id !== replacementEngagement?.supplierId);
+  const [supplierId, setSupplierId] = useState(availableSuppliers[0]?.id || "");
   const [supplyMode, setSupplyMode] = useState<"turnkey" | "buyer_supplied" | "kta_supplied">("turnkey");
   const [roles, setRoles] = useState<string[]>(["formulation"]);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [replacementReason, setReplacementReason] = useState("");
   const [loading, setLoading] = useState(false);
 
   const selectedSupplier = allSuppliers.find((s) => s.id === supplierId);
@@ -1265,26 +1295,33 @@ function AddEngagementModal({
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/deals/${dealId}/engagements`, {
+      const replacement = {
+        supplierId,
+        roles,
+        supplyMode,
+        contactStatus: "ing",
+        stageFactory: 1,
+        contactPersonSnapshot: {
+          name: contactName || selectedSupplier?.contacts[0]?.name || "담당자",
+          email: contactEmail || selectedSupplier?.contacts[0]?.email || "supplier@example.com",
+        },
+      };
+      const res = await fetch(
+        replacementEngagement
+          ? `/api/admin/deals/${dealId}/engagements/replace`
+          : `/api/admin/deals/${dealId}/engagements`,
+        {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          supplierId,
-          roles,
-          supplyMode,
-          contactStatus: "ing",
-          stageFactory: 1,
-          contactPersonSnapshot: {
-            name: contactName || selectedSupplier?.contacts[0]?.name || "담당자",
-            email: contactEmail || selectedSupplier?.contacts[0]?.email || "supplier@example.com",
-          },
-        }),
+        body: JSON.stringify(replacementEngagement
+          ? { oldEngagementId: replacementEngagement.id, replacement, reason: replacementReason }
+          : replacement),
       });
       if (res.ok) {
         onSuccess();
       } else {
         const d = await res.json();
-        alert(d.error || "제조사 배정 실패");
+        alert(d.error || (replacementEngagement ? "제조사 교체 실패" : "제조사 배정 실패"));
       }
     } catch {
       alert("오류 발생");
@@ -1300,7 +1337,7 @@ function AddEngagementModal({
         className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-xl text-xs"
       >
         <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-          <h3 className="font-bold text-sm text-neutral-100">제조사 배정 (Engagement)</h3>
+          <h3 className="font-bold text-sm text-neutral-100">{replacementEngagement ? "제조사 교체" : "제조사 배정 (Engagement)"}</h3>
           <button type="button" onClick={onClose}><X className="w-4 h-4" /></button>
         </div>
         <div>
@@ -1318,18 +1355,29 @@ function AddEngagementModal({
             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
             required
           >
-            {allSuppliers.map((s) => (
+            {availableSuppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.companyName} ({s.capabilities.join(", ")})
               </option>
             ))}
           </select>
         </div>
+        {replacementEngagement && (
+          <div>
+            <label className="block text-neutral-400 mb-1">교체 사유 *</label>
+            <input
+              value={replacementReason}
+              onChange={(e) => setReplacementReason(e.target.value)}
+              className="w-full bg-neutral-950 border border-amber-900 rounded-lg p-2 text-neutral-200"
+              required
+            />
+          </div>
+        )}
         <div>
           <label className="block text-neutral-400 mb-1">공급 방식 (Supply Mode)</label>
           <select
             value={supplyMode}
-            onChange={(e) => setSupplyMode(e.target.value as any)}
+            onChange={(e) => setSupplyMode(e.target.value as "turnkey" | "buyer_supplied" | "kta_supplied")}
             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
           >
             <option value="turnkey">turnkey (완제품 턴키)</option>
@@ -1377,7 +1425,7 @@ function AddEngagementModal({
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-neutral-800">
           <button type="button" onClick={onClose} className="px-3 py-1.5 bg-neutral-800 rounded-lg text-neutral-300">취소</button>
-          <button type="submit" disabled={loading} className="px-4 py-1.5 bg-indigo-600 rounded-lg text-white font-medium">배정</button>
+          <button type="submit" disabled={loading} className="px-4 py-1.5 bg-indigo-600 rounded-lg text-white font-medium">{replacementEngagement ? "교체" : "배정"}</button>
         </div>
       </form>
     </div>
@@ -1398,11 +1446,12 @@ function AddSampleModal({
   onSuccess: () => void;
 }) {
   const [itemId, setItemId] = useState(items[0]?.id || "");
-  const [supplierId, setSupplierId] = useState(engagements[0]?.supplierId || "");
+  const activeEngagements = engagements.filter((engagement) => engagement.contactStatus !== "drop");
+  const [engagementId, setEngagementId] = useState(activeEngagements[0]?.id || "");
   const [roundNo, setRoundNo] = useState("1");
   const [producedQty, setProducedQty] = useState("5");
   const [retainedQty, setRetainedQty] = useState("2");
-  const [requestNotes, setRequestNotes] = useState("");
+  const requestNotes = "";
   const [qcStatus, setQcStatus] = useState<"pending" | "passed" | "failed" | "waived">("pending");
   const [qcWaiverReason, setQcWaiverReason] = useState("");
   const [receivedAt, setReceivedAt] = useState("");
@@ -1417,7 +1466,8 @@ function AddSampleModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           itemId,
-          supplierId,
+          engagementId,
+          supplierId: activeEngagements.find((engagement) => engagement.id === engagementId)?.supplierId,
           roundNo: parseInt(roundNo, 10),
           producedQty: parseInt(producedQty, 10),
           retainedQty: parseInt(retainedQty, 10),
@@ -1469,14 +1519,14 @@ function AddSampleModal({
           <div>
             <label className="block text-neutral-400 mb-1">제조사 *</label>
             <select
-              value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
+              value={engagementId}
+              onChange={(e) => setEngagementId(e.target.value)}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
               required
             >
-              {engagements.map((eng: SupplierEngagement) => (
-                <option key={eng.id} value={eng.supplierId}>
-                  {eng.supplierId}
+              {activeEngagements.map((eng: SupplierEngagement) => (
+                <option key={eng.id} value={eng.id}>
+                  {eng.supplierId} (관계 {eng.id})
                 </option>
               ))}
             </select>
@@ -1517,7 +1567,7 @@ function AddSampleModal({
             <label className="block text-neutral-400 mb-1">QC 상태</label>
             <select
               value={qcStatus}
-              onChange={(e) => setQcStatus(e.target.value as any)}
+              onChange={(e) => setQcStatus(e.target.value as "pending" | "passed" | "failed" | "waived")}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
             >
               <option value="pending">pending (대기)</option>
@@ -1560,11 +1610,13 @@ function AddSampleModal({
 function AddShipmentModal({
   dealId,
   sampleRounds,
+  engagements,
   onClose,
   onSuccess,
 }: {
   dealId: string;
   sampleRounds: SampleRound[];
+  engagements: SupplierEngagement[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -1573,12 +1625,16 @@ function AddShipmentModal({
   const [trackingNumber, setTrackingNumber] = useState("");
   const [carrier, setCarrier] = useState("DHL Express");
   const [sampleRoundId, setSampleRoundId] = useState(sampleRounds[0]?.id || "");
+  const activeEngagements = engagements.filter((engagement) => engagement.contactStatus !== "drop");
+  const [engagementId, setEngagementId] = useState(activeEngagements[0]?.id || "");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      const selectedRound = sampleRounds.find((round) => round.id === sampleRoundId);
+      const isSupplierOrigin = route !== "hq_to_buyer";
       const res = await fetch(`/api/admin/deals/${dealId}/shipments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1588,6 +1644,11 @@ function AddShipmentModal({
           carrier,
           trackingNumber: trackingNumber.trim() || undefined,
           sampleRoundId: kind === "sample" ? sampleRoundId || undefined : undefined,
+          engagementId: isSupplierOrigin
+            ? kind === "sample"
+              ? selectedRound?.engagementId
+              : engagementId || undefined
+            : undefined,
         }),
       });
       if (res.ok) {
@@ -1618,7 +1679,7 @@ function AddShipmentModal({
             <label className="block text-neutral-400 mb-1">구분 (Kind) *</label>
             <select
               value={kind}
-              onChange={(e) => setKind(e.target.value as any)}
+              onChange={(e) => setKind(e.target.value as "sample" | "main")}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
             >
               <option value="sample">sample (샘플)</option>
@@ -1629,7 +1690,7 @@ function AddShipmentModal({
             <label className="block text-neutral-400 mb-1">운송 경로 (Route) *</label>
             <select
               value={route}
-              onChange={(e) => setRoute(e.target.value as any)}
+              onChange={(e) => setRoute(e.target.value as "supplier_to_hq" | "hq_to_buyer" | "supplier_to_buyer")}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 font-mono text-[11px]"
             >
               <option value="hq_to_buyer">hq_to_buyer (HQ → 바이어)</option>
@@ -1649,6 +1710,23 @@ function AddShipmentModal({
               {sampleRounds.map((r: SampleRound) => (
                 <option key={r.id} value={r.id}>
                   {r.roundNo}차 샘플 (ID: {r.id})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {route !== "hq_to_buyer" && kind === "main" && (
+          <div>
+            <label className="block text-neutral-400 mb-1">제조사 관계 *</label>
+            <select
+              value={engagementId}
+              onChange={(e) => setEngagementId(e.target.value)}
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
+              required
+            >
+              {activeEngagements.map((engagement) => (
+                <option key={engagement.id} value={engagement.id}>
+                  {engagement.supplierId} (관계 {engagement.id})
                 </option>
               ))}
             </select>
@@ -1750,7 +1828,7 @@ function AddTaskModal({
             <label className="block text-neutral-400 mb-1">대기 주체 (waitingOn) *</label>
             <select
               value={waitingOn}
-              onChange={(e) => setWaitingOn(e.target.value as any)}
+              onChange={(e) => setWaitingOn(e.target.value as "us" | "buyer" | "supplier" | "carrier")}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
             >
               <option value="us">us (본사)</option>

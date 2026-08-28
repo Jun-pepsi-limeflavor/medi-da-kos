@@ -37,7 +37,7 @@ export function buildLandingRequest(input: LandingRequestInput, context: Landing
   if (Object.keys(errors).length) throw new Error(Object.values(errors)[0]);
   if (input.landingVariant === "catalog") {
     if ("dashboardBrief" in input && input.dashboardBrief !== undefined) throw new Error("catalog request cannot include dashboardBrief");
-    if (!input.catalogItems.length || input.catalogItems.length > 12) throw new Error("catalog request must include 1 to 12 products");
+    if (!input.catalogItems.length || input.catalogItems.length > 5) throw new Error("catalog request must include 1 to 5 products");
   } else {
     if ("catalogItems" in input && input.catalogItems !== undefined) throw new Error("dashboard request cannot include catalogItems");
     if (!input.dashboardBrief) throw new Error("dashboard request requires dashboardBrief");
