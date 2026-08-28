@@ -221,8 +221,9 @@ export async function createDeal(
       threadExists = threadSnap.exists;
     }
 
+    const { items = [], ...dealWithoutItems } = parsed;
     const dealData = stripUndefined({
-      ...parsed,
+      ...dealWithoutItems,
       stageBrand: 1,
       supplierIds: [],
       createdAt: now,
@@ -232,6 +233,23 @@ export async function createDeal(
     });
 
     tx.set(newDealRef, dealData);
+
+    // Save initial items if provided
+    if (items.length > 0) {
+      for (const item of items) {
+        const itemRef = newDealRef.collection("items").doc();
+        tx.set(
+          itemRef,
+          stripUndefined({
+            ...item,
+            id: itemRef.id,
+            createdAt: now,
+            updatedAt: now,
+          })
+        );
+      }
+    }
+
     tx.update(intakeReviewRef, { dealId: newDealRef.id });
 
     if (threadRef && threadExists) {

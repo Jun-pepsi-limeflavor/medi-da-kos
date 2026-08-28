@@ -15,11 +15,12 @@ export const dynamic = "force-dynamic";
 export default async function DealsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ createFromMessage?: string }>;
+  searchParams?: Promise<{ createFromMessage?: string; createFromIntake?: string }>;
 }) {
   await requireAdminPage();
   const params = await searchParams;
   const createFromMessageId = params?.createFromMessage;
+  const createFromIntakeId = params?.createFromIntake;
 
   const [deals, intakeReviewsMap, prefillMsg] = await Promise.all([
     listDealsWithDetails(),
@@ -52,7 +53,37 @@ export default async function DealsPage({
   let prefillData: DealPrefillData | undefined = undefined;
   let autoOpen = false;
 
-  if (prefillMsg) {
+  if (createFromIntakeId) {
+    const targetIntake = qualifiedIntakes.find((q) => q.id === createFromIntakeId);
+    if (targetIntake) {
+      const brand = targetIntake.companyName || targetIntake.contactName || "Deal";
+      const firstItem = targetIntake.items?.[0];
+      const itemText = firstItem?.productType || "";
+      const volText = firstItem?.volume ? ` ${firstItem.volume}` : "";
+      prefillData = {
+        intakeReviewId: targetIntake.id,
+        reference: `${brand} ${itemText}${volText} PO`.trim(),
+        buyerId: targetIntake.email?.toLowerCase(),
+        companyName: targetIntake.companyName,
+        contactName: targetIntake.contactName,
+        email: targetIntake.email,
+        phone: targetIntake.phone,
+        country: targetIntake.country || "미국 (USA)",
+        recipientName: targetIntake.shippingInfo?.recipientName,
+        addressLine1: targetIntake.shippingInfo?.addressLine1,
+        city: targetIntake.shippingInfo?.city,
+        shippingCountry: targetIntake.shippingInfo?.country,
+        postalCode: targetIntake.shippingInfo?.postalCode,
+        taxId: targetIntake.shippingInfo?.taxId,
+        targetSampleDate: targetIntake.timeline?.targetSampleDate,
+        targetDeliveryDate: targetIntake.timeline?.targetDeliveryDate,
+        certifications: targetIntake.certifications?.join(", "),
+        additionalRequests: targetIntake.additionalRequests,
+        items: targetIntake.items,
+      };
+      autoOpen = true;
+    }
+  } else if (prefillMsg) {
     const ext =
       (prefillMsg.accepted as Extraction) ??
       (prefillMsg.extraction as Extraction) ??
@@ -71,6 +102,24 @@ export default async function DealsPage({
           ? `${itemSummary} Inquiry`
           : `Message Deal (${prefillMsg.id.slice(0, 8)})`;
 
+      const prefillItems = (ext.items || []).map((it) => ({
+        productType: it.productName || it.category || "화장품",
+        variantName: it.variantName || "",
+        volume: it.volume || "",
+        quantity: typeof it.expectedQty === "number" && it.expectedQty > 0 ? Math.floor(it.expectedQty) : 1000,
+        formulaSpec: {
+          targetTexture: it.formula?.formulaType || it.formula?.notes || undefined,
+          keyIngredients: it.formula?.keyIngredients || undefined,
+          notes: it.formula?.notes || undefined,
+        },
+        packagingSpec: {
+          containerType: it.packaging?.containerType || undefined,
+          material: it.packaging?.material || undefined,
+          closure: it.packaging?.outerBox || undefined,
+          notes: it.packaging?.notes || undefined,
+        },
+      }));
+
       prefillData = {
         intakeReviewId: matchedIntakeId,
         reference: ref,
@@ -85,6 +134,7 @@ export default async function DealsPage({
         targetDeliveryDate: ext.timeline?.targetLaunchDate || "",
         certifications:
           (ext.certifications?.requiredCerts || []).join(", ") || "CPNP, FDA",
+        items: prefillItems.length > 0 ? prefillItems : undefined,
       };
       autoOpen = true;
     }

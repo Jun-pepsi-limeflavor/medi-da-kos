@@ -2,7 +2,17 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  Plus,
+  X,
+  AlertCircle,
+  Package,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+} from "lucide-react";
+import { type DealItemInput } from "@/lib/schemas/deal";
 
 export interface QualifiedIntakeSummary {
   id: string; // intakeReviewId
@@ -11,6 +21,28 @@ export interface QualifiedIntakeSummary {
   email?: string;
   companyName?: string;
   contactName?: string;
+  phone?: string;
+  country?: string;
+  shippingInfo?: {
+    recipientName?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+    phone?: string;
+    taxId?: string;
+  };
+  certifications?: string[];
+  timeline?: {
+    targetSampleDate?: string;
+    targetDeliveryDate?: string;
+  };
+  additionalRequests?: string;
+  items?: DealItemInput[];
+  rawSummary?: string;
+  rawDetails?: Record<string, unknown>;
   reviewedBy?: string;
   reviewedAt?: string;
 }
@@ -34,6 +66,7 @@ export interface DealPrefillData {
   targetDeliveryDate?: string;
   certifications?: string;
   additionalRequests?: string;
+  items?: DealItemInput[];
 }
 
 interface Props {
@@ -41,6 +74,26 @@ interface Props {
   prefillData?: DealPrefillData;
   autoOpen?: boolean;
 }
+
+const DEFAULT_ITEM: DealItemInput = {
+  productType: "스킨케어 화장품",
+  variantName: "",
+  volume: "50ml",
+  quantity: 1000,
+  formulaSpec: {
+    targetTexture: "",
+    keyIngredients: "",
+    scent: "",
+    color: "",
+    notes: "",
+  },
+  packagingSpec: {
+    containerType: "",
+    material: "",
+    closure: "",
+    notes: "",
+  },
+};
 
 export default function CreateDealModal({
   qualifiedIntakes,
@@ -51,6 +104,7 @@ export default function CreateDealModal({
   const [isOpen, setIsOpen] = useState(autoOpen);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
 
   const initialIntake =
     qualifiedIntakes.find((q) => q.id === prefillData?.intakeReviewId) ||
@@ -60,7 +114,17 @@ export default function CreateDealModal({
   const [intakeReviewId, setIntakeReviewId] = useState(
     prefillData?.intakeReviewId || qualifiedIntakes[0]?.id || ""
   );
-  const [reference, setReference] = useState(prefillData?.reference || "");
+  const [reference, setReference] = useState(() => {
+    if (prefillData?.reference) return prefillData.reference;
+    if (initialIntake) {
+      const brand = initialIntake.companyName || initialIntake.contactName || "";
+      const itemText = initialIntake.items?.[0]?.productType || "";
+      const volText = initialIntake.items?.[0]?.volume ? ` ${initialIntake.items[0].volume}` : "";
+      if (brand) return `${brand} ${itemText}${volText} PO`.trim();
+    }
+    return "";
+  });
+
   const [buyerId, setBuyerId] = useState(
     prefillData?.buyerId || initialIntake?.email || ""
   );
@@ -73,23 +137,162 @@ export default function CreateDealModal({
   const [email, setEmail] = useState(
     prefillData?.email || initialIntake?.email || ""
   );
-  const [phone, setPhone] = useState(prefillData?.phone || "");
-  const [country, setCountry] = useState(prefillData?.country || "미국 (USA)");
-
-  const [recipientName, setRecipientName] = useState(prefillData?.recipientName || "");
-  const [addressLine1, setAddressLine1] = useState(prefillData?.addressLine1 || "");
-  const [city, setCity] = useState(prefillData?.city || "");
-  const [shippingCountry, setShippingCountry] = useState(
-    prefillData?.shippingCountry || prefillData?.country || "미국 (USA)"
+  const [phone, setPhone] = useState(
+    prefillData?.phone || initialIntake?.phone || ""
   );
-  const [postalCode, setPostalCode] = useState(prefillData?.postalCode || "");
-  const [taxId, setTaxId] = useState(prefillData?.taxId || "");
+  const [country, setCountry] = useState(
+    prefillData?.country || initialIntake?.country || "미국 (USA)"
+  );
 
-  const [targetSampleDate, setTargetSampleDate] = useState(prefillData?.targetSampleDate || "");
-  const [targetDeliveryDate, setTargetDeliveryDate] = useState(prefillData?.targetDeliveryDate || "");
-  const [certifications, setCertifications] = useState(prefillData?.certifications || "CPNP, FDA");
-  const [additionalRequests, setAdditionalRequests] = useState(prefillData?.additionalRequests || "");
+  const [recipientName, setRecipientName] = useState(
+    prefillData?.recipientName || initialIntake?.shippingInfo?.recipientName || ""
+  );
+  const [addressLine1, setAddressLine1] = useState(
+    prefillData?.addressLine1 || initialIntake?.shippingInfo?.addressLine1 || ""
+  );
+  const [city, setCity] = useState(
+    prefillData?.city || initialIntake?.shippingInfo?.city || ""
+  );
+  const [shippingCountry, setShippingCountry] = useState(
+    prefillData?.shippingCountry ||
+      initialIntake?.shippingInfo?.country ||
+      prefillData?.country ||
+      initialIntake?.country ||
+      "미국 (USA)"
+  );
+  const [postalCode, setPostalCode] = useState(
+    prefillData?.postalCode || initialIntake?.shippingInfo?.postalCode || ""
+  );
+  const [taxId, setTaxId] = useState(
+    prefillData?.taxId || initialIntake?.shippingInfo?.taxId || ""
+  );
 
+  const [targetSampleDate, setTargetSampleDate] = useState(
+    prefillData?.targetSampleDate || initialIntake?.timeline?.targetSampleDate || ""
+  );
+  const [targetDeliveryDate, setTargetDeliveryDate] = useState(
+    prefillData?.targetDeliveryDate || initialIntake?.timeline?.targetDeliveryDate || ""
+  );
+  const [certifications, setCertifications] = useState(
+    prefillData?.certifications ||
+      (initialIntake?.certifications && initialIntake.certifications.length > 0
+        ? initialIntake.certifications.join(", ")
+        : "CPNP, FDA")
+  );
+  const [additionalRequests, setAdditionalRequests] = useState(
+    prefillData?.additionalRequests || initialIntake?.additionalRequests || ""
+  );
+
+  // Items State
+  const [items, setItems] = useState<DealItemInput[]>(() => {
+    if (prefillData?.items && prefillData.items.length > 0) {
+      return prefillData.items;
+    }
+    if (initialIntake?.items && initialIntake.items.length > 0) {
+      return initialIntake.items;
+    }
+    return [{ ...DEFAULT_ITEM }];
+  });
+
+  const selectedIntake = qualifiedIntakes.find((q) => q.id === intakeReviewId);
+
+  const handleIntakeChange = (selectedId: string) => {
+    setIntakeReviewId(selectedId);
+    const selected = qualifiedIntakes.find((q) => q.id === selectedId);
+    if (!selected) return;
+
+    if (selected.email) {
+      setEmail(selected.email);
+      setBuyerId(selected.email);
+    }
+    if (selected.companyName) setCompanyName(selected.companyName);
+    if (selected.contactName) setContactName(selected.contactName);
+    if (selected.phone) setPhone(selected.phone);
+    if (selected.country) {
+      setCountry(selected.country);
+      setShippingCountry(selected.shippingInfo?.country || selected.country);
+    }
+
+    if (selected.shippingInfo) {
+      if (selected.shippingInfo.recipientName) setRecipientName(selected.shippingInfo.recipientName);
+      if (selected.shippingInfo.addressLine1) setAddressLine1(selected.shippingInfo.addressLine1);
+      if (selected.shippingInfo.city) setCity(selected.shippingInfo.city);
+      if (selected.shippingInfo.postalCode) setPostalCode(selected.shippingInfo.postalCode);
+      if (selected.shippingInfo.taxId) setTaxId(selected.shippingInfo.taxId);
+    }
+
+    if (selected.certifications && selected.certifications.length > 0) {
+      setCertifications(selected.certifications.join(", "));
+    }
+
+    if (selected.timeline) {
+      if (selected.timeline.targetSampleDate) setTargetSampleDate(selected.timeline.targetSampleDate);
+      if (selected.timeline.targetDeliveryDate) setTargetDeliveryDate(selected.timeline.targetDeliveryDate);
+    }
+
+    if (selected.additionalRequests) {
+      setAdditionalRequests(selected.additionalRequests);
+    }
+
+    if (selected.items && selected.items.length > 0) {
+      setItems(selected.items);
+      const brand = selected.companyName || selected.contactName || "Deal";
+      const firstItem = selected.items[0];
+      const itemText = firstItem?.productType || "";
+      const volText = firstItem?.volume ? ` ${firstItem.volume}` : "";
+      setReference(`${brand} ${itemText}${volText} PO`.trim());
+    }
+  };
+
+  const handleAddItem = () => {
+    setItems((prev) => [...prev, { ...DEFAULT_ITEM }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (items.length <= 1) {
+      alert("최소 1개 이상의 요청 제품이 필요합니다.");
+      return;
+    }
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleItemChange = (index: number, field: keyof DealItemInput, value: string | number) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const handleFormulaChange = (index: number, field: string, value: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const currentFormula = next[index].formulaSpec || {};
+      next[index] = {
+        ...next[index],
+        formulaSpec: {
+          ...currentFormula,
+          [field]: value || undefined,
+        },
+      };
+      return next;
+    });
+  };
+
+  const handlePackagingChange = (index: number, field: string, value: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const currentPackaging = next[index].packagingSpec || {};
+      next[index] = {
+        ...next[index],
+        packagingSpec: {
+          ...currentPackaging,
+          [field]: value || undefined,
+        },
+      };
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +311,21 @@ export default function CreateDealModal({
       return;
     }
 
+    if (items.length === 0) {
+      setError("최소 1개 이상의 제품이 필요합니다.");
+      return;
+    }
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].productType.trim()) {
+        setError(`제품 #${i + 1}의 제품 종류/명칭을 입력해주세요.`);
+        return;
+      }
+      if (!items[i].quantity || items[i].quantity <= 0) {
+        setError(`제품 #${i + 1}의 수량은 1 이상의 정수여야 합니다.`);
+        return;
+      }
+    }
+
     setLoading(true);
 
     const payload = {
@@ -123,13 +341,32 @@ export default function CreateDealModal({
         country: country.trim(),
       },
       shippingInfo: {
-        recipientName: (recipientName.trim() || contactName.trim()),
+        recipientName: recipientName.trim() || contactName.trim(),
         addressLine1: addressLine1.trim() || "본사 확인 대기",
         city: city.trim(),
         country: shippingCountry.trim() || country.trim(),
         postalCode: postalCode.trim(),
         taxId: taxId.trim() || undefined,
       },
+      items: items.map((it) => ({
+        productType: it.productType.trim(),
+        variantName: it.variantName?.trim() || "",
+        volume: it.volume?.trim() || "",
+        quantity: Math.floor(it.quantity),
+        formulaSpec: {
+          targetTexture: it.formulaSpec?.targetTexture?.trim() || undefined,
+          keyIngredients: it.formulaSpec?.keyIngredients?.trim() || undefined,
+          scent: it.formulaSpec?.scent?.trim() || undefined,
+          color: it.formulaSpec?.color?.trim() || undefined,
+          notes: it.formulaSpec?.notes?.trim() || undefined,
+        },
+        packagingSpec: {
+          containerType: it.packagingSpec?.containerType?.trim() || undefined,
+          material: it.packagingSpec?.material?.trim() || undefined,
+          closure: it.packagingSpec?.closure?.trim() || undefined,
+          notes: it.packagingSpec?.notes?.trim() || undefined,
+        },
+      })),
       certifications: certifications
         ? certifications.split(",").map((c) => c.trim()).filter(Boolean)
         : [],
@@ -180,19 +417,24 @@ export default function CreateDealModal({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl">
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-neutral-800 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-base text-neutral-100">신규 딜 개설</h3>
+                <h3 className="font-bold text-base text-neutral-100 flex items-center gap-2">
+                  <span>신규 딜 개설</span>
+                  <span className="text-[11px] bg-indigo-950 text-indigo-400 border border-indigo-800/80 px-2 py-0.5 rounded-full font-normal">
+                    공식 원장 & 제품 등록
+                  </span>
+                </h3>
                 <p className="text-xs text-neutral-400 mt-0.5">
-                  승인된(Qualified) 인테이크를 기반으로 공식 딜 원장을 생성합니다.
+                  승인된(Qualified) 인테이크의 고객 요청 내역을 바탕으로 딜과 제품을 일괄 생성합니다.
                 </p>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-neutral-400 hover:text-neutral-200 p-1.5 rounded-lg hover:bg-neutral-800"
+                className="text-neutral-400 hover:text-neutral-200 p-1.5 rounded-lg hover:bg-neutral-800 transition"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -215,23 +457,7 @@ export default function CreateDealModal({
                 {qualifiedIntakes.length > 0 ? (
                   <select
                     value={intakeReviewId}
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      setIntakeReviewId(selectedId);
-                      const selected = qualifiedIntakes.find((q) => q.id === selectedId);
-                      if (selected?.email) {
-                        setEmail(selected.email);
-                        if (!buyerId || qualifiedIntakes.some((q) => q.email === buyerId)) {
-                          setBuyerId(selected.email);
-                        }
-                      }
-                      if (selected?.companyName && (!companyName || qualifiedIntakes.some((q) => q.companyName === companyName))) {
-                        setCompanyName(selected.companyName);
-                      }
-                      if (selected?.contactName && (!contactName || qualifiedIntakes.some((q) => q.contactName === contactName))) {
-                        setContactName(selected.contactName);
-                      }
-                    }}
+                    onChange={(e) => handleIntakeChange(e.target.value)}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2.5 text-neutral-200 focus:outline-none focus:border-indigo-500"
                     required
                   >
@@ -244,6 +470,8 @@ export default function CreateDealModal({
                     {qualifiedIntakes.map((intake) => (
                       <option key={intake.id} value={intake.id}>
                         [{intake.source}] {intake.email || `ID: ${intake.externalId}`}
+                        {intake.companyName ? ` (${intake.companyName})` : ""}
+                        {intake.items && intake.items[0]?.productType ? ` — ${intake.items[0].productType}` : ""}
                       </option>
                     ))}
                   </select>
@@ -263,6 +491,56 @@ export default function CreateDealModal({
                   </div>
                 )}
               </div>
+
+              {/* 1-1. 인테이크 원천 미리보기 카드 */}
+              {selectedIntake && (
+                <div className="bg-neutral-950/80 border border-neutral-800 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowPreview(!showPreview)}
+                    className="w-full px-3.5 py-2.5 bg-neutral-950 flex items-center justify-between text-neutral-300 hover:text-neutral-100 transition text-xs font-medium"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>인테이크 원천 내용 미리보기</span>
+                      <span className="text-[11px] px-1.5 py-0.2 rounded bg-neutral-800 text-neutral-400 font-mono">
+                        {selectedIntake.source}
+                      </span>
+                    </span>
+                    {showPreview ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+
+                  {showPreview && (
+                    <div className="p-3.5 pt-1 space-y-2 border-t border-neutral-800/60 text-[11px] text-neutral-300">
+                      {selectedIntake.rawSummary && (
+                        <div className="p-2 bg-neutral-900/90 rounded-lg border border-neutral-800/80 text-neutral-200">
+                          <span className="font-semibold text-neutral-400 block mb-0.5">요약/메시지:</span>
+                          <p className="whitespace-pre-wrap leading-relaxed">{selectedIntake.rawSummary}</p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-neutral-400">
+                        <div>
+                          <span className="text-neutral-500 block">바이어/문의자:</span>
+                          <span className="text-neutral-200 font-medium">{selectedIntake.contactName || selectedIntake.companyName || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-500 block">이메일:</span>
+                          <span className="text-neutral-200 font-mono">{selectedIntake.email || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-500 block">국가:</span>
+                          <span className="text-neutral-200">{selectedIntake.country || selectedIntake.shippingInfo?.country || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-500 block">요청 제품 수:</span>
+                          <span className="text-neutral-200 font-semibold">{selectedIntake.items?.length || 1}개 품목</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 2. 기본 딜 정보 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -291,7 +569,116 @@ export default function CreateDealModal({
                 </div>
               </div>
 
-              {/* 3. 바이어 정보 */}
+              {/* 3. 요청 제품 목록 (Deal Items Editor) */}
+              <div className="p-3.5 bg-neutral-950/60 border border-neutral-800/80 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-neutral-800/70 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-indigo-400" />
+                    <h4 className="font-semibold text-neutral-200">요청 제품 목록 (Deal Items)</h4>
+                    <span className="text-[10px] bg-neutral-800 text-neutral-300 px-2 py-0.5 rounded-full font-mono">
+                      {items.length}개 품목
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-600/50 text-indigo-300 rounded-lg text-xs flex items-center gap-1 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>제품 추가</span>
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-neutral-900/90 border border-neutral-800 rounded-xl space-y-2.5 relative"
+                    >
+                      <div className="flex items-center justify-between pb-1.5 border-b border-neutral-800/50">
+                        <span className="font-semibold text-neutral-300 text-xs flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-indigo-600/30 text-indigo-300 text-[10px] flex items-center justify-center font-mono">
+                            {idx + 1}
+                          </span>
+                          <span>품목 정보 #{idx + 1}</span>
+                        </span>
+                        {items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            className="text-neutral-500 hover:text-rose-400 p-1 transition"
+                            title="품목 삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 1st Row: Basic specs */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] text-neutral-400 mb-1">제품 종류 / 명칭 *</label>
+                          <input
+                            type="text"
+                            value={item.productType}
+                            onChange={(e) => handleItemChange(idx, "productType", e.target.value)}
+                            placeholder="예: 수분 진정 크림, Lip Balm"
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-neutral-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-neutral-400 mb-1">용량 / 규격</label>
+                          <input
+                            type="text"
+                            value={item.volume || ""}
+                            onChange={(e) => handleItemChange(idx, "volume", e.target.value)}
+                            placeholder="예: 50ml, 100g"
+                            className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-neutral-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-neutral-400 mb-1">수량 (개) *</label>
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(idx, "quantity", parseInt(e.target.value, 10) || 1)}
+                            min={1}
+                            required
+                            className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-neutral-200 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 2nd Row: Formula & Packaging Specs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        <div>
+                          <label className="block text-[11px] text-neutral-400 mb-1">제형 특성 / 핵심 성분</label>
+                          <input
+                            type="text"
+                            value={item.formulaSpec?.keyIngredients || item.formulaSpec?.targetTexture || ""}
+                            onChange={(e) => handleFormulaChange(idx, "keyIngredients", e.target.value)}
+                            placeholder="예: 병풀추출물, 촉촉한 젤 텍스처, 무향"
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-neutral-200 text-[11px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-neutral-400 mb-1">용기 / 패키징 사양</label>
+                          <input
+                            type="text"
+                            value={item.packagingSpec?.containerType || item.packagingSpec?.notes || ""}
+                            onChange={(e) => handlePackagingChange(idx, "containerType", e.target.value)}
+                            placeholder="예: 유리 에어로졸 펌프 용기, 단상자 포함"
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-1.5 text-neutral-200 text-[11px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. 바이어 정보 */}
               <div className="p-3.5 bg-neutral-950/60 border border-neutral-800/80 rounded-xl space-y-3">
                 <h4 className="font-semibold text-neutral-200">바이어 정보 (Buyer Info)</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -301,7 +688,7 @@ export default function CreateDealModal({
                       type="text"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="House of Seoul"
+                      placeholder="예: House of Seoul"
                       className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-neutral-200"
                       required
                     />
@@ -312,7 +699,7 @@ export default function CreateDealModal({
                       type="text"
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
-                      placeholder="Bala Pinnamaneni"
+                      placeholder="예: Deem Alsaif"
                       className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-neutral-200"
                       required
                     />
@@ -323,13 +710,12 @@ export default function CreateDealModal({
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="bala@example.com"
+                      placeholder="buyer@example.com"
                       className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-neutral-200"
                       required
                     />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-neutral-400 mb-1">국가 *</label>
@@ -340,7 +726,7 @@ export default function CreateDealModal({
                         setCountry(e.target.value);
                         setShippingCountry(e.target.value);
                       }}
-                      placeholder="미국 (USA), 인도 등"
+                      placeholder="예: 미국 (USA)"
                       className="w-full bg-neutral-900 border border-neutral-800 rounded-lg p-2 text-neutral-200"
                       required
                     />
@@ -358,7 +744,7 @@ export default function CreateDealModal({
                 </div>
               </div>
 
-              {/* 4. 배송 정보 */}
+              {/* 5. 배송 정보 */}
               <div className="p-3.5 bg-neutral-950/60 border border-neutral-800/80 rounded-xl space-y-3">
                 <h4 className="font-semibold text-neutral-200">배송 정보 (Shipping Info)</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -382,7 +768,6 @@ export default function CreateDealModal({
                     />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-[11px] text-neutral-400 mb-1">배송 주소 (Line 1)</label>
@@ -405,7 +790,6 @@ export default function CreateDealModal({
                     />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-neutral-400 mb-1">우편번호</label>
@@ -418,9 +802,7 @@ export default function CreateDealModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-neutral-400 mb-1">
-                      세금 번호 (Tax ID / CPF / CNPJ)
-                    </label>
+                    <label className="block text-[11px] text-neutral-400 mb-1">세금 번호 (Tax ID)</label>
                     <input
                       type="text"
                       value={taxId}
@@ -432,7 +814,7 @@ export default function CreateDealModal({
                 </div>
               </div>
 
-              {/* 5. 일정 및 인증 */}
+              {/* 6. 일정 및 인증 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] text-neutral-400 mb-1">목표 샘플 완료일</label>
