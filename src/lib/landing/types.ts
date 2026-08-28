@@ -1,14 +1,17 @@
 import type { CMBrief } from "@/lib/types";
 
-export type LandingVariant = "catalog" | "dashboard";
+export type LandingVariant = "catalog" | "dashboard" | "korea";
 
 export interface LandingContactFields {
   companyName: string;
-  contactName: string;
+  contactName?: string;
   email: string;
-  country: string;
+  country?: string;
   expectedVolume: string;
   message?: string;
+  referralSource?: string;
+  businessType?: string;
+  positioningArm?: string;
 }
 
 export interface LandingCatalogItem {
@@ -21,6 +24,7 @@ export type LandingRequestInput = LandingContactFields &
   (
     | { landingVariant: "catalog"; catalogItems: LandingCatalogItem[]; dashboardBrief?: never }
     | { landingVariant: "dashboard"; dashboardBrief: CMBrief; catalogItems?: never }
+    | { landingVariant: "korea"; catalogItems?: never; dashboardBrief?: never }
   );
 
 export interface LandingRequestContext {

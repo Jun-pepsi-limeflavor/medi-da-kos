@@ -50,6 +50,17 @@ function dashboardRequest(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function koreaRequest(overrides: Record<string, unknown> = {}) {
+  return {
+    ...base,
+    landingVariant: "korea",
+    referralSource: "cold email",
+    businessType: "Indie Brand",
+    positioningArm: "arm-a",
+    ...overrides,
+  };
+}
+
 async function unauthenticatedDoc(id: string) {
   return doc(testEnv.unauthenticatedContext().firestore(), "landingRequests", id);
 }
@@ -66,7 +77,7 @@ after(async () => {
   await testEnv?.cleanup();
 });
 
-test("unauthenticated buyers can create valid catalog and dashboard requests", async () => {
+test("unauthenticated buyers can create valid catalog, dashboard, and korea requests", async () => {
   await assertSucceeds(setDoc(await unauthenticatedDoc("valid-catalog"), catalogRequest()));
   const fiveItems = Array.from({ length: 5 }, (_, index) => ({
     id: `serum-${index + 1}`,
@@ -81,6 +92,9 @@ test("unauthenticated buyers can create valid catalog and dashboard requests", a
   );
   await assertSucceeds(
     setDoc(await unauthenticatedDoc("valid-dashboard"), dashboardRequest()),
+  );
+  await assertSucceeds(
+    setDoc(await unauthenticatedDoc("valid-korea"), koreaRequest()),
   );
 });
 

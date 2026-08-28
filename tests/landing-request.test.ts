@@ -57,6 +57,20 @@ function dashboardInput(overrides: Record<string, unknown> = {}): LandingRequest
   } as LandingRequestInput;
 }
 
+function koreaInput(overrides: Record<string, unknown> = {}): LandingRequestInput {
+  return {
+    companyName: "Seoul Beauty Co",
+    email: "buyer@seoulbeauty.com",
+    expectedVolume: "5,000 units",
+    referralSource: "Cold Email",
+    businessType: "Indie Brand",
+    positioningArm: "arm-a",
+    message: "Looking for OEM partner",
+    landingVariant: "korea" as const,
+    ...overrides,
+  } as LandingRequestInput;
+}
+
 test("valid catalog input builds a create-only landing request", () => {
   const request = buildLandingRequest(catalogInput(), context);
 
@@ -70,6 +84,22 @@ test("valid catalog input builds a create-only landing request", () => {
   assert.equal(request.gaClientId, context.gaClientId);
   assert.equal(request.userAgent, context.userAgent);
   assert.equal(typeof request.createdAt, "string");
+});
+
+test("valid korea input builds a create-only landing request", () => {
+  const request = buildLandingRequest(koreaInput(), context);
+
+  assert.equal(request.landingVariant, "korea");
+  assert.equal(request.companyName, "Seoul Beauty Co");
+  assert.equal(request.contactName, "Seoul Beauty Co");
+  assert.equal(request.country, "Global");
+  assert.equal(request.businessType, "Indie Brand");
+  assert.equal(request.referralSource, "Cold Email");
+  assert.equal(request.positioningArm, "arm-a");
+  assert.equal(request.catalogItems, undefined);
+  assert.equal(request.dashboardBrief, undefined);
+  assert.equal(request.status, "new");
+  assert.equal(request.isTest, true);
 });
 
 test("contact validation reports every blank required field", () => {

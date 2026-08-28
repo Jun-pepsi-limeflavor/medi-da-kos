@@ -15,7 +15,6 @@ import {
 import type {
   CMBrief,
   ContactSubmission,
-  KoreaLeadSubmission,
   Order,
   SampleRequest,
   ShippingAddress,
@@ -24,7 +23,6 @@ import type {
 } from "./types";
 import { getStep1Selection, odmCategory } from "./step1-utils";
 import { getOrderQuantity } from "./quantity-utils";
-import { expectedVolumeLabel } from "./contact-form-options";
 import { isNonProductionEnv } from "./env-flags";
 import { getFirebaseDb } from "./firebase";
 import {
@@ -413,53 +411,6 @@ export async function submitContactForm(
 
   const ref = await addDoc(
     collection(getFirebaseDb(), "contact"),
-    stripUndefined({
-      ...payload,
-      serverCreatedAt: serverTimestamp(),
-    }),
-  );
-
-  return { id: ref.id, ...payload };
-}
-
-export type KoreaLeadPayload = {
-  companyName: string;
-  email: string;
-  referralSource?: string;
-  businessType?: string;
-  expectedVolume: string;
-  message: string;
-  positioningArm: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
-  pageUrl?: string;
-  gaClientId?: string;
-  userAgent?: string;
-};
-
-export async function submitKoreaLead(
-  data: KoreaLeadPayload,
-): Promise<KoreaLeadSubmission> {
-  const now = new Date().toISOString();
-  const payload = {
-    ...data,
-    expectedVolumeLabel: expectedVolumeLabel(data.expectedVolume),
-    isTest: isNonProductionEnv(),
-    status: "submitted" as const,
-    createdAt: now,
-  };
-
-  if (useMockAuth()) {
-    const id = `mock-korea-lead-${Date.now()}`;
-    console.info("[mock] korea lead submission", { id, ...payload });
-    return { id, ...payload };
-  }
-
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "koreaLeads"),
     stripUndefined({
       ...payload,
       serverCreatedAt: serverTimestamp(),

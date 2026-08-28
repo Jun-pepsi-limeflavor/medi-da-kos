@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const intakeSourceSchema = z.enum([
-  "order", "sampleRequest", "contact", "koreaLead", "message",
+  "order", "sampleRequest", "contact", "koreaLead", "landingRequest", "message",
 ]);
 
 export const intakeReviewInputSchema = z.object({

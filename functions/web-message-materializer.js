@@ -8,10 +8,6 @@ const SOURCE_CONFIG = {
     label: "웹 문의",
     subjectLabel: "문의",
   },
-  koreaLeads: {
-    label: "콜드메일 랜딩 문의",
-    subjectLabel: "korea",
-  },
   orders: {
     label: "주문",
     subjectLabel: "주문",
@@ -19,6 +15,10 @@ const SOURCE_CONFIG = {
   sampleRequests: {
     label: "샘플 요청",
     subjectLabel: "샘플",
+  },
+  landingRequests: {
+    label: "랜딩 상담 문의",
+    subjectLabel: "랜딩",
   },
 };
 
@@ -58,6 +58,14 @@ function safeIdPart(value) {
 function buildSubject(source, id, data) {
   const config = SOURCE_CONFIG[source];
   const identity = firstValue(data.companyName, data.customerEmail, data.email, id);
+  if (source === "landingRequests") {
+    const variantTag = data.landingVariant === "catalog"
+      ? "카탈로그"
+      : data.landingVariant === "dashboard"
+        ? "대시보드"
+        : "korea";
+    return `[${config.subjectLabel}/${variantTag}] ${identity}`.slice(0, 240);
+  }
   return `[${config.subjectLabel}] ${identity}`.slice(0, 240);
 }
 
@@ -75,14 +83,6 @@ function buildBody(source, id, data) {
     rows.push(line("비즈니스 유형", data.businessType));
     rows.push(line("문의 내용", data.message));
     rows.push(line("페이지 URL", data.pageUrl));
-  } else if (source === "koreaLeads") {
-    rows.push(line("회사/브랜드", data.companyName));
-    rows.push(line("이메일", data.email));
-    rows.push(line("예상 물량", data.expectedVolumeLabel || data.expectedVolume));
-    rows.push(line("고객 유형", data.businessType));
-    rows.push(line("유입 경로", data.referralSource));
-    rows.push(line("문의 내용", data.message));
-    rows.push(line("페이지 URL", data.pageUrl));
   } else if (source === "orders") {
     rows.push(line("주문 유형", data.type));
     rows.push(line("품목", data.title));
@@ -96,6 +96,36 @@ function buildBody(source, id, data) {
     rows.push(line("수령인", address.recipientName || data.recipientName));
     rows.push(line("국가", address.country));
     rows.push(line("우편번호", address.postalCode));
+  } else if (source === "landingRequests") {
+    const variant = data.landingVariant;
+    const variantLabel = variant === "catalog"
+      ? "카탈로그 상담"
+      : variant === "dashboard"
+        ? "대시보드 맞춤 브리프"
+        : "콜드메일 랜딩(korea) 문의";
+    rows.push(line("유형", variantLabel));
+    rows.push(line("회사/브랜드", data.companyName));
+    rows.push(line("담당자", data.contactName || data.name));
+    rows.push(line("이메일", data.email));
+    rows.push(line("국가", data.country));
+    rows.push(line("예상 수량", data.expectedVolume));
+    if (data.businessType) rows.push(line("고객 유형", data.businessType));
+    if (data.referralSource) rows.push(line("인지 경로", data.referralSource));
+    if (data.positioningArm) rows.push(line("포지셔닝", data.positioningArm));
+    if (variant === "catalog" && Array.isArray(data.catalogItems) && data.catalogItems.length > 0) {
+      rows.push(line("선택 제품", data.catalogItems.map((item) => `${item.name} (${item.category})`).join(", ")));
+    } else if (variant === "dashboard" && data.dashboardBrief) {
+      const brief = data.dashboardBrief;
+      const step1 = brief.step1 ? (brief.step1.selection || JSON.stringify(brief.step1)) : null;
+      const step2 = brief.step2?.selections?.map((s) => s.group || s.spec).join(", ");
+      const step4 = brief.step4 ? (brief.step4.orderQuantityTbd ? "수량 미정" : `${brief.step4.orderQuantity || ""}`) : null;
+      if (step1) rows.push(line("브리프 카테고리", step1));
+      if (step2) rows.push(line("브리프 패키징", step2));
+      if (step4) rows.push(line("브리프 수량", step4));
+    }
+    rows.push(line("문의 내용", data.message));
+    rows.push(line("유입 경로", data.utmSource ? `utm_source: ${data.utmSource} / medium: ${data.utmMedium || "-"} / campaign: ${data.utmCampaign || "-"}` : null));
+    rows.push(line("페이지 URL", data.pageUrl));
   }
 
   return rows.filter(Boolean).join("\n").slice(0, MAX_BODY_LENGTH);

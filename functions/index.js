@@ -89,8 +89,8 @@ From Medi Da KOS`;
 }
 
 /**
- * koreaLeads는 비로그인 공개 폼이라 값이 그대로 관리자 메일 본문에 들어간다.
- * 이스케이프 없이 붙이면 제출자가 우리 수신함에 임의 HTML을 심을 수 있다.
+ * 비로그인 공개 폼은 입력값이 그대로 관리자 메일 본문에 들어간다.
+ * 이스케이프 없이 붙이면 제출자가 수신함에 임의 HTML을 심을 수 있다.
  */
 function escapeHtml(value) {
   if (value === null || value === undefined) return "-";
@@ -253,61 +253,6 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
   }
 });
 
-/**
- * /korea 콜드메일 랜딩 문의 알림.
- *
- * contact 컬렉션에는 알림이 없어서 문의가 들어와도 Firestore 콘솔을 열어야 알 수 있었다.
- * 여기는 콜드메일 회신이 실제로 떨어지는 곳이라 놓치면 손실이다.
- * isTest(운영 도메인 밖 제출)는 발송하지 않는다.
- */
-exports.onKoreaLeadCreated = onDocumentCreated(
-  "koreaLeads/{leadId}",
-  async (event) => {
-    const snap = event.data;
-    if (!snap) return;
-
-    const lead = snap.data();
-    if (lead.isTest === true) {
-      console.log(`koreaLeads/${event.params.leadId} isTest — 알림 생략.`);
-      return;
-    }
-
-    const leadId = event.params.leadId;
-    const submittedAt = formatKoDate();
-
-    await materializeWebSubmission(db, "koreaLeads", leadId, lead, { skipTest: true });
-
-    await queueEmail(`korea_lead_admin_${leadId}`, {
-      to: getAdminEmails(),
-      message: {
-        subject: `[korea] ${lead.companyName || "-"} — ${lead.expectedVolumeLabel || "-"}`,
-        html: `
-        <div style="font-family:sans-serif;line-height:1.6">
-          <h2>콜드메일 랜딩(/korea) 문의</h2>
-          <p><strong>브랜드:</strong> ${escapeHtml(lead.companyName)}</p>
-          <p><strong>이메일:</strong> ${escapeHtml(lead.email)}</p>
-          <p><strong>예상 물량:</strong> ${escapeHtml(lead.expectedVolumeLabel)}</p>
-          <p><strong>고객 유형:</strong> ${escapeHtml(lead.businessType)}</p>
-          <p><strong>인지 경로:</strong> ${escapeHtml(lead.referralSource)}</p>
-          <p><strong>내용:</strong></p>
-          <p style="white-space:pre-wrap;border-left:3px solid #bae6fd;padding-left:12px">${escapeHtml(lead.message)}</p>
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
-          <p style="color:#666;font-size:13px">
-            포지셔닝: ${escapeHtml(lead.positioningArm)}<br>
-            utm_source: ${escapeHtml(lead.utmSource)} /
-            utm_medium: ${escapeHtml(lead.utmMedium)} /
-            utm_campaign: ${escapeHtml(lead.utmCampaign)} /
-            utm_content: ${escapeHtml(lead.utmContent)}<br>
-            GA client id: ${escapeHtml(lead.gaClientId)}<br>
-            문서: koreaLeads/${escapeHtml(leadId)}<br>
-            접수 시각: ${escapeHtml(submittedAt)}
-          </p>
-        </div>`,
-      },
-    });
-  },
-);
-
 // sampleRequests에는 기존 알림 트리거가 없지만, 인박스에서는 주문과 같은
 // 웹 인바운드 원문으로 보여야 한다. 테스트 제출은 운영 수집에서 제외한다.
 exports.onSampleRequestCreated = onDocumentCreated(
@@ -338,6 +283,15 @@ exports.onLandingRequestCreated = onDocumentCreated(
       return;
     }
     const requestId = event.params.requestId;
+
+    await materializeWebSubmission(
+      db,
+      "landingRequests",
+      requestId,
+      request,
+      { skipTest: true },
+    );
+
     await queueEmail(`landing_request_admin_${requestId}`, {
       to: getAdminEmails(),
       message: buildLandingRequestEmail(requestId, request, formatKoDate()),

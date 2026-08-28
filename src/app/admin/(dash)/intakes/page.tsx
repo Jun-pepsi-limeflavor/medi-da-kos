@@ -6,7 +6,7 @@ import IntakeActions from "./IntakeActions";
 
 export const dynamic = "force-dynamic";
 
-type RawSource = "order" | "sampleRequest" | "contact" | "koreaLead";
+type RawSource = "order" | "sampleRequest" | "contact" | "koreaLead" | "landingRequest";
 
 type IntakeRow = {
   source: RawSource;
@@ -24,6 +24,7 @@ const SOURCE_LABEL: Record<RawSource, string> = {
   sampleRequest: "샘플 요청",
   contact: "문의",
   koreaLead: "콜드메일 리드",
+  landingRequest: "랜딩 상담",
 };
 
 const STATUS_LABEL: Record<EffectiveStatus | "all", string> = {
@@ -49,11 +50,11 @@ function effectiveStatus(review: IntakeReview | null): EffectiveStatus {
 
 async function loadRows(): Promise<IntakeRow[]> {
   const db = getAdminDb();
-  const [ordersSnap, samplesSnap, contactSnap, koreaSnap, reviews] = await Promise.all([
+  const [ordersSnap, samplesSnap, contactSnap, landingSnap, reviews] = await Promise.all([
     db.collection("orders").get(),
     db.collection("sampleRequests").get(),
     db.collection("contact").get(),
-    db.collection("koreaLeads").get(),
+    db.collection("landingRequests").get(),
     listIntakeReviews(),
   ]);
 
@@ -105,15 +106,15 @@ async function loadRows(): Promise<IntakeRow[]> {
       review: reviews.get(intakeReviewId("contact", d.id)) ?? null,
     });
   }
-  for (const d of koreaSnap.docs) {
+  for (const d of landingSnap.docs) {
     const data = d.data();
     rows.push({
-      source: "koreaLead",
+      source: "landingRequest",
       externalId: d.id,
-      sourceRef: `koreaLeads/${d.id}`,
+      sourceRef: `landingRequests/${d.id}`,
       createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
       buyerLabel: data.email ?? data.companyName ?? "—",
-      review: reviews.get(intakeReviewId("koreaLead", d.id)) ?? null,
+      review: reviews.get(intakeReviewId("landingRequest", d.id)) ?? null,
     });
   }
 

@@ -95,6 +95,10 @@ export async function resolveQualifiedIntakeDetails(
       const ref = db.collection("koreaLeads").doc(item.externalId);
       docRefs.push(ref);
       sourceKeyMap.set(ref.path, { source: item.source, externalId: item.externalId });
+    } else if (item.source === "landingRequest") {
+      const ref = db.collection("landingRequests").doc(item.externalId);
+      docRefs.push(ref);
+      sourceKeyMap.set(ref.path, { source: item.source, externalId: item.externalId });
     } else if (item.source === "message") {
       messageThreadKeys.push(item.externalId);
     }

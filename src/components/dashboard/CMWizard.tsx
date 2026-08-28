@@ -43,6 +43,7 @@ import { trackConversionEvent } from "@/lib/analytics";
 import { trackLandingEvent } from "@/lib/landing/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import { Top10Products } from "./Top10Products";
+import { LandingDashboardHeader } from "@/components/landing/LandingDashboardHeader";
 
 const stepContentClass = "min-h-[min(58vh,520px)] py-2";
 const step1ContentClass = "flex min-h-0 flex-1 flex-col py-2";
@@ -72,8 +73,24 @@ export function CMWizard({ uid = "landing", mode = "order", onConsultationReady 
     useDashboardBrief();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [isStarted, setIsStarted] = useState(false);
   const stepContentRef = useRef<HTMLDivElement>(null);
+  const wizardCardRef = useRef<HTMLDivElement>(null);
   const currentStep = brief?.currentStep;
+
+  const isConsultation = mode === "consultation";
+  const hasDraftProgress = Boolean(brief && (brief.currentStep > 1 || brief.step1?.selection));
+  const activeStarted = !isConsultation || isStarted || hasDraftProgress;
+
+  function handleStartBrief() {
+    setIsStarted(true);
+    requestAnimationFrame(() => {
+      wizardCardRef.current?.scrollIntoView({
+        behavior: shouldReduceLandingMotion() ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+  }
 
   useEffect(() => {
     if (mode !== "consultation" || !currentStep || shouldReduceLandingMotion() || !stepContentRef.current) return;
@@ -162,27 +179,38 @@ export function CMWizard({ uid = "landing", mode = "order", onConsultationReady 
   // p-6. 100dvh there so the collapsing iOS URL bar can't cause overflow.
   return (
     <div className="flex min-h-[calc(100dvh-6.5rem)] flex-col lg:min-h-[calc(100vh-5rem)]">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Product Manufacturing Brief</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Step {step} of 6 — complete each section to build your ODM request.
-          </p>
+      {mode === "consultation" ? (
+        <LandingDashboardHeader
+          currentStep={step}
+          message={message}
+          isStarted={activeStarted}
+          onStart={handleStartBrief}
+        />
+      ) : (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-800">Product Manufacturing Brief</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Step {step} of 6 — complete each section to build your ODM request.
+            </p>
+          </div>
+          {message && (
+            <span className="rounded-full bg-emerald-50 px-4 py-1.5 text-sm text-emerald-700">
+              {message}
+            </span>
+          )}
         </div>
-        {message && (
-          <span className="rounded-full bg-emerald-50 px-4 py-1.5 text-sm text-emerald-700">
-            {message}
-          </span>
-        )}
-      </div>
+      )}
 
-      <div
-        className={`flex flex-1 flex-col rounded-xl border border-sky-100/70 bg-white/85 shadow-sm shadow-sky-100/30 backdrop-blur-sm ${
-          step === 1 ? "min-h-0" : ""
-        }`}
-      >
-        <div className="flex flex-1 flex-col p-6 lg:p-10">
-        <div ref={stepContentRef} key={step} data-landing-wizard-step>
+      {activeStarted && (
+        <div
+          ref={wizardCardRef}
+          className={`scroll-mt-8 flex flex-1 flex-col rounded-xl border border-sky-100/70 bg-white/85 shadow-sm shadow-sky-100/30 backdrop-blur-sm ${
+            step === 1 ? "min-h-0" : ""
+          }`}
+        >
+          <div className="flex flex-1 flex-col p-6 lg:p-10">
+          <div ref={stepContentRef} key={step} data-landing-wizard-step>
         {step === 1 && (
           <Step1
             step1={brief.step1}
@@ -305,6 +333,7 @@ export function CMWizard({ uid = "landing", mode = "order", onConsultationReady 
         </div>
         </div>
       </div>
+      )}
 
       {mode === "order" && step === 1 && <Top10Products uid={uid} compact />}
     </div>
