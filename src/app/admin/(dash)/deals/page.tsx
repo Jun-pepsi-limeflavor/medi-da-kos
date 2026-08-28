@@ -58,32 +58,36 @@ export default async function DealsPage({
       (prefillMsg.extraction as Extraction) ??
       {};
     const matchedIntakeId = intakeReviewId("message", prefillMsg.threadKey);
-    const company = ext.buyer?.brandName || "";
-    const contact = ext.buyer?.name || prefillMsg.fromName || "";
-    const email = ext.buyer?.email || prefillMsg.from || "";
-    const itemSummary = ext.items?.[0]?.productName || "";
-    const ref = company
-      ? `${company} ${itemSummary ? itemSummary + " " : ""}PO`
-      : itemSummary
-        ? `${itemSummary} Inquiry`
-        : `Message Deal (${prefillMsg.id.slice(0, 8)})`;
+    const existingIntake = intakeReviewsMap.get(matchedIntakeId);
 
-    prefillData = {
-      intakeReviewId: matchedIntakeId,
-      reference: ref,
-      buyerId: email.toLowerCase(),
-      companyName: company || contact,
-      contactName: contact || company,
-      email: email,
-      country: ext.buyer?.country || ext.shipping?.country || "미국 (USA)",
-      shippingCountry: ext.shipping?.country || ext.buyer?.country || "미국 (USA)",
-      city: ext.shipping?.city || "",
-      targetSampleDate: ext.timeline?.sampleTargetDate || "",
-      targetDeliveryDate: ext.timeline?.targetLaunchDate || "",
-      certifications:
-        (ext.certifications?.requiredCerts || []).join(", ") || "CPNP, FDA",
-    };
-    autoOpen = true;
+    if (!existingIntake?.dealId) {
+      const company = ext.buyer?.brandName || "";
+      const contact = ext.buyer?.name || prefillMsg.fromName || "";
+      const email = ext.buyer?.email || prefillMsg.from || "";
+      const itemSummary = ext.items?.[0]?.productName || "";
+      const ref = company
+        ? `${company} ${itemSummary ? itemSummary + " " : ""}PO`
+        : itemSummary
+          ? `${itemSummary} Inquiry`
+          : `Message Deal (${prefillMsg.id.slice(0, 8)})`;
+
+      prefillData = {
+        intakeReviewId: matchedIntakeId,
+        reference: ref,
+        buyerId: email.toLowerCase(),
+        companyName: company || contact,
+        contactName: contact || company,
+        email: email,
+        country: ext.buyer?.country || ext.shipping?.country || "미국 (USA)",
+        shippingCountry: ext.shipping?.country || ext.buyer?.country || "미국 (USA)",
+        city: ext.shipping?.city || "",
+        targetSampleDate: ext.timeline?.sampleTargetDate || "",
+        targetDeliveryDate: ext.timeline?.targetLaunchDate || "",
+        certifications:
+          (ext.certifications?.requiredCerts || []).join(", ") || "CPNP, FDA",
+      };
+      autoOpen = true;
+    }
   }
 
   return (

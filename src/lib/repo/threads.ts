@@ -1,6 +1,8 @@
 import "server-only";
+import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { AdminIdentity } from "@/lib/admin-auth";
+import { DealNotFoundError } from "@/lib/repo/deals";
 import { sideSchema, type Message } from "@/lib/schemas/message";
 import {
   appendSideCorrection,
@@ -25,6 +27,7 @@ export type ThreadFilters = Partial<{
   side: Thread["side"];
   channel: Thread["channel"];
   needsReply: boolean;
+  direction: "in" | "out";
 }>;
 
 const DEFAULT_LIMIT = 300;
@@ -58,6 +61,7 @@ export async function listThreads(filters: ThreadFilters = {}, limit = DEFAULT_L
     if (filters.side && t.side !== filters.side) return false;
     if (filters.channel && t.channel !== filters.channel) return false;
     if (filters.needsReply !== undefined && needsReply(t) !== filters.needsReply) return false;
+    if (filters.direction && t.lastDirection !== filters.direction) return false;
     return true;
   });
 }
@@ -87,13 +91,50 @@ export async function linkThread(
 ): Promise<void> {
   const parsed = threadLinkInputSchema.parse(link);
   const now = new Date().toISOString();
-  await getAdminDb().collection(COLLECTION).doc(threadKey).update({
-    ...parsed,
-    linkState: "linked",
-    linkedBy: actor.email,
-    linkedAt: now,
+
+  if (typeof parsed.dealId === "string") {
+    const dealDoc = await getAdminDb().collection("deals").doc(parsed.dealId).get();
+    if (!dealDoc.exists) {
+      throw new DealNotFoundError(parsed.dealId);
+    }
+  }
+
+  const updateData: Record<string, unknown> = {
     updatedAt: now,
-  });
+  };
+
+  if (parsed.buyerId !== undefined) {
+    updateData.buyerId = parsed.buyerId;
+    updateData.linkState = "linked";
+    updateData.linkedBy = actor.email;
+    updateData.linkedAt = now;
+  }
+  if (parsed.supplierId !== undefined) {
+    updateData.supplierId = parsed.supplierId;
+    updateData.linkState = "linked";
+    updateData.linkedBy = actor.email;
+    updateData.linkedAt = now;
+  }
+  if (parsed.dealId !== undefined) {
+    if (parsed.dealId === null) {
+      updateData.dealId = FieldValue.delete();
+    } else {
+      updateData.dealId = parsed.dealId;
+      updateData.linkState = "linked";
+      updateData.linkedBy = actor.email;
+      updateData.linkedAt = now;
+    }
+  }
+
+  await getAdminDb().collection(COLLECTION).doc(threadKey).update(updateData);
+}
+
+export async function getThreadsByDealId(dealId: string): Promise<Thread[]> {
+  const snap = await getAdminDb()
+    .collection(COLLECTION)
+    .where("dealId", "==", dealId)
+    .get();
+  return snap.docs.map((d) => toThread(d.id, d.data()));
 }
 
 export type AddressMatchResult = {

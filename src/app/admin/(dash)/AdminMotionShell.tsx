@@ -23,7 +23,13 @@ export default function AdminMotionShell({
       gsap.fromTo(
         "[data-admin-content]",
         { autoAlpha: 0, y: 10 },
-        { autoAlpha: 1, y: 0, duration: 0.28, ease: "power2.out" },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.28,
+          ease: "power2.out",
+          clearProps: "transform",
+        },
       );
     }, shellRef);
 

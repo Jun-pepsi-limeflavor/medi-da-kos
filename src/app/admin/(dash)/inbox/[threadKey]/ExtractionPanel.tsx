@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Message } from "@/lib/schemas/message";
@@ -27,6 +28,7 @@ import {
   Package,
   Calendar,
   Truck,
+  Link2,
 } from "lucide-react";
 
 interface Props {
@@ -34,15 +36,21 @@ interface Props {
   threadKey: string;
   thread: Thread;
   intakeReview: IntakeReview | null;
+  linkedDeal?: { id: string; reference?: string } | null;
 }
 
 export default function ExtractionPanel({
   anchorMessage,
   threadKey,
-  thread: _thread,
+  thread,
   intakeReview: initialIntakeReview,
+  linkedDeal,
 }: Props) {
   const router = useRouter();
+
+  // 연결된 활성 딜 식별
+  const activeDealId = thread.dealId || initialIntakeReview?.dealId || linkedDeal?.id || null;
+  const dealReference = linkedDeal?.reference || (activeDealId ? activeDealId.slice(0, 8) : null);
 
   // 확정값(accepted) 우선, 없으면 모델 제안값(extraction)
   const initialSource: Extraction =
@@ -101,10 +109,15 @@ export default function ExtractionPanel({
   );
 
   // 정상 리드로 승인 모달 상태
+  const [mounted, setMounted] = useState<boolean>(false);
   const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
   const [approveReason, setApproveReason] = useState<string>(
     "메시지 분석 결과 정상적인 바이어 문의로 확인됨",
   );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 판정 상태 (qualified && !isTest)
   const isQualified = Boolean(
@@ -278,9 +291,13 @@ export default function ExtractionPanel({
 
       setIsAccepted(true);
       setParseStatus("completed");
+      const successMsg = data.syncedDealId
+        ? `제안 데이터가 확정되었으며, 연결된 딜(${data.syncedDealReference || "원장"})에 제품/바이어/일정 정보가 자동 동기화되었습니다.`
+        : "제안 데이터가 확정 저장되었습니다.";
+
       setStatusMessage({
         type: "success",
-        text: "제안 데이터가 확정 저장되었습니다.",
+        text: successMsg,
       });
       router.refresh();
     } catch (err: unknown) {
@@ -564,8 +581,22 @@ export default function ExtractionPanel({
             {loadingAction === "accept" ? "저장 중…" : "제안 확정"}
           </button>
 
-          {/* [딜 만들기] */}
-          {isQualified ? (
+          {/* [딜 개설 상태별 액션: 이미 개설됨 vs 딜 만들기] */}
+          {activeDealId ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-amber-300 font-medium bg-amber-950/60 border border-amber-800/80 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
+                <Link2 className="w-3.5 h-3.5 text-amber-400" />
+                이미 딜이 개설되어 있습니다 {dealReference ? `(${dealReference})` : ""}
+              </span>
+              <Link
+                href={`/admin/deals/${encodeURIComponent(activeDealId)}`}
+                className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1.5 transition shadow-sm"
+              >
+                딜 바로가기
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          ) : isQualified ? (
             <Link
               href={`/admin/deals?createFromMessage=${encodeURIComponent(anchorMessage.id)}`}
               className="text-xs px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer"
@@ -972,7 +1003,22 @@ export default function ExtractionPanel({
             {loadingAction === "accept" ? "저장 중…" : "제안 확정 저장"}
           </button>
 
-          {isQualified ? (
+          {/* 하단 딜 개설 상태별 액션 */}
+          {activeDealId ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-amber-300 font-medium bg-amber-950/60 border border-amber-800/80 px-2.5 py-2 rounded-lg flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-amber-400" />
+                이미 딜이 개설되어 있습니다 {dealReference ? `(${dealReference})` : ""}
+              </span>
+              <Link
+                href={`/admin/deals/${encodeURIComponent(activeDealId)}`}
+                className="text-xs px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1.5 transition shadow"
+              >
+                딜 바로가기
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          ) : isQualified ? (
             <Link
               href={`/admin/deals?createFromMessage=${encodeURIComponent(anchorMessage.id)}`}
               className="text-xs px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold flex items-center gap-1.5 shadow transition cursor-pointer"
@@ -994,62 +1040,66 @@ export default function ExtractionPanel({
         </div>
       </div>
 
-      {/* Modal: 정상 리드로 승인 */}
-      {showApproveModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h3 className="font-semibold text-sm text-neutral-100 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                정상 리드로 승인 (Qualify Intake)
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowApproveModal(false)}
-                className="text-neutral-400 hover:text-neutral-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* Modal: 정상 리드로 승인 (createPortal을 사용하여 뷰포트 정중앙 렌더링) */}
+      {showApproveModal &&
+        mounted &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+                <h3 className="font-semibold text-sm text-neutral-100 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  정상 리드로 승인 (Qualify Intake)
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowApproveModal(false)}
+                  className="text-neutral-400 hover:text-neutral-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-neutral-300">
-                판정 사유 (Reason) <span className="text-rose-400">*</span>
-              </label>
-              <textarea
-                value={approveReason}
-                onChange={(e) => setApproveReason(e.target.value)}
-                rows={3}
-                placeholder="승인 근거 및 사유를 입력하세요"
-                className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2.5 text-xs text-neutral-100 focus:outline-none focus:border-indigo-500 resize-none"
-                required
-              />
-              <p className="text-[11px] text-neutral-400">
-                승인 시 본 스레드는 공식 잠재 딜로 등록되며, [딜 만들기]를 통해
-                원장 생성이 가능해집니다.
-              </p>
-            </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-neutral-300">
+                  판정 사유 (Reason) <span className="text-rose-400">*</span>
+                </label>
+                <textarea
+                  value={approveReason}
+                  onChange={(e) => setApproveReason(e.target.value)}
+                  rows={3}
+                  placeholder="승인 근거 및 사유를 입력하세요"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2.5 text-xs text-neutral-100 focus:outline-none focus:border-indigo-500 resize-none"
+                  required
+                  autoFocus
+                />
+                <p className="text-[11px] text-neutral-400">
+                  승인 시 본 스레드는 공식 잠재 딜로 등록되며, [딜 만들기]를 통해
+                  원장 생성이 가능해집니다.
+                </p>
+              </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-800">
-              <button
-                type="button"
-                onClick={() => setShowApproveModal(false)}
-                className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:bg-neutral-800"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleQualifyIntake}
-                disabled={loadingAction === "qualify" || !approveReason.trim()}
-                className="text-xs px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:opacity-50 transition"
-              >
-                {loadingAction === "qualify" ? "승인 처리 중…" : "승인 완료"}
-              </button>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setShowApproveModal(false)}
+                  className="text-xs px-3 py-1.5 rounded-lg text-neutral-400 hover:bg-neutral-800"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQualifyIntake}
+                  disabled={loadingAction === "qualify" || !approveReason.trim()}
+                  className="text-xs px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold disabled:opacity-50 transition"
+                >
+                  {loadingAction === "qualify" ? "승인 처리 중…" : "승인 완료"}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

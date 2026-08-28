@@ -9,7 +9,8 @@ import {
   Paperclip,
 } from "lucide-react";
 import { listThreadMessages } from "@/lib/repo/messages";
-import { listThreads } from "@/lib/repo/threads";
+import { getThreadsByDealId } from "@/lib/repo/threads";
+import MessageBody from "../../inbox/[threadKey]/MessageBody";
 import type { Message } from "@/lib/schemas/message";
 import type { Thread } from "@/lib/schemas/thread";
 
@@ -59,7 +60,7 @@ type TimelineItem = {
 };
 
 export default async function DealConversationTimeline({ dealId }: { dealId: string }) {
-  const linkedThreads = (await listThreads()).filter((thread) => thread.dealId === dealId);
+  const linkedThreads = await getThreadsByDealId(dealId);
   const threadMessages = await Promise.all(
     linkedThreads.map(async (thread) => ({
       thread,
@@ -129,8 +130,8 @@ export default async function DealConversationTimeline({ dealId }: { dealId: str
                       </div>
                     </div>
                     <div className={`rounded-2xl border px-3.5 py-3 ${inbound ? "rounded-tl-sm border-neutral-800 bg-neutral-950/60" : "rounded-tr-sm border-indigo-900/70 bg-indigo-950/30"}`}>
-                      {message.subject && <p className="text-xs font-medium text-neutral-400">{message.subject}</p>}
-                      <p className={`${message.subject ? "mt-2 " : ""}whitespace-pre-wrap break-words text-sm leading-6 text-neutral-300`}>{message.bodyText}</p>
+                      {message.subject && <p className="text-xs font-medium text-neutral-400 mb-2">{message.subject}</p>}
+                      <MessageBody text={message.bodyText} />
                     </div>
                     {message.attachments.length > 0 && (
                       <div className={`mt-2 flex flex-wrap gap-1.5 ${inbound ? "" : "justify-end"}`}>

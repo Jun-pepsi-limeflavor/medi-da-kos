@@ -8,6 +8,7 @@ import {
   type Extraction,
   type ConfidenceMap,
 } from "@/lib/schemas/extraction";
+import { splitEmailBody } from "@/lib/email-body";
 
 /**
  * 정규식/휴리스틱 기반 로컬 파서
@@ -22,7 +23,8 @@ export function fallbackExtract(
   extraction: Extraction;
   confidence: ConfidenceMap;
 } {
-  const text = `${subject}\n${bodyText}`;
+  const { cleanText } = splitEmailBody(bodyText);
+  const text = `${subject}\n${cleanText || bodyText}`;
 
   // 발신자 이름 및 이메일 추출
   let email = "";
@@ -205,6 +207,9 @@ export async function runMessageExtraction(
   extraction: Extraction;
   confidence: ConfidenceMap;
 }> {
+  const { cleanText } = splitEmailBody(bodyText);
+  const textToExtract = cleanText || bodyText;
+
   try {
     const extractModulePath = path.resolve(
       process.cwd(),
@@ -216,7 +221,7 @@ export async function runMessageExtraction(
       const extractFromMessageText =
         mod?.extractFromMessageText || mod?.default?.extractFromMessageText;
       if (typeof extractFromMessageText === "function") {
-        const res = await extractFromMessageText(bodyText, subject, from);
+        const res = await extractFromMessageText(textToExtract, subject, from);
         if (res && typeof res === "object") {
           const parsed = extractionSchema.safeParse(res.extraction);
           const confParsed = confidenceMapSchema.safeParse(res.confidence);

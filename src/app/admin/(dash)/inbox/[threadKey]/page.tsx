@@ -1,6 +1,7 @@
 import { applyAddressMatch, getThread } from "@/lib/repo/threads";
 import { listThreadMessages } from "@/lib/repo/messages";
 import { getIntakeReview, setIntakeReview } from "@/lib/repo/intake-reviews";
+import { getDeal, listDeals } from "@/lib/repo/deals";
 import { isApprovedGmailMailbox } from "@/lib/gmail-auth";
 import type { Message } from "@/lib/schemas/message";
 import type { IntakeReview } from "@/lib/schemas/intake-review";
@@ -8,6 +9,7 @@ import { requireAdminPage } from "@/lib/admin-page";
 import ThreadActions from "../ThreadActions";
 import ExtractionPanel from "./ExtractionPanel";
 import ThreadReplyForm from "./ThreadReplyForm";
+import MessageBody from "./MessageBody";
 import Link from "next/link";
 import {
   ArrowDownLeft,
@@ -127,6 +129,10 @@ export default async function ThreadDetailPage({
   const latestMessage = messages[messages.length - 1];
   const conversationName =
     latestMessage?.fromName || latestMessage?.from || counterpartyEmail || "알 수 없는 상대";
+  const [dealCandidateList, linkedDeal] = await Promise.all([
+    listDeals(),
+    thread.dealId ? getDeal(thread.dealId) : Promise.resolve(null),
+  ]);
   const dealHref = thread.dealId ? `/admin/deals/${encodeURIComponent(thread.dealId)}` : null;
 
   return (
@@ -191,6 +197,12 @@ export default async function ThreadDetailPage({
             counterpartyEmail={counterpartyEmail}
             buyerCandidate={buyerCandidate ? { id: buyerCandidate.id, name: buyerCandidate.name } : null}
             supplierCandidate={supplierCandidate ? { id: supplierCandidate.id, companyName: supplierCandidate.companyName } : null}
+            dealCandidates={dealCandidateList.map((d) => ({
+              id: d.id,
+              reference: d.reference,
+              companyName: d.buyerInfo?.companyName || "",
+            }))}
+            linkedDeal={linkedDeal ? { id: linkedDeal.id, reference: linkedDeal.reference } : null}
           />
         </div>
       </section>
@@ -225,7 +237,7 @@ export default async function ThreadDetailPage({
                       </div>
                       <div className={`rounded-2xl border px-3.5 py-3 text-sm leading-6 text-neutral-200 ${isInbound ? "rounded-tl-sm border-neutral-800 bg-neutral-900" : "rounded-tr-sm border-indigo-900/70 bg-indigo-950/35"}`}>
                         {msg.subject && <p className="mb-2 text-xs font-semibold text-neutral-400">{msg.subject}</p>}
-                        <p className="whitespace-pre-wrap break-words">{msg.bodyText}</p>
+                        <MessageBody text={msg.bodyText} />
                       </div>
                       {msg.attachments.length > 0 && (
                         <div className={`mt-2 grid gap-1.5 ${isInbound ? "" : "justify-items-end"}`}>
@@ -271,6 +283,7 @@ export default async function ThreadDetailPage({
               threadKey={decodedKey}
               thread={thread}
               intakeReview={existingReview}
+              linkedDeal={linkedDeal}
             />
           ) : (
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-center text-sm text-neutral-500">

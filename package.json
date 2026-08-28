@@ -13,6 +13,7 @@
     "test:rules": "JAVA_HOME=/private/tmp/medidakos-jdk21-runtime/jdk-21.0.12.1+1/Contents/Home firebase emulators:exec --only firestore \"node --test tests/firestore-landing-requests.test.ts\""
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1120.0",
     "@channel.io/channel-web-sdk-loader": "^2.0.2",
     "firebase": "^12.13.0",
     "firebase-admin": "13.6.0",

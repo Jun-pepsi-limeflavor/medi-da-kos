@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { withAdmin } from "@/lib/with-admin";
 import { extractionSchema } from "@/lib/schemas/extraction";
 import { getMessage, acceptMessageExtraction } from "@/lib/repo/messages";
+import { getThread } from "@/lib/repo/threads";
+import { syncDealFromAcceptedExtraction } from "@/lib/repo/deals";
 import type { AdminIdentity } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
@@ -40,5 +42,32 @@ export const POST = withAdmin(async (req: NextRequest, actor: AdminIdentity) => 
 
   await acceptMessageExtraction(id, parsed.data, actor.email);
 
-  return NextResponse.json({ ok: true });
+  let syncedDealId: string | null = null;
+  let syncedDealReference: string | null = null;
+
+  if (message.threadKey) {
+    const thread = await getThread(message.threadKey);
+    if (thread?.dealId) {
+      try {
+        const syncRes = await syncDealFromAcceptedExtraction(
+          thread.dealId,
+          parsed.data,
+          actor.email,
+          id,
+          message.threadKey,
+        );
+        syncedDealId = syncRes.deal.id;
+        syncedDealReference = syncRes.deal.reference;
+      } catch (syncErr) {
+        console.warn("[accept] failed to sync to linked deal:", syncErr);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    syncedDealId,
+    syncedDealReference,
+  });
 });
+

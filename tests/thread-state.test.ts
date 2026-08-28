@@ -100,15 +100,17 @@ test("buyerId·supplierId·linkedBy·linkedAt은 없어도 통과한다 — Task
   assert.equal(parsed.linkedAt, undefined);
 });
 
-test("buyerId·supplierId·linkedBy·linkedAt이 있어도 통과한다", () => {
+test("buyerId·supplierId·dealId·linkedBy·linkedAt이 있어도 통과한다", () => {
   const parsed = threadSchema.parse({
     ...baseThread,
     buyerId: "buyer-1",
+    dealId: "deal-1",
     linkState: "linked" as const,
     linkedBy: "rheekw@techasset.co.kr",
     linkedAt: "2026-08-21T00:00:00.000Z",
   });
   assert.equal(parsed.buyerId, "buyer-1");
+  assert.equal(parsed.dealId, "deal-1");
 });
 
 // --- needsReply ---
@@ -199,9 +201,12 @@ test("threadStatePatchSchema는 readState·triageState만 받는다", () => {
 
 // --- 연결 입력 스키마 ---
 
-test("threadLinkInputSchema는 buyerId 또는 supplierId 중 하나만 요구한다", () => {
+test("threadLinkInputSchema는 buyerId·supplierId·dealId 연결 및 해제를 지원한다", () => {
   assert.doesNotThrow(() => threadLinkInputSchema.parse({ buyerId: "buyer-1" }));
   assert.doesNotThrow(() => threadLinkInputSchema.parse({ supplierId: "supplier-1" }));
+  assert.doesNotThrow(() => threadLinkInputSchema.parse({ dealId: "deal-1" }));
+  assert.doesNotThrow(() => threadLinkInputSchema.parse({ dealId: null }));
+  assert.doesNotThrow(() => threadLinkInputSchema.parse({ buyerId: "buyer-1", dealId: "deal-1" }));
   assert.throws(() => threadLinkInputSchema.parse({}));
   assert.throws(() => threadLinkInputSchema.parse({ buyerId: "buyer-1", supplierId: "supplier-1" }));
 });

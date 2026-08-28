@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAdmin } from "@/lib/with-admin";
 import { linkThread } from "@/lib/repo/threads";
+import { DealNotFoundError } from "@/lib/repo/deals";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,9 @@ export const PATCH = withAdmin(async (req, actor) => {
         { error: "invalid input", issues: err.issues },
         { status: 400 }
       );
+    }
+    if (err instanceof DealNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
     throw err;
   }

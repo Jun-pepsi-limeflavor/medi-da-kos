@@ -135,11 +135,11 @@ export async function resolveQualifiedIntakeDetails(
           const msgSnap = await db
             .collection("messages")
             .where("threadKey", "==", threadKey)
-            .orderBy("sentAt", "desc")
-            .limit(1)
             .get();
           if (!msgSnap.empty) {
-            const m = msgSnap.docs[0].data();
+            const msgs = msgSnap.docs.map((d) => d.data());
+            msgs.sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""));
+            const m = msgs[0];
             const email =
               (m.accepted?.buyer?.email as string) ||
               (m.extraction?.buyer?.email as string) ||

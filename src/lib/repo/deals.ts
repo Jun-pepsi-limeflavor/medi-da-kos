@@ -29,6 +29,7 @@ import {
   type DealTaskInput,
   type DealEvent,
 } from "@/lib/schemas/deal";
+import type { Extraction } from "@/lib/schemas/extraction";
 
 const DEALS_COLLECTION = "deals";
 const INTAKE_REVIEWS_COLLECTION = "intakeReviews";
@@ -212,6 +213,14 @@ export async function createDeal(
       );
     }
 
+    let threadRef: FirebaseFirestore.DocumentReference | null = null;
+    let threadExists = false;
+    if (intakeData?.source === "message" && intakeData?.externalId) {
+      threadRef = db.collection("threads").doc(intakeData.externalId);
+      const threadSnap = await tx.get(threadRef);
+      threadExists = threadSnap.exists;
+    }
+
     const dealData = stripUndefined({
       ...parsed,
       stageBrand: 1,
@@ -224,6 +233,25 @@ export async function createDeal(
 
     tx.set(newDealRef, dealData);
     tx.update(intakeReviewRef, { dealId: newDealRef.id });
+
+    if (threadRef && threadExists) {
+      tx.update(threadRef, {
+        dealId: newDealRef.id,
+        linkState: "linked",
+        linkedBy: actor.email,
+        linkedAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const sourceRefs = parsed.sourceRefs ? [...parsed.sourceRefs] : [];
+    if (intakeData?.source === "message" && intakeData?.externalId) {
+      const threadSourceRef = `threads/${intakeData.externalId}`;
+      if (!sourceRefs.includes(threadSourceRef)) {
+        sourceRefs.push(threadSourceRef);
+      }
+    }
+
     tx.set(
       eventRef,
       stripUndefined({
@@ -232,12 +260,40 @@ export async function createDeal(
         actor: actor.email,
         at: now,
         body: "딜 생성",
-        sourceRefs: parsed.sourceRefs ?? [],
+        sourceRefs,
       })
     );
   });
 
   return newDealRef.id;
+}
+
+/**
+ * 과거 데이터 동기화:
+ * message 소스의 intakeReviews 중 dealId가 등록되어 있으나 대응 threads 문서에 dealId가 누락된 경우 동기화한다.
+ */
+export async function backfillDealThreads(): Promise<{ updatedCount: number; scannedCount: number }> {
+  const db = getAdminDb();
+  const snap = await db.collection(INTAKE_REVIEWS_COLLECTION).where("source", "==", "message").get();
+  let updatedCount = 0;
+  let scannedCount = 0;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (data.dealId && data.externalId) {
+      scannedCount++;
+      const threadRef = db.collection("threads").doc(data.externalId);
+      const threadSnap = await threadRef.get();
+      if (threadSnap.exists && threadSnap.data()?.dealId !== data.dealId) {
+        await threadRef.update({
+          dealId: data.dealId,
+          linkState: "linked",
+          updatedAt: new Date().toISOString(),
+        });
+        updatedCount++;
+      }
+    }
+  }
+  return { updatedCount, scannedCount };
 }
 
 export async function updateDeal(
@@ -254,6 +310,157 @@ export async function updateDeal(
       updatedAt: now,
       updatedBy: actor.email,
     });
+}
+
+/**
+ * 인박스에서 제안 확정 시 연결된 딜에 제품, 바이어, 배송, 일정 정보를 동기화한다.
+ */
+export async function syncDealFromAcceptedExtraction(
+  dealId: string,
+  accepted: Extraction,
+  actorEmail: string,
+  messageId: string,
+  threadKey: string,
+): Promise<{ deal: Deal; itemsAddedCount: number }> {
+  const db = getAdminDb();
+  const dealRef = db.collection(DEALS_COLLECTION).doc(dealId);
+  const now = new Date().toISOString();
+
+  const dealDoc = await dealRef.get();
+  if (!dealDoc.exists) {
+    throw new DealNotFoundError(dealId);
+  }
+
+  const currentDeal = { id: dealDoc.id, ...dealDoc.data() } as Deal;
+
+  // 1. Core Deal Data Update
+  const updatedBuyerInfo = { ...currentDeal.buyerInfo };
+  if (accepted.buyer?.brandName) updatedBuyerInfo.companyName = accepted.buyer.brandName;
+  if (accepted.buyer?.name) updatedBuyerInfo.contactName = accepted.buyer.name;
+  if (accepted.buyer?.email) updatedBuyerInfo.email = accepted.buyer.email.toLowerCase();
+  if (accepted.buyer?.country) updatedBuyerInfo.country = accepted.buyer.country;
+
+  const updatedShippingInfo = { ...currentDeal.shippingInfo };
+  if (accepted.shipping?.country) updatedShippingInfo.country = accepted.shipping.country;
+  if (accepted.shipping?.city) updatedShippingInfo.city = accepted.shipping.city;
+  if (accepted.buyer?.name && !updatedShippingInfo.recipientName) {
+    updatedShippingInfo.recipientName = accepted.buyer.name;
+  }
+
+  const updatedTimeline = { ...currentDeal.timeline };
+  if (accepted.timeline?.sampleTargetDate) {
+    updatedTimeline.targetSampleDate = accepted.timeline.sampleTargetDate;
+  }
+  if (accepted.timeline?.targetLaunchDate) {
+    updatedTimeline.targetDeliveryDate = accepted.timeline.targetLaunchDate;
+  }
+
+  // Certifications union
+  const mergedCerts = Array.from(
+    new Set([
+      ...(currentDeal.certifications || []),
+      ...(accepted.certifications?.requiredCerts || []),
+    ]),
+  );
+
+  // Update Deal document
+  await dealRef.update(
+    stripUndefined({
+      buyerInfo: updatedBuyerInfo,
+      shippingInfo: updatedShippingInfo,
+      timeline: updatedTimeline,
+      certifications: mergedCerts,
+      updatedAt: now,
+      updatedBy: actorEmail,
+    }),
+  );
+
+  // 2. Sync Items into deals/{dealId}/items
+  let itemsAddedCount = 0;
+  if (accepted.items && accepted.items.length > 0) {
+    const itemsColRef = dealRef.collection("items");
+    const existingItemsSnap = await itemsColRef.get();
+    const existingItems = existingItemsSnap.docs.map(
+      (d) => ({ id: d.id, ...d.data() }) as DealItem,
+    );
+
+    for (const extItem of accepted.items) {
+      const pType = extItem.productName || extItem.category || "화장품";
+      const vName = extItem.variantName || extItem.category || "";
+      const vol = extItem.volume || "";
+      
+      let parsedQty = 1000;
+      if (typeof extItem.expectedQty === "number") {
+        parsedQty = extItem.expectedQty > 0 ? Math.floor(extItem.expectedQty) : 1000;
+      } else if (typeof extItem.expectedQty === "string") {
+        const num = parseInt(extItem.expectedQty.replace(/[^0-9]/g, ""), 10);
+        if (!isNaN(num) && num > 0) parsedQty = num;
+      }
+
+      const existing = existingItems.find(
+        (it) =>
+          it.productType.toLowerCase() === pType.toLowerCase() &&
+          (it.variantName || "").toLowerCase() === vName.toLowerCase(),
+      );
+
+      if (existing) {
+        await itemsColRef.doc(existing.id).update(
+          stripUndefined({
+            volume: vol || existing.volume,
+            quantity: parsedQty || existing.quantity,
+            formulaSpec: {
+              targetTexture: extItem.formula?.notes || extItem.formula?.formulaType || existing.formulaSpec?.targetTexture,
+              keyIngredients: extItem.formula?.keyIngredients || existing.formulaSpec?.keyIngredients,
+            },
+            packagingSpec: {
+              containerType: extItem.packaging?.containerType || existing.packagingSpec?.containerType,
+              material: extItem.packaging?.material || existing.packagingSpec?.material,
+              closure: extItem.packaging?.outerBox || existing.packagingSpec?.closure,
+            },
+            updatedAt: now,
+          }),
+        );
+      } else {
+        await itemsColRef.add(
+          stripUndefined({
+            productType: pType,
+            variantName: vName,
+            volume: vol,
+            quantity: parsedQty,
+            formulaSpec: {
+              targetTexture: extItem.formula?.notes || extItem.formula?.formulaType || "",
+              keyIngredients: extItem.formula?.keyIngredients || "",
+            },
+            packagingSpec: {
+              containerType: extItem.packaging?.containerType || "",
+              material: extItem.packaging?.material || "",
+              closure: extItem.packaging?.outerBox || "",
+            },
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
+        itemsAddedCount++;
+      }
+    }
+  }
+
+  // 3. Append Event Log
+  await dealRef.collection("events").add(
+    stripUndefined({
+      type: "note",
+      actor: actorEmail,
+      at: now,
+      body: "인박스 제안 확정 데이터가 딜 정보에 자동 동기화되었습니다.",
+      sourceRefs: [`messages/${messageId}`, `threads/${threadKey}`],
+    }),
+  );
+
+  const finalDoc = await dealRef.get();
+  return {
+    deal: { id: finalDoc.id, ...finalDoc.data() } as Deal,
+    itemsAddedCount,
+  };
 }
 
 export async function appendEvent(

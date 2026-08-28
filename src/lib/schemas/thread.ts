@@ -145,11 +145,19 @@ export const threadStatePatchSchema = z.object({
 
 export type ThreadStatePatch = z.infer<typeof threadStatePatchSchema>;
 
-export const threadLinkInputSchema = z.object({
-  buyerId: z.string().trim().min(1).optional(),
-  supplierId: z.string().trim().min(1).optional(),
-}).refine((v) => (v.buyerId ? 1 : 0) + (v.supplierId ? 1 : 0) === 1, {
-  message: "buyerId 또는 supplierId 중 하나만 지정합니다",
-});
+export const threadLinkInputSchema = z
+  .object({
+    buyerId: z.string().trim().min(1).optional(),
+    supplierId: z.string().trim().min(1).optional(),
+    dealId: z.string().trim().min(1).nullable().optional(),
+  })
+  .refine(
+    (v) => (v.buyerId ? 1 : 0) + (v.supplierId ? 1 : 0) <= 1,
+    { message: "buyerId와 supplierId는 동시에 지정할 수 없습니다" }
+  )
+  .refine(
+    (v) => (v.buyerId ? 1 : 0) + (v.supplierId ? 1 : 0) + (v.dealId !== undefined ? 1 : 0) >= 1,
+    { message: "연결할 대상(buyerId, supplierId, dealId)을 최소 하나 지정해야 합니다" }
+  );
 
 export type ThreadLinkInput = z.infer<typeof threadLinkInputSchema>;

@@ -20,9 +20,9 @@ export async function listThreadMessages(threadKey: string): Promise<Message[]> 
   const snap = await getAdminDb()
     .collection(COLLECTION)
     .where("threadKey", "==", threadKey)
-    .orderBy("sentAt")
     .get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Message);
+  const messages = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Message);
+  return messages.sort((a, b) => (a.sentAt ?? "").localeCompare(b.sentAt ?? ""));
 }
 
 /** 메시지 추출 결과 확정 저장 */
