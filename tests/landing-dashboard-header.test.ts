@@ -23,13 +23,15 @@ test("LandingDashboardHeader contains 50/50 split hero, floating badges, and roa
   assert.match(headerContent, /animate-float-delayed/);
   assert.match(headerContent, /animate-float-slow/);
   assert.match(headerContent, /40%\+ Savings/);
-  assert.match(headerContent, /2–3 Wks/);
+  assert.match(headerContent, /1–2 Wks/);
   assert.match(headerContent, /ISO 22716 GMP/);
 
   // 2. Roadmap steps
   assert.match(headerContent, /Submit Brief/);
   assert.match(headerContent, /Lab Sampling & Review/);
+  assert.match(headerContent, /1–2 weeks/);
   assert.match(headerContent, /Production & Delivery/);
+  assert.match(headerContent, /SWIFT wire/);
   assert.match(headerContent, /How It Works/);
 
   // 3. Headline & Value proposition
@@ -37,6 +39,7 @@ test("LandingDashboardHeader contains 50/50 split hero, floating badges, and roa
   assert.match(headerContent, /verified Korean OEM\/ODM labs/);
 
   // 4. CTA button and progress indicators
+  assert.match(headerContent, /SpecularButton/);
   assert.match(headerContent, /Start Your Product Brief/);
   assert.match(headerContent, /Brief in progress — editing below/);
   assert.match(headerContent, /Scroll to form ↓/);
