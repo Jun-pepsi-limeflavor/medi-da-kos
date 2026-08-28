@@ -6,106 +6,95 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 <!-- END:nextjs-agent-rules -->
 
-# medidakos_web — 에이전트 작업 지침
+# Medidakos 개발 작업 지침
 
-Medidakos 웹사이트와 `/admin` 백오피스. 한국 화장품 제조사와 해외 바이어를 잇는 B2B 중개 사업의 운영 도구다.
+이 저장소는 Medidakos 웹사이트와 `/admin` 백오피스를 위한 Git 저장소다. 백오피스는 여러 채널의 바이어 문의를 한 화면에 모으고 바이어↔공장 딜을 관리한다.
 
-**현재 주 작업은 백오피스 v1이다.** 아홉 곳(Gmail 6개·Outlook·채널톡·웹 폼)에 흩어진 대화를 한 화면에 모으고, 바이어↔공장 양면 딜을 한 원장에서 굴린다.
+누구나 인수받아 운영할 수 있게 만든다. 개인 노트북의 자격 증명에만 의존하는 구현은 완료가 아니다.
 
-## 명령
+## 단일 원본과 경계
+
+이 파일이 프로젝트 공통 지침의 단일 원본이다. Claude Code는 `CLAUDE.md`에서 이 파일을 가져오고, AntiGravity는 `.agents/rules/common.md`를 통해 이 파일을 참조한다. 도구 전용 파일에는 그 도구의 실행 방법만 둔다.
+
+`/Users/giwook/Documents/한국기술자산`은 Obsidian Wiki vault다. 요구사항의 근거를 확인하는 읽기 전용 참조로만 사용한다. 백오피스 세션 산출물, 코드, 비밀값, 임시 스크립트는 이 저장소에 두며, vault 수정은 vault 루트에서 별도 세션으로 수행한다.
+
+Vault를 참조할 때는 `wiki/index.md` → `wiki/hot.md` → 관련 문서 순으로 좁혀 읽는다. 전체 탐색은 피한다.
+
+## 보안과 데이터 경계
+
+- 원가, 마진, 공급가, 환율은 바이어가 읽을 수 있는 클라이언트 번들, 문서 본문, API 응답, payload에 포함하지 않는다. 재무 데이터는 `deals/{id}/private/finance`에 구조적으로 분리한다.
+- 권한은 서버에서 판정한다. UI 가드는 편의일 뿐이며, 클라이언트가 역할·권한 필드를 작성하거나 이를 권한 근거로 삼아서는 안 된다.
+- 어드민은 Firebase 클라이언트 SDK를 사용하지 않는다. 읽기는 서버 컴포넌트와 Admin SDK로, 쓰기는 `withAdmin` route handler로 처리한다.
+- `buyers`, `suppliers`, `deals`, `messages`는 클라이언트에서 직접 읽거나 쓸 수 없다. 새 컬렉션·테이블은 접근 규칙과 에뮬레이터 테스트를 같은 변경에 포함한다.
+- 관리자 판정은 서버 허용목록 `BACKOFFICE_ADMIN_EMAILS`로 한다. 비어 있으면 500으로 실패해야 하며, 기존 Functions의 알림 수신자 `ADMIN_EMAILS`와 합치지 않는다.
+- 비밀값은 수집기의 Secret Manager 또는 앱의 Vercel 환경변수에 둔다. `.env.local`과 자격 증명은 커밋하지 않는다.
+
+## 계획과 구현
+
+- 스키마, 권한 규칙, 딜 파이프라인 단계를 바꿀 때는 데이터 모양과 접근 규칙을 먼저 적고 사용자 승인을 받은 뒤 구현한다. 그 외 변경은 바로 구현한다.
+- `docs/backoffice-spec.md`와 `docs/plans/`에 이미 결정된 범위를 따른다. 순서를 바꿔야 하면 이유를 한 줄로 밝힌다. v1 범위 밖 기능을 미리 설계하지 않는다.
+- `orders`는 고객 주문과 메일 트리거에 사용 중이다. 내부 원장은 반드시 `deals`를 사용한다.
+- 요청하지 않은 추상화나 기능은 만들지 않고, 가장 짧고 검증 가능한 diff를 선호한다. 단, 이 원칙은 스키마·인가·파이프라인의 계획 게이트를 우회하지 않는다.
+
+## 디버깅과 검증
+
+- 원인은 재현과 라이브 상태 확인으로 찾은 뒤 수정한다. 소스·문서만으로 배포 상태를 단정하지 않는다.
+- 데이터는 실제 레코드를, 서비스는 배포 목록과 로그를, UI는 브라우저에서 확인한다. 화면을 바꾼 경우 브라우저 확인을 추가하고, 불가능했다면 그 사실을 명시한다.
+- 의존성 API는 기억으로 추측하지 않는다. lockfile과 `node_modules/`의 현재 버전·문서를 확인한다.
+- 완료를 주장하기 전에 해당 변경에 맞는 검증을 실제로 실행한다. 기본 기준은 `npm test`, `npm run typecheck`, `npm run lint`이며, 실행하지 못한 검사는 명시한다.
+
+## 실행 환경
 
 | 목적 | 명령 |
 |---|---|
-| 개발 서버 | `npm run dev` (반드시 이 폴더에서) |
+| 개발 서버 | `npm run dev` |
 | 타입 검사 | `npm run typecheck` |
 | 린트 | `npm run lint` |
-| 테스트 | `npm test` — Firestore 에뮬레이터 + `node --test` |
+| 테스트 | `npm test` |
 | 프로덕션 빌드 | `npm run build` |
 | Functions 로그 | `npm --prefix functions run logs` |
-| 배포된 함수 목록 | `firebase functions:list` |
+| 배포 함수 목록 | `firebase functions:list` |
 
-**완료 판정은 `npm test` · `npm run typecheck` · `npm run lint` 셋이 통과한 상태다.** 셋을 안 돌렸으면 "됐다"고 보고하지 않는다. 화면을 바꿨으면 브라우저 확인이 추가된다.
+- Next.js 16.2.6, React 19.2.4, TypeScript strict, Tailwind v4, Firebase JS SDK 12를 사용한다.
+- 테스트는 Node 내장 `node --test`다. 규칙 테스트는 Firestore Emulator와 JDK 21+이 필요하다.
+- `functions/`는 Node 20 CommonJS의 별도 패키지고, `functions-ingest/`는 별도 배포 코드베이스다.
+- Firebase 프로젝트는 `medidakos`, 함수 리전은 `asia-northeast3`다. 새 함수에도 리전을 명시한다.
+- 린터는 ESLint다. Biome, Jest, Vitest를 추가하지 않는다.
 
-## 상위 저장소가 원칙을 갖고 있다
+## 배포와 Git
 
-이 저장소는 `Medidakos backoffice/` 안에 있고 **상위 폴더의 `AGENTS.md`·`CLAUDE.md`가 함께 로드된다.** 원가 분리·서버 인가·배포 승인·git 흐름 같은 **원칙은 상위가 정한다.** 이 파일은 그 원칙이 이 앱에서 어떤 모양인지만 적는다. 둘이 어긋나면 상위가 이긴다.
-
-## 스택 (추측하지 말 것 — 이 버전이 맞다)
-
-- Next.js **16.2.6** App Router · React **19.2.4** · TypeScript strict · Tailwind **v4** (PostCSS 플러그인, `tailwind.config` 파일 없음) · Firebase JS SDK 12 · lucide-react · gsap
-- 서버 쪽은 `firebase-admin` · `zod` · `server-only`. 어드민은 **클라이언트 SDK를 쓰지 않는다**
-- 테스트는 Node 내장 **`node --test`**다. Node 26이 TypeScript를 그대로 돌린다. jest·vitest를 추가하지 않는다
-- 규칙 테스트는 Firestore 에뮬레이터를 띄운다(`firebase-tools`). **JDK 21+ 필요** — 이 맥 시스템 기본 `java`는 그보다 낮다. `npm test` 전에 `JAVA_HOME`이 21+을 가리키는지 확인할 것
-- `functions/`는 별도 패키지다. **JavaScript CommonJS + Node 20**, firebase-functions v6. TypeScript 아니다
-- 수집 함수는 `functions-ingest/` **별도 코드베이스**다. 기존 `functions/`와 배포가 분리돼 있다
-- Firebase 프로젝트 `medidakos`, 리전 **`asia-northeast3` 하나뿐**. 새 함수에도 리전을 명시한다. 안 하면 기본값 `us-central1`에 생긴다
-- 린터는 ESLint(`eslint-config-next`). **Biome은 도입하지 않기로 정해졌다** — Next 전용 규칙을 버릴 이유가 없다
+- 커밋, push, deploy는 사용자가 요청할 때만 한다. 배포 전에는 명시적 승인을 받고, 실행 뒤 실제로 배포된 대상도 확인한다.
+- `firebase deploy --only functions` 전체 배포는 사용하지 않는다. 명시한 함수만 좁혀 배포한다. Firestore rules의 `--dry-run`도 실제 변경 가능성이 있으므로 승인 없는 실행을 금지한다.
+- `git push --force`, `git reset --hard`, 게시된 이력 수정은 명시적 승인 없이는 실행하지 않는다.
+- 변경 하나당 `feat/...` 또는 `fix/...` 브랜치 하나를 사용하고 `dev`를 거쳐 검증 후 `main`으로 간다. `main`에 직접 작업하지 않는다.
+- 더러운 작업 트리에서는 `git checkout main`을 하지 않는다. 포인터만 갱신해야 하면 `git branch -f main origin/main`을 사용한다.
+- `git add -A`와 `git commit -a`를 사용하지 않는다. 커밋 대상 파일을 명시하고, 덮어쓰기 전에는 파일이 추적되는지 확인한다.
+- push 전 `gh auth status`를 확인한다. Git 신원은 repo-local 설정을 사용하며 전역 설정을 바꾸지 않는다.
 
 ## 디렉터리 지도
 
-```
+```text
 src/app/(marketing)/      공개 마케팅 페이지
 src/app/(campaign)/       콜드메일 랜딩 (/korea)
-src/app/dashboard/        로그인 고객용 — 6단계 브리프, 주문, 배송 추적
-src/app/admin/login/      백오피스 로그인 — 게이트 밖
-src/app/admin/            백오피스 본체(레이아웃 하나, 아직 (dash) 그룹도 서버 컴포넌트
-                          가드도 없다 — 계획 `docs/plans/2026-08-26-ledgers.md`가 추가한다)
-src/app/api/admin/        어드민 서버 라우트. 전부 withAdmin 으로만 내보낸다
-src/lib/admin-auth.ts     허용목록 판정 (순수 함수)
+src/app/dashboard/        로그인 고객용 화면
+src/app/admin/login/      백오피스 로그인
+src/app/admin/            백오피스 UI
+src/app/api/admin/        어드민 서버 라우트
+src/lib/admin-auth.ts     관리자 허용목록 판정
 src/lib/with-admin.ts     route handler 래퍼
-src/lib/firebase-admin.ts Admin SDK 싱글턴. server-only
-src/lib/repo/             Firestore 접근. server-only
-src/lib/schemas/          Zod 스키마 — 검증과 타입이 한 곳에서 나온다
-src/components/crm/       칸반·모달 프로토타입 (계획 5에서 재사용)
-functions/index.js        기존 메일 트리거
+src/lib/firebase-admin.ts Admin SDK 싱글턴
+src/lib/repo/             Firestore 접근
+src/lib/schemas/          Zod 스키마
+functions/                기존 Firebase Functions
 functions-ingest/         메일·채널톡 수집기
 tests/                    node --test
+docs/                     스펙·계획·운영 문서
 ```
 
-## 백오피스 — 착수 전 반드시 아는 것 다섯
+## 기록
 
-1. **`orders` 이름을 재사용하면 고객에게 메일이 나간다.** 현행 `orders/{autoId}`는 고객이 직접 제출한 주문이고 `onOrderCreated` 트리거가 붙어 있다. 문서가 생기는 즉시 두 통이 발송된다. 내부 원장은 **`deals`**다.
-2. **`/admin`은 아직 라이브가 아니다.** `origin/main`·`origin/dev` 어디에도 없고 `medidakos.com/admin`은 404다. 로컬 미커밋 프로토타입이 `src/lib/mock-crm-data.ts` 상수를 읽고 있을 뿐이다. **인가 게이트가 머지되기 전에 `main`에 올리지 않는다.**
-3. **`role` 상승 구멍이 열려 있다.** `saveUserProfile()`이 `users/{uid}`를 merge 없이 `setDoc`으로 덮어쓰는데 규칙이 필드를 제한하지 않는다. 지금은 `role`을 읽는 코드가 없어 취약점이 아니고, 그래서 함정이다. 백오피스 첫 커밋에서 막는다.
-4. **`lifecycleScan`이 소스에 있고 배포에는 없다.** 의도된 상태다. 전체 배포하면 딸려 올라간다.
-5. **`mail` 컬렉션에 쓰면 메일이 나간다.** Trigger Email 확장이 붙어 있고 혼자 `us-central1`이다. 회신 기능을 만들 때 새로 짜지 않는다.
+세션 기록, 설계 근거, handoff는 `docs/` 또는 커밋 메시지에 남긴다. 이 파일과 도구 전용 규칙 파일에 작업 일지를 쌓지 않는다.
 
-## 보안 경계 (양보하지 않는다)
+반복 실수는 `MISTAKES.md`에 최신순으로 원인과 재발 방지 규칙을 기록한다. 같은 실패가 세 번 발생하면 여기의 상시 규칙으로 올리고 `MISTAKES.md`에서는 제거한다.
 
-- **어드민은 Firebase 클라이언트 SDK를 쓰지 않는다.** 읽기는 서버 컴포넌트가 Admin SDK로, 쓰기는 `withAdmin` route handler로 한다
-- **`buyers`·`suppliers`·`deals`·`messages`는 모든 클라이언트에게 `allow read, write: if false`다.** 브라우저가 닿는 경로 자체가 없다. 그래도 원가·공급가·환율·마진은 `deals/{id}/private/finance`로 구조적으로 분리한다(`docs/backoffice-spec.md` §4.3) — 접근 제어와 응답 투영은 다른 문제라서, 일반 딜 조회가 실수로 재무 필드를 직렬화하는 경로 자체를 없앤다. 어드민 상세 저장소만 이 문서를 명시적으로 조인한다
-- **관리자 판정은 서버 허용목록(`BACKOFFICE_ADMIN_EMAILS`)이다.** `users/{uid}.role`을 쓰지 않는다 — 사용자가 쓰는 문서를 권한 근거로 삼지 않는다. 커스텀 클레임도 쓰지 않는다(회수가 즉시 반영되지 않는다)
-- `BACKOFFICE_ADMIN_EMAILS`가 비면 **500**이다. 빈 목록을 "전원 허용"으로 읽지 않는다
-- **기존 Functions 의 `ADMIN_EMAILS`와 다른 것이다.** 그건 알림 수신자 목록이다. 두 목록을 합치지 않는다
-- 어드민 라우트는 `withAdmin` 으로만 내보낸다. `tests/with-admin-coverage.test.ts`가 검사한다
-- 새 컬렉션은 `firestore.rules`와 에뮬레이터 테스트를 **같은 커밋에** 넣는다
-- 비밀값은 Secret Manager(수집기)와 Vercel 환경변수(앱)에 둔다. `.env.local`을 커밋하지 않는다
-
-## 배포 — 사람 승인 없이 하지 않는다
-
-앱은 `main` 푸시하면 **Vercel이 자동 배포**한다. 함수와 규칙은 수동이다.
-
-- `firebase deploy --only functions` (전체) — 소스에 없는 함수를 지우고, 소스에만 있는 `lifecycleScan`을 올린다. **쓰지 않는다.** `--only functions:ingest` 또는 `--only functions:<이름>`으로 좁힌다
-- `firebase deploy --only firestore:rules` — **`--dry-run`을 dry-run으로 믿지 않는다.** 2026-08-05에 이 플래그로 규칙이 실제로 운영에 릴리스됐다. 돌린 뒤 콘솔에서 뭐가 나갔는지 대조한다
-- `git push --force`, `git reset --hard`, 게시된 이력 수정
-
-## 커밋·브랜치
-
-- 기능 하나에 브랜치 하나 (`feat/…`, `fix/…`) → `dev` → 검증 후 `main`
-- **`git add -A`·`git commit -a`를 쓰지 않는다.** `src/components/crm/` 프로토타입이 미추적으로 남아 있고 계획 5가 쓴다. 커밋할 파일을 명시한다
-- 커밋 신원은 저장소 로컬로 고정돼 있다 (Kiwook Lee / rheekw@techasset.co.kr). 전역 설정을 건드리지 않는다
-- push 전 `gh auth status` 확인. 활성 계정이 `coconutdoyou`면 push 권한이 없다 → `gh auth switch --user rheekw-alt`
-
-## 반복해서 났던 실수
-
-- **소스가 운영 상태를 반영한다고 가정한 것.** 배포 여부는 `firebase functions:list`·`git ls-tree origin/<브랜치>`·`curl`로 확인한다
-- **미추적 파일을 백업 없이 덮어쓴 것.** 덮어쓰기 전에 git 추적 여부를 본다. 미추적이면 사본을 먼저 뜬다
-- **`next/image`에 `quality` 값을 임의로 넣은 것.** Next 16부터 `next.config.ts`의 `qualities` 배열(현재 60·75)에 없는 값은 400을 낸다
-- **작업 트리가 더러운 채로 `git checkout main`** — `git branch -f main origin/main`을 쓴다
-- **문서를 CLAUDE.md에 쌓은 것.** 작업 기록·설계 근거는 `docs/`나 커밋 메시지로 간다
-
-## 더 읽을 것 (필요해질 때만)
-
-- `docs/backoffice-spec.md` — 백오피스 구현 스펙 v2. **여기가 기준이다**
-- `docs/plans/README.md` — 구현 계획 여섯 개의 지도와 의존 관계
-- `docs/firebase-collections-and-mail.md` — 현행 컬렉션별 저장 시점과 메일 트리거
+필요할 때만 `docs/backoffice-spec.md`, `docs/plans/README.md`, `docs/firebase-collections-and-mail.md`를 먼저 읽는다.

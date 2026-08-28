@@ -50,6 +50,9 @@ next-env.d.ts
 !.claude/hooks/no-cost-leak.sh
 !.claude/hooks/typecheck-touched.sh
 
+# Codex 개인별 로컬 지침
+AGENTS.override.md
+
 # firebase emulator 실행 부산물
 firebase-debug.log
 firestore-debug.log
