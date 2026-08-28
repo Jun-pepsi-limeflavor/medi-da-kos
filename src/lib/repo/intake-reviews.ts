@@ -185,7 +185,7 @@ export async function resolveQualifiedIntakeDetails(
           (data.recipientName as string) ||
           undefined;
       }
-    } else if (item.source === "contact" || item.source === "koreaLead") {
+    } else if (item.source === "contact" || item.source === "koreaLead" || item.source === "landingRequest") {
       const data = dataBySourceKey.get(`${item.source}:${item.externalId}`);
       if (data) {
         email = (data.email as string) || undefined;
