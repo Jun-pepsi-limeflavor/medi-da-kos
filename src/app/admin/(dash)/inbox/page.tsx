@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   ChevronRight,
   Filter,
+  Forward,
   Inbox,
   Link2,
   Paperclip,
@@ -14,6 +15,10 @@ import {
 import { listThreadMessages } from "@/lib/repo/messages";
 import { listThreads, type ThreadFilters } from "@/lib/repo/threads";
 import { getCleanSnippet } from "@/lib/email-body";
+import {
+  isInternalStaffThread,
+  isForwardedSubject,
+} from "@/lib/internal-staff";
 import type { Thread } from "@/lib/schemas/thread";
 import { needsReply } from "@/lib/schemas/thread";
 
@@ -31,9 +36,10 @@ const CHANNEL_LABELS: Record<Thread["channel"], string> = {
   web: "웹 문의",
 };
 
-const SIDE_LABELS: Record<Thread["side"], string> = {
+const SIDE_LABELS: Record<string, string> = {
   brand: "바이어",
   factory: "제조사",
+  internal: "직원 (포워딩)",
   unknown: "판정 필요",
 };
 
@@ -67,9 +73,10 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString("ko-KR");
 }
 
-function getSideBadgeStyle(side: Thread["side"]): string {
+function getSideBadgeStyle(side: string): string {
   if (side === "brand") return "border-sky-800/80 bg-sky-950/60 text-sky-300";
   if (side === "factory") return "border-emerald-800/80 bg-emerald-950/60 text-emerald-300";
+  if (side === "internal") return "border-purple-800/80 bg-purple-950/60 text-purple-300";
   return "border-amber-800/80 bg-amber-950/60 text-amber-300";
 }
 
@@ -187,6 +194,18 @@ function ConversationRow({ thread }: { thread: ThreadWithSummary }) {
   const counterparty = thread.senderName || thread.sourceAccount;
   const linkedLabel = thread.dealId ? `딜 ${thread.dealId.slice(0, 8)}` : null;
 
+  const isInternal = isInternalStaffThread(thread, {
+    from: thread.senderName,
+    senderName: thread.senderName,
+    subject: thread.subject,
+  });
+  const displaySide = isInternal ? "internal" : thread.side;
+  const displaySideLabel = isInternal
+    ? isForwardedSubject(thread.subject)
+      ? "포워딩"
+      : "직원"
+    : SIDE_LABELS[thread.side] || "미분류";
+
   return (
     <Link
       href={`/admin/inbox/${encodeURIComponent(thread.threadKey)}`}
@@ -196,9 +215,11 @@ function ConversationRow({ thread }: { thread: ThreadWithSummary }) {
         <div className="relative mt-0.5 shrink-0">
           <div
             className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-semibold ${
-              isOutbound
-                ? "border-indigo-800/70 bg-indigo-950/60 text-indigo-300"
-                : "border-neutral-700 bg-neutral-800 text-neutral-200"
+              isInternal
+                ? "border-purple-800/70 bg-purple-950/60 text-purple-300"
+                : isOutbound
+                  ? "border-indigo-800/70 bg-indigo-950/60 text-indigo-300"
+                  : "border-neutral-700 bg-neutral-800 text-neutral-200"
             }`}
           >
             {getInitial(counterparty)}
@@ -233,8 +254,8 @@ function ConversationRow({ thread }: { thread: ThreadWithSummary }) {
                 <ArrowDownLeft className="h-3 w-3" /> 수신
               </span>
             )}
-            <span className={`rounded-md border px-1.5 py-0.5 ${getSideBadgeStyle(thread.side)}`}>
-              {SIDE_LABELS[thread.side]}
+            <span className={`rounded-md border px-1.5 py-0.5 ${getSideBadgeStyle(displaySide)}`}>
+              {displaySideLabel}
             </span>
             <span className="truncate">{CHANNEL_LABELS[thread.channel]}</span>
             {thread.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-neutral-500" />}
@@ -261,8 +282,11 @@ export default async function InboxPage({
   const params = await searchParams;
   const tabParam = typeof params.tab === "string" ? params.tab : undefined;
   // 기본 탭은 "in" (수신함)!
-  const activeTab: "in" | "out" | "needsReply" | "all" =
-    tabParam === "out" || tabParam === "needsReply" || tabParam === "all"
+  const activeTab: "in" | "out" | "needsReply" | "forwarding" | "all" =
+    tabParam === "out" ||
+    tabParam === "needsReply" ||
+    tabParam === "forwarding" ||
+    tabParam === "all"
       ? tabParam
       : "in";
 
@@ -274,44 +298,10 @@ export default async function InboxPage({
     channel: typeof params.channel === "string" ? params.channel : undefined,
   };
 
-  // 1. 전체 스레드를 읽어 각 탭별 통계 산출 (1회 Firestore 쿼리)
+  // 1. 전체 스레드 및 요약 정보 로드
   const allThreads = await listThreads({}, 1000);
-  const totalCount = allThreads.length;
-  const inCount = allThreads.filter((t) => t.lastDirection === "in").length;
-  const outCount = allThreads.filter((t) => t.lastDirection === "out").length;
-  const needsReplyCount = allThreads.filter(needsReply).length;
-
-  // 2. 현재 선택된 탭 및 필터 조건 적용
-  const filters: ThreadFilters = {};
-  if (values.readState) filters.readState = values.readState as Thread["readState"];
-  if (values.triageState) filters.triageState = values.triageState as Thread["triageState"];
-  if (values.linkState) filters.linkState = values.linkState as Thread["linkState"];
-  if (values.side) filters.side = values.side as Thread["side"];
-  if (values.channel) filters.channel = values.channel as Thread["channel"];
-
-  if (activeTab === "in") {
-    filters.direction = "in";
-  } else if (activeTab === "out") {
-    filters.direction = "out";
-  } else if (activeTab === "needsReply") {
-    filters.needsReply = true;
-  }
-
-  const filteredThreads = allThreads.filter((t) => {
-    if (filters.direction && t.lastDirection !== filters.direction) return false;
-    if (filters.needsReply !== undefined && needsReply(t) !== filters.needsReply) return false;
-    if (filters.readState && t.readState !== filters.readState) return false;
-    if (filters.triageState && t.triageState !== filters.triageState) return false;
-    if (filters.linkState && t.linkState !== filters.linkState) return false;
-    if (filters.side && t.side !== filters.side) return false;
-    if (filters.channel && t.channel !== filters.channel) return false;
-    return true;
-  });
-
-  // 3. 필터링된 스레드에 대해 요약 생성 (최대 100건)
-  const targetThreads = filteredThreads.slice(0, 100);
-  const threadsWithSummary: ThreadWithSummary[] = await Promise.all(
-    targetThreads.map(async (thread) => {
+  const allThreadsWithSummary: ThreadWithSummary[] = await Promise.all(
+    allThreads.map(async (thread) => {
       const messages = await listThreadMessages(thread.threadKey);
       const latest = messages[messages.length - 1];
       const isOutbound = thread.lastDirection === "out";
@@ -333,6 +323,53 @@ export default async function InboxPage({
       };
     }),
   );
+
+  const totalCount = allThreadsWithSummary.length;
+  const inCount = allThreadsWithSummary.filter((t) => t.lastDirection === "in").length;
+  const outCount = allThreadsWithSummary.filter((t) => t.lastDirection === "out").length;
+  const needsReplyCount = allThreadsWithSummary.filter(needsReply).length;
+  const forwardingCount = allThreadsWithSummary.filter((t) =>
+    isInternalStaffThread(t, {
+      from: t.senderName,
+      senderName: t.senderName,
+      subject: t.subject,
+    }),
+  ).length;
+
+  // 2. 현재 선택된 탭 및 상세 필터 적용
+  const filteredThreads = allThreadsWithSummary.filter((t) => {
+    const isInternal = isInternalStaffThread(t, {
+      from: t.senderName,
+      senderName: t.senderName,
+      subject: t.subject,
+    });
+
+    if (activeTab === "in") {
+      if (t.lastDirection !== "in") return false;
+    } else if (activeTab === "out") {
+      if (t.lastDirection !== "out") return false;
+    } else if (activeTab === "needsReply") {
+      if (!needsReply(t)) return false;
+    } else if (activeTab === "forwarding") {
+      if (!isInternal) return false;
+    }
+
+    if (values.readState && t.readState !== values.readState) return false;
+    if (values.triageState && t.triageState !== values.triageState) return false;
+    if (values.linkState && t.linkState !== values.linkState) return false;
+    if (values.channel && t.channel !== values.channel) return false;
+
+    if (values.side) {
+      if (values.side === "internal" && !isInternal) return false;
+      if (values.side === "brand" && (t.side !== "brand" || isInternal)) return false;
+      if (values.side === "factory" && (t.side !== "factory" || isInternal)) return false;
+      if (values.side === "unknown" && (t.side !== "unknown" || isInternal)) return false;
+    }
+
+    return true;
+  });
+
+  const threadsWithSummary = filteredThreads.slice(0, 100);
 
   const getTabUrl = (tab: string) => {
     const p = new URLSearchParams();
@@ -358,7 +395,7 @@ export default async function InboxPage({
         </div>
       </div>
 
-      {/* 수신함 / 답장필요 / 발신함 / 전체 탭 컨트롤 */}
+      {/* 수신함 / 답장필요 / 발신함 / 포워딩(직원) / 전체 탭 컨트롤 */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-800 pb-2">
         <Link
           href={getTabUrl("in")}
@@ -407,6 +444,26 @@ export default async function InboxPage({
             }`}
           >
             {outCount}
+          </span>
+        </Link>
+        <Link
+          href={getTabUrl("forwarding")}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all ${
+            activeTab === "forwarding"
+              ? "bg-neutral-800 text-white shadow-sm ring-1 ring-neutral-700"
+              : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
+          }`}
+        >
+          <Forward className="h-3.5 w-3.5 text-purple-400" />
+          <span>포워딩 (직원 대화)</span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-bold border ${
+              activeTab === "forwarding"
+                ? "border-purple-700 bg-purple-950 text-purple-200"
+                : "border-neutral-800 bg-neutral-900 text-neutral-400"
+            }`}
+          >
+            {forwardingCount}
           </span>
         </Link>
         <Link

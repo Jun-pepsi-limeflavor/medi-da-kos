@@ -8,8 +8,9 @@ import type { IntakeReview } from "@/lib/schemas/intake-review";
 import { requireAdminPage } from "@/lib/admin-page";
 import ThreadActions from "../ThreadActions";
 import ExtractionPanel from "./ExtractionPanel";
-import ThreadReplyForm from "./ThreadReplyForm";
 import MessageBody from "./MessageBody";
+import ThreadReplyForm from "./ThreadReplyForm";
+import { isInternalStaffThread, isForwardedSubject } from "@/lib/internal-staff";
 import Link from "next/link";
 import {
   ArrowDownLeft,
@@ -20,9 +21,11 @@ import {
   Check,
   Download,
   Factory,
+  Forward,
   Link2,
   Mail,
   Paperclip,
+  Users,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -51,15 +54,17 @@ const CHANNEL_LABELS: Record<Message["channel"], string> = {
   web: "웹 문의",
 };
 
-const SIDE_LABELS: Record<Message["side"], string> = {
+const SIDE_LABELS: Record<string, string> = {
   brand: "바이어 대화",
   factory: "제조사 대화",
+  internal: "직원 대화 (포워딩)",
   unknown: "상대 판정 필요",
 };
 
-function sideBadgeStyle(side: Message["side"]): string {
+function sideBadgeStyle(side: string): string {
   if (side === "brand") return "border-sky-800/80 bg-sky-950/70 text-sky-300";
   if (side === "factory") return "border-emerald-800/80 bg-emerald-950/70 text-emerald-300";
+  if (side === "internal") return "border-purple-800/80 bg-purple-950/70 text-purple-300";
   return "border-amber-800/80 bg-amber-950/70 text-amber-300";
 }
 
@@ -135,6 +140,19 @@ export default async function ThreadDetailPage({
   ]);
   const dealHref = thread.dealId ? `/admin/deals/${encodeURIComponent(thread.dealId)}` : null;
 
+  const isInternal = isInternalStaffThread(thread, {
+    from: counterpartyEmail || latestMessage?.from,
+    fromName: conversationName,
+    senderName: conversationName,
+    subject: latestMessage?.subject,
+  });
+  const displaySide = isInternal ? "internal" : thread.side;
+  const displaySideLabel = isInternal
+    ? isForwardedSubject(latestMessage?.subject)
+      ? "포워딩 (직원)"
+      : "직원 대화"
+    : SIDE_LABELS[thread.side];
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
@@ -156,9 +174,15 @@ export default async function ThreadDetailPage({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="truncate text-lg font-semibold text-white">{conversationName}</h1>
-                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${sideBadgeStyle(thread.side)}`}>
-                  {thread.side === "brand" ? <Building2 className="mr-1 inline h-3 w-3" /> : <Factory className="mr-1 inline h-3 w-3" />}
-                  {SIDE_LABELS[thread.side]}
+                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${sideBadgeStyle(displaySide)}`}>
+                  {isInternal ? (
+                    <Users className="mr-1 inline h-3 w-3" />
+                  ) : thread.side === "brand" ? (
+                    <Building2 className="mr-1 inline h-3 w-3" />
+                  ) : (
+                    <Factory className="mr-1 inline h-3 w-3" />
+                  )}
+                  {displaySideLabel}
                 </span>
                 {thread.linkState === "linked" && (
                   <span className="inline-flex items-center gap-1 rounded-md border border-indigo-800/80 bg-indigo-950/50 px-2 py-0.5 text-[10px] text-indigo-300">
