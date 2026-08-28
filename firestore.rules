@@ -106,7 +106,7 @@ service cloud.firestore {
         && validLandingString(request.resource.data.companyName, 200)
         && validLandingString(request.resource.data.contactName, 120)
         && validLandingString(request.resource.data.email, 320)
-        && request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
+        && request.resource.data.email.matches('.*@.*\\..*')
         && validLandingString(request.resource.data.country, 100)
         && validLandingString(request.resource.data.expectedVolume, 40)
         && validLandingString(request.resource.data.pageUrl, 2000)
