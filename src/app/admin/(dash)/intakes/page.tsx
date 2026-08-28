@@ -37,6 +37,7 @@ async function loadRows(): Promise<IntakeRowDetail[]> {
     const data = d.data();
     const user = data.uid ? userByUid.get(data.uid) : undefined;
     const email = (user?.email as string) || (data.email as string) || (data.buyerEmail as string) || "";
+    const contact = (user?.displayName as string) || (data.shippingAddress?.recipientName as string) || "";
     const company = (user?.companyName as string) || (data.companyName as string) || "";
     const brief = (data.briefSnapshot || {}) as {
       step1?: { selection?: string };

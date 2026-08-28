@@ -152,11 +152,22 @@ export async function listConversationRollups(_queue: "customer-work" = "custome
     .sort((a, b) => compareRollups(now, a, b));
 }
 
+export type ConversationEvent = {
+  id: string;
+  action: string;
+  actorEmail?: string;
+  at: string;
+  reason?: string;
+  fields?: string[];
+  [key: string]: unknown;
+};
+
 export type ConversationDetail = {
   conversation: Conversation;
   identities: ConversationIdentity[];
   threads: Thread[];
   messages: ConversationMessage[];
+  events: ConversationEvent[];
 };
 
 /** Detail-only reads are server-only; message reads never occur in the list path. */
@@ -166,20 +177,125 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
   const conversationDoc = await conversationRef.get();
   if (!conversationDoc.exists) return null;
 
-  const [identitySnap, threadSnap] = await Promise.all([
+  const [identitySnap, threadSnap, eventSnap] = await Promise.all([
     db.collection(IDENTITIES).where("conversationId", "==", id).get(),
     db.collection(THREADS).where("conversationId", "==", id).get(),
+    conversationRef.collection("events").orderBy("at", "desc").limit(30).get(),
   ]);
   const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
   const messageSnaps = await Promise.all(
     threads.map((thread) => db.collection(MESSAGES).where("threadKey", "==", thread.threadKey).get()),
   );
+  const events: ConversationEvent[] = eventSnap.docs.map((doc) => ({
+    id: doc.id,
+    action: String(doc.data().action || "unknown"),
+    actorEmail: typeof doc.data().actorEmail === "string" ? doc.data().actorEmail : undefined,
+    at: String(doc.data().at || ""),
+    reason: typeof doc.data().reason === "string" ? doc.data().reason : undefined,
+    fields: Array.isArray(doc.data().fields) ? doc.data().fields : undefined,
+    ...doc.data(),
+  }));
 
   return {
     conversation: projectConversation(conversationDoc.id, conversationDoc.data()!),
     identities: identitySnap.docs.map((doc) => projectConversationIdentity(doc.id, doc.data())),
     threads,
     messages: messageSnaps.flatMap((snap) => snap.docs.map((doc) => projectConversationMessage(doc.id, doc.data())))
+      .sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
+    events,
+  };
+}
+
+export interface ReviewIdentityItem {
+  identity: ConversationIdentity;
+  threadCount: number;
+  latestThread?: Thread;
+  latestMessageSnippet?: string;
+  channels: string[];
+}
+
+export type ReviewQueueFilter = "unclassified" | "supplier" | "internal" | "advertising" | "all_review";
+
+export async function listReviewIdentities(
+  filter: ReviewQueueFilter = "unclassified",
+): Promise<ReviewIdentityItem[]> {
+  const db = getAdminDb();
+  let snap: FirebaseFirestore.QuerySnapshot;
+  if (filter === "all_review") {
+    snap = await db.collection(IDENTITIES)
+      .where("classification", "in", ["unclassified", "internal", "advertising"])
+      .get();
+  } else {
+    snap = await db.collection(IDENTITIES)
+      .where("classification", "==", filter)
+      .get();
+  }
+  const identities = snap.docs.map((doc) => projectConversationIdentity(doc.id, doc.data()));
+
+  const items: ReviewIdentityItem[] = await Promise.all(
+    identities.map(async (identity) => {
+      const threadSnap = await db.collection(THREADS).where("identityId", "==", identity.id).get();
+      const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
+      threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
+      const latestThread = threads[0];
+      const channels = Array.from(new Set(threads.map((t) => t.channel)));
+
+      let latestMessageSnippet: string | undefined;
+      if (latestThread) {
+        const msgSnap = await db.collection(MESSAGES)
+          .where("threadKey", "==", latestThread.threadKey)
+          .limit(1)
+          .get();
+        if (!msgSnap.empty) {
+          const body = msgSnap.docs[0].data().bodyText;
+          if (typeof body === "string") {
+            latestMessageSnippet = body.replace(/\s+/g, " ").trim().slice(0, 120);
+          }
+        }
+      }
+
+      return {
+        identity,
+        threadCount: threads.length,
+        latestThread,
+        latestMessageSnippet,
+        channels,
+      };
+    }),
+  );
+
+  items.sort((a, b) => {
+    const timeA = a.latestThread?.lastMessageAt || a.identity.updatedAt || "";
+    const timeB = b.latestThread?.lastMessageAt || b.identity.updatedAt || "";
+    return timeB.localeCompare(timeA);
+  });
+
+  return items;
+}
+
+export type ReviewIdentityDetail = {
+  identity: ConversationIdentity;
+  threads: Thread[];
+  messages: ConversationMessage[];
+};
+
+export async function getReviewIdentityDetail(identityId: string): Promise<ReviewIdentityDetail | null> {
+  const db = getAdminDb();
+  const identityDoc = await db.collection(IDENTITIES).doc(identityId).get();
+  if (!identityDoc.exists) return null;
+
+  const identity = projectConversationIdentity(identityDoc.id, identityDoc.data()!);
+  const threadSnap = await db.collection(THREADS).where("identityId", "==", identityId).get();
+  const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
+  const messageSnaps = await Promise.all(
+    threads.map((thread) => db.collection(MESSAGES).where("threadKey", "==", thread.threadKey).get()),
+  );
+
+  return {
+    identity,
+    threads,
+    messages: messageSnaps
+      .flatMap((snap) => snap.docs.map((doc) => projectConversationMessage(doc.id, doc.data())))
       .sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
   };
 }
