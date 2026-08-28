@@ -184,12 +184,12 @@ export function CatalogLanding() {
       </div>
       <div ref={gridRef} className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {products.map((product) => (
-          <article key={product.id} data-catalog-tile className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-            <button type="button" onClick={() => { setDetail(product); trackLandingEvent("catalog_product_view", "catalog", { product_id: product.id, product_category: product.category }); }} className="block w-full text-left">
-              <div className="relative aspect-[4/3] overflow-hidden bg-stone-100"><Image src={product.image} alt="" fill unoptimized className="object-cover object-center" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
-              <div className="p-5"><p className="text-xs font-medium uppercase tracking-wide text-sky-700">{product.category}</p><h2 className="mt-2 font-semibold leading-snug">{product.name}</h2><p className="mt-2 line-clamp-2 text-sm text-slate-600">{product.description}</p></div>
+          <article key={product.id} data-catalog-tile className="flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white">
+            <button type="button" onClick={() => { setDetail(product); trackLandingEvent("catalog_product_view", "catalog", { product_id: product.id, product_category: product.category }); }} className="flex flex-1 flex-col w-full text-left">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-100"><Image src={product.image} alt="" fill unoptimized className="object-cover object-center" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
+              <div className="flex flex-1 flex-col p-5"><p className="text-xs font-medium uppercase tracking-wide text-sky-700">{product.category}</p><h2 className="mt-2 font-semibold leading-snug">{product.name}</h2><p className="mt-2 line-clamp-2 text-sm text-slate-600">{product.description}</p></div>
             </button>
-            <div className="px-5 pb-5"><button type="button" onClick={() => { selectProduct(product); }} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Add to consultation</button></div>
+            <div className="mt-auto px-5 pb-5"><button type="button" onClick={() => { selectProduct(product); }} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Add to consultation</button></div>
           </article>
         ))}
       </div>
