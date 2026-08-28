@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         destination: "/about-us",
         permanent: true,
       },
+      {
+        source: "/korea",
+        destination: "/landing/korea",
+        permanent: true,
+      },
     ];
   },
   images: {

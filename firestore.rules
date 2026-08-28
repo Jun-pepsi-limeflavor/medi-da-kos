@@ -10,9 +10,19 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // users/{uid}: 본인만 읽기/쓰기
+    // users/{uid}: 본인만. 권한 필드는 클라이언트 요청에 들어오지 않는다.
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'phone', 'country', 'companyName',
+          'provider', 'createdAt', 'isTest'
+        ]);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'phone', 'country', 'companyName', 'provider', 'isTest'
+        ]);
+      allow delete: if false;
     }
 
     // cmBriefs/{uid}: 본인만 읽기/쓰기 (setDoc/merge 사용)
@@ -64,24 +74,84 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
-    // koreaLeads/{docId}: 콜드메일 랜딩(/korea) 문의 폼 — create만 허용
-    match /koreaLeads/{docId} {
-      allow create: if
-        request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'expectedVolume', 'status', 'createdAt'])
-        && request.resource.data.companyName is string
-        && request.resource.data.companyName.size() > 0
-        && request.resource.data.companyName.size() <= 200
-        && request.resource.data.email is string
+    function validLandingString(value, max) {
+      return value is string && value.size() > 0 && value.size() <= max;
+    }
+
+    function validLandingOptionalString(key, max) {
+      return !(key in request.resource.data) || (request.resource.data[key] is string && request.resource.data[key].size() <= max);
+    }
+
+    function validCatalogItem(item) {
+      return item is map
+        && item.keys().hasOnly(['id', 'name', 'category'])
+        && validLandingString(item.id, 200)
+        && validLandingString(item.name, 200)
+        && item.category in ['serum', 'toner', 'cream', 'mist'];
+    }
+
+    function validCatalogItems(items) {
+      return items is list
+        && items.size() > 0
+        && items.size() <= 5
+        && validCatalogItem(items[0])
+        && (items.size() < 2 || validCatalogItem(items[1]))
+        && (items.size() < 3 || validCatalogItem(items[2]))
+        && (items.size() < 4 || validCatalogItem(items[3]))
+        && (items.size() < 5 || validCatalogItem(items[4]));
+    }
+
+    function validLandingCommon() {
+      return request.resource.data.keys().hasAll(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'pageUrl', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+        && validLandingString(request.resource.data.companyName, 200)
+        && validLandingString(request.resource.data.contactName, 120)
+        && validLandingString(request.resource.data.email, 320)
         && request.resource.data.email.matches('.*@.*\\..*')
-        && request.resource.data.message is string
-        && request.resource.data.message.size() > 0
-        && request.resource.data.message.size() <= 5000
-        && request.resource.data.expectedVolume is string
-        && request.resource.data.expectedVolume.size() > 0
-        && request.resource.data.expectedVolume.size() <= 40
-        && request.resource.data.status == 'submitted';
+        && validLandingString(request.resource.data.country, 100)
+        && validLandingString(request.resource.data.expectedVolume, 40)
+        && validLandingString(request.resource.data.pageUrl, 2000)
+        && request.resource.data.isTest is bool
+        && request.resource.data.status == 'new'
+        && validLandingString(request.resource.data.createdAt, 64)
+        && request.resource.data.serverCreatedAt is timestamp
+        && validLandingOptionalString('message', 5000)
+        && validLandingOptionalString('referralSource', 200)
+        && validLandingOptionalString('businessType', 200)
+        && validLandingOptionalString('positioningArm', 200)
+        && validLandingOptionalString('utmSource', 200)
+        && validLandingOptionalString('utmMedium', 200)
+        && validLandingOptionalString('utmCampaign', 200)
+        && validLandingOptionalString('utmContent', 200)
+        && validLandingOptionalString('utmTerm', 200)
+        && validLandingOptionalString('gaClientId', 200)
+        && validLandingOptionalString('userAgent', 1000);
+    }
+
+    match /landingRequests/{requestId} {
+      allow create: if validLandingCommon()
+        && ((request.resource.data.landingVariant == 'catalog'
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'catalogItems', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+          && validCatalogItems(request.resource.data.catalogItems))
+          || (request.resource.data.landingVariant == 'dashboard'
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'dashboardBrief', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+          && request.resource.data.dashboardBrief is map)
+          || (request.resource.data.landingVariant == 'korea'
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'referralSource', 'businessType', 'positioningArm', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])));
       allow read, update, delete: if false;
     }
+
+    // 백오피스 원장 — 클라이언트는 어느 쪽에서도 닿을 수 없다.
+    // Admin SDK 는 규칙을 우회하므로 서버만 접근한다.
+    match /buyers/{id}    { allow read, write: if false; }
+    match /suppliers/{id} { allow read, write: if false; }
+    match /deals/{id} {
+      allow read, write: if false;
+      match /{sub=**} { allow read, write: if false; }
+    }
+    match /messages/{id}  { allow read, write: if false; }
+    match /threads/{id}   { allow read, write: if false; }
+    match /intakeReviews/{id} { allow read, write: if false; }
+    match /ingestState/{account} { allow read, write: if false; }
 
     // 그 외 모든 경로 차단
     match /{document=**} {

@@ -1,4 +1,4 @@
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL } from "./site";
 
 /** 운영 도메인에서 의도적으로 테스트할 때 붙이는 쿼리. `?qa=1` */
 const QA_PARAM = "qa";

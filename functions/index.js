@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
@@ -5,6 +6,8 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { buildLifecycleList, SEGMENT_ORDER } = require("./lifecycle");
+const { buildLandingRequestEmail } = require("./landing-request-email");
+const { materializeWebSubmission } = require("./web-message-materializer");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -86,8 +89,8 @@ From Medi Da KOS`;
 }
 
 /**
- * koreaLeads는 비로그인 공개 폼이라 값이 그대로 관리자 메일 본문에 들어간다.
- * 이스케이프 없이 붙이면 제출자가 우리 수신함에 임의 HTML을 심을 수 있다.
+ * 비로그인 공개 폼은 입력값이 그대로 관리자 메일 본문에 들어간다.
+ * 이스케이프 없이 붙이면 제출자가 수신함에 임의 HTML을 심을 수 있다.
  */
 function escapeHtml(value) {
   if (value === null || value === undefined) return "-";
@@ -158,6 +161,8 @@ exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event
   const contactId = event.params.contactId;
   const submittedAt = formatKoDate();
 
+  await materializeWebSubmission(db, "contact", contactId, contact);
+
   const utmParts = [
     contact.utmSource && `source=${contact.utmSource}`,
     contact.utmMedium && `medium=${contact.utmMedium}`,
@@ -192,6 +197,8 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
 
   const order = snap.data();
   const orderId = event.params.orderId;
+
+  await materializeWebSubmission(db, "orders", orderId, order);
 
   const isSample = order.type === "sample";
   const label = isSample ? "샘플 주문" : "일반 주문";
@@ -246,55 +253,48 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
   }
 });
 
-/**
- * /korea 콜드메일 랜딩 문의 알림.
- *
- * contact 컬렉션에는 알림이 없어서 문의가 들어와도 Firestore 콘솔을 열어야 알 수 있었다.
- * 여기는 콜드메일 회신이 실제로 떨어지는 곳이라 놓치면 손실이다.
- * isTest(운영 도메인 밖 제출)는 발송하지 않는다.
- */
-exports.onKoreaLeadCreated = onDocumentCreated(
-  "koreaLeads/{leadId}",
+// sampleRequests에는 기존 알림 트리거가 없지만, 인박스에서는 주문과 같은
+// 웹 인바운드 원문으로 보여야 한다. 테스트 제출은 운영 수집에서 제외한다.
+exports.onSampleRequestCreated = onDocumentCreated(
+  "sampleRequests/{sampleRequestId}",
   async (event) => {
     const snap = event.data;
     if (!snap) return;
 
-    const lead = snap.data();
-    if (lead.isTest === true) {
-      console.log(`koreaLeads/${event.params.leadId} isTest — 알림 생략.`);
+    const sample = snap.data();
+    await materializeWebSubmission(
+      db,
+      "sampleRequests",
+      event.params.sampleRequestId,
+      sample,
+      { skipTest: true },
+    );
+  },
+);
+
+exports.onLandingRequestCreated = onDocumentCreated(
+  "landingRequests/{requestId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const request = snap.data();
+    if (request.isTest === true) {
+      console.log(`landingRequests/${event.params.requestId} isTest — 알림 생략.`);
       return;
     }
+    const requestId = event.params.requestId;
 
-    const leadId = event.params.leadId;
-    const submittedAt = formatKoDate();
+    await materializeWebSubmission(
+      db,
+      "landingRequests",
+      requestId,
+      request,
+      { skipTest: true },
+    );
 
-    await queueEmail(`korea_lead_admin_${leadId}`, {
+    await queueEmail(`landing_request_admin_${requestId}`, {
       to: getAdminEmails(),
-      message: {
-        subject: `[korea] ${lead.companyName || "-"} — ${lead.expectedVolumeLabel || "-"}`,
-        html: `
-        <div style="font-family:sans-serif;line-height:1.6">
-          <h2>콜드메일 랜딩(/korea) 문의</h2>
-          <p><strong>브랜드:</strong> ${escapeHtml(lead.companyName)}</p>
-          <p><strong>이메일:</strong> ${escapeHtml(lead.email)}</p>
-          <p><strong>예상 물량:</strong> ${escapeHtml(lead.expectedVolumeLabel)}</p>
-          <p><strong>고객 유형:</strong> ${escapeHtml(lead.businessType)}</p>
-          <p><strong>인지 경로:</strong> ${escapeHtml(lead.referralSource)}</p>
-          <p><strong>내용:</strong></p>
-          <p style="white-space:pre-wrap;border-left:3px solid #bae6fd;padding-left:12px">${escapeHtml(lead.message)}</p>
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
-          <p style="color:#666;font-size:13px">
-            포지셔닝: ${escapeHtml(lead.positioningArm)}<br>
-            utm_source: ${escapeHtml(lead.utmSource)} /
-            utm_medium: ${escapeHtml(lead.utmMedium)} /
-            utm_campaign: ${escapeHtml(lead.utmCampaign)} /
-            utm_content: ${escapeHtml(lead.utmContent)}<br>
-            GA client id: ${escapeHtml(lead.gaClientId)}<br>
-            문서: koreaLeads/${escapeHtml(leadId)}<br>
-            접수 시각: ${escapeHtml(submittedAt)}
-          </p>
-        </div>`,
-      },
+      message: buildLandingRequestEmail(requestId, request, formatKoDate()),
     });
   },
 );

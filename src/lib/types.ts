@@ -131,6 +131,7 @@ export interface SampleRequest {
   sampleProductName: string;
   sampleQuantity: number;
   shippingAddress: ShippingAddress;
+  isTest?: boolean;
   status: "submitted";
   createdAt: string;
 }
@@ -145,6 +146,7 @@ export interface Order {
   referenceId?: string;
   /** CM brief fields at submit time (logo binary omitted) */
   briefSnapshot?: Record<string, unknown>;
+  isTest?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -164,6 +166,7 @@ export interface ContactSubmission {
   pageUrl?: string;
   gaClientId?: string;
   userAgent?: string;
+  isTest?: boolean;
   status: "submitted";
   createdAt: string;
 }
@@ -189,7 +192,7 @@ export interface KoreaLeadSubmission {
   gaClientId?: string;
   userAgent?: string;
   /** 운영 도메인 밖(localhost·프리뷰) 제출 — 알림·전환 집계에서 제외 */
-  isTest: boolean;
+  isTest?: boolean;
   status: "submitted";
   createdAt: string;
 }

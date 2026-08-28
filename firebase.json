@@ -16,6 +16,16 @@
         "firebase-debug.*.log",
         "*.local"
       ]
+    },
+    {
+      "source": "functions-ingest",
+      "codebase": "ingest",
+      "ignore": ["node_modules", ".git", "*.local"]
     }
-  ]
+  ],
+  "emulators": {
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
 }

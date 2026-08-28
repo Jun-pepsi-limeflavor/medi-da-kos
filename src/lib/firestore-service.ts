@@ -15,7 +15,6 @@ import {
 import type {
   CMBrief,
   ContactSubmission,
-  KoreaLeadSubmission,
   Order,
   SampleRequest,
   ShippingAddress,
@@ -24,7 +23,6 @@ import type {
 } from "./types";
 import { getStep1Selection, odmCategory } from "./step1-utils";
 import { getOrderQuantity } from "./quantity-utils";
-import { expectedVolumeLabel } from "./contact-form-options";
 import { isNonProductionEnv } from "./env-flags";
 import { getFirebaseDb } from "./firebase";
 import {
@@ -38,6 +36,7 @@ import {
 } from "./mock-store";
 import { useMockAuth } from "./firebase";
 import { stripUndefined } from "./firestore-sanitize";
+import { normalizeBriefForStorage } from "./brief-normalization";
 
 export function createDefaultCMBrief(
   uid: string,
@@ -56,7 +55,8 @@ export function createDefaultCMBrief(
 
 /** Strip large logo payload — keep filename for orders / archives */
 export function briefSnapshotForStorage(brief: CMBrief): Record<string, unknown> {
-  const { step3, ...rest } = brief;
+  const normalized = normalizeBriefForStorage(brief);
+  const { step3, ...rest } = normalized;
   const snapshot: Record<string, unknown> = {
     ...rest,
     status: "submitted",
@@ -167,15 +167,16 @@ function migrateBrief(brief: CMBrief): CMBrief {
 }
 
 export async function saveCMBrief(brief: CMBrief): Promise<void> {
+  const normalized = normalizeBriefForStorage(brief);
   const payload = stripUndefined({
-    ...brief,
+    ...normalized,
     updatedAt: new Date().toISOString(),
   });
   if (useMockAuth()) {
     mockSaveBrief(payload);
     return;
   }
-  await setDoc(doc(getFirebaseDb(), "cmBriefs", brief.uid), {
+  await setDoc(doc(getFirebaseDb(), "cmBriefs", normalized.uid), {
     ...payload,
     serverUpdatedAt: serverTimestamp(),
   });
@@ -274,22 +275,23 @@ export async function saveSampleRequest(
 }
 
 export async function submitCustomBrief(brief: CMBrief): Promise<Order> {
-  if (!getStep1Selection(brief.step1)) {
+  const normalized = normalizeBriefForStorage(brief);
+  if (!getStep1Selection(normalized.step1)) {
     throw new Error("Complete Step 1 before submitting your brief.");
   }
 
   const submitted: CMBrief = {
-    ...brief,
+    ...normalized,
     requestType: "custom",
     status: "submitted",
     updatedAt: new Date().toISOString(),
   };
 
   const category = odmCategory(submitted.step1);
-  const submissionRef = `custom-${brief.uid}-${Date.now()}`;
+  const submissionRef = `custom-${normalized.uid}-${Date.now()}`;
 
   const order = await createOrder({
-    uid: brief.uid,
+    uid: normalized.uid,
     type: "custom",
     status: "submitted",
     title: `Custom ODM — ${
@@ -300,7 +302,7 @@ export async function submitCustomBrief(brief: CMBrief): Promise<Order> {
     briefSnapshot: briefSnapshotForStorage(submitted),
   });
 
-  await resetCMBriefDraft(brief.uid, brief.createdAt);
+  await resetCMBriefDraft(normalized.uid, normalized.createdAt);
 
   return order;
 }
@@ -355,9 +357,22 @@ export async function saveTracking(
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
   if (useMockAuth()) return;
+  const { uid, email, displayName, phone, country, companyName, provider, createdAt } =
+    profile;
+  const ref = doc(getFirebaseDb(), "users", uid);
+  const existing = await getDoc(ref);
+  const mutable = {
+    displayName,
+    phone,
+    country,
+    companyName,
+    provider,
+    isTest: isNonProductionEnv(),
+  };
   await setDoc(
-    doc(getFirebaseDb(), "users", profile.uid),
-    stripUndefined({ isTest: isNonProductionEnv(), ...profile }),
+    ref,
+    stripUndefined(existing.exists() ? mutable : { uid, email, createdAt, ...mutable }),
+    { merge: true },
   );
 }
 
@@ -396,53 +411,6 @@ export async function submitContactForm(
 
   const ref = await addDoc(
     collection(getFirebaseDb(), "contact"),
-    stripUndefined({
-      ...payload,
-      serverCreatedAt: serverTimestamp(),
-    }),
-  );
-
-  return { id: ref.id, ...payload };
-}
-
-export type KoreaLeadPayload = {
-  companyName: string;
-  email: string;
-  referralSource?: string;
-  businessType?: string;
-  expectedVolume: string;
-  message: string;
-  positioningArm: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
-  pageUrl?: string;
-  gaClientId?: string;
-  userAgent?: string;
-};
-
-export async function submitKoreaLead(
-  data: KoreaLeadPayload,
-): Promise<KoreaLeadSubmission> {
-  const now = new Date().toISOString();
-  const payload = {
-    ...data,
-    expectedVolumeLabel: expectedVolumeLabel(data.expectedVolume),
-    isTest: isNonProductionEnv(),
-    status: "submitted" as const,
-    createdAt: now,
-  };
-
-  if (useMockAuth()) {
-    const id = `mock-korea-lead-${Date.now()}`;
-    console.info("[mock] korea lead submission", { id, ...payload });
-    return { id, ...payload };
-  }
-
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "koreaLeads"),
     stripUndefined({
       ...payload,
       serverCreatedAt: serverTimestamp(),
