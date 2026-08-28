@@ -61,6 +61,25 @@ test("dashboard notification contains dashboard brief summary", () => {
   assert.match(notification.html, /5,000/);
 });
 
+test("korea notification contains business type and positioning arm", () => {
+  const notification = buildLandingRequestEmail(
+    "req-korea-1",
+    request({
+      landingVariant: "korea",
+      catalogItems: undefined,
+      businessType: "Indie Brand",
+      referralSource: "Cold outreach",
+      positioningArm: "arm-b",
+    }),
+    submittedAt,
+  );
+
+  assert.match(notification.subject, /korea/i);
+  assert.match(notification.html, /Cold email landing/i);
+  assert.match(notification.html, /Indie Brand/);
+  assert.match(notification.html, /arm-b/);
+});
+
 test("all buyer-provided HTML values are escaped", () => {
   const notification = buildLandingRequestEmail("req-escape", request(), submittedAt);
   const html = notification.html;

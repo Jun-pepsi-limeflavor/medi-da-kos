@@ -117,7 +117,7 @@ const validIntakeReview = {
 
 test("정해진 원천만 통과시킨다", () => {
   assert.throws(() => intakeReviewInputSchema.parse({ ...validIntakeReview, source: "invoice" }));
-  for (const source of ["order", "sampleRequest", "contact", "koreaLead", "message"]) {
+  for (const source of ["order", "sampleRequest", "contact", "koreaLead", "landingRequest", "message"]) {
     assert.doesNotThrow(() => intakeReviewInputSchema.parse({ ...validIntakeReview, source }));
   }
 });

@@ -9,7 +9,7 @@ import {
 } from "@/lib/contact-form-options";
 import { trackConversionEvent } from "@/lib/analytics";
 import { getGaClientId } from "@/lib/ga-client-id";
-import { submitKoreaLead } from "@/lib/firestore-service";
+import { submitLandingRequest } from "@/lib/landing/request";
 import { trackFormAbandon, trackFormStart } from "./analytics";
 
 /** 폼이 죽었을 때의 대체 경로. 콜드메일 발신 계정이라 회신 스레드와 같은 곳으로 간다. */
@@ -113,19 +113,24 @@ export function KoreaLeadForm({
       const gaId = process.env.NEXT_PUBLIC_GA_ID;
       const gaClientId = gaId ? await getGaClientId(gaId) : null;
 
-      const lead = await submitKoreaLead({
-        companyName: companyName.trim(),
-        email: email.trim(),
-        referralSource: referralSource || undefined,
-        businessType: businessType || undefined,
-        expectedVolume,
-        message: message.trim(),
-        positioningArm,
-        ...utm,
-        pageUrl: window.location.href,
-        gaClientId: gaClientId ?? undefined,
-        userAgent: navigator.userAgent,
-      });
+      const { request: lead } = await submitLandingRequest(
+        {
+          landingVariant: "korea",
+          companyName: companyName.trim(),
+          email: email.trim(),
+          expectedVolume,
+          message: message.trim(),
+          referralSource: referralSource || undefined,
+          businessType: businessType || undefined,
+          positioningArm,
+        },
+        {
+          ...utm,
+          pageUrl: window.location.href,
+          gaClientId: gaClientId ?? undefined,
+          userAgent: navigator.userAgent,
+        },
+      );
 
       // 이벤트는 write가 성공한 뒤에만. 클릭이 아니라 실제 저장을 센다.
       // 이벤트를 늘리는 대신 파라미터로 분해한다 — 구글 권장명 generate_lead 유지.

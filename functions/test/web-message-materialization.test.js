@@ -95,6 +95,70 @@ test("order and sample projections use only useful buyer-facing source facts", (
   assert.doesNotMatch(sample.message.bodyText, /private/);
 });
 
+test("landingRequests projection formats catalog and dashboard inquiries accurately", () => {
+  const catalog = buildWebProjection("landingRequests", "req-cat-1", {
+    landingVariant: "catalog",
+    companyName: "Glow Brand",
+    contactName: "Alice",
+    email: "alice@glow.com",
+    country: "United States",
+    expectedVolume: "3,000 ~ 5,000",
+    catalogItems: [{ id: "pdrn-serum", name: "PDRN Glow Booster", category: "serum" }],
+    message: "Interested in custom packaging",
+    utmSource: "cold-outreach",
+    createdAt: fixedNow,
+  }, fixedNow);
+
+  assert.match(catalog.message.subject, /\[랜딩\/카탈로그\] Glow Brand/);
+  assert.match(catalog.message.bodyText, /카탈로그 상담/);
+  assert.match(catalog.message.bodyText, /PDRN Glow Booster \(serum\)/);
+  assert.match(catalog.message.bodyText, /Glow Brand/);
+  assert.match(catalog.message.bodyText, /Alice/);
+  assert.equal(catalog.message.from, "alice@glow.com");
+
+  const dashboard = buildWebProjection("landingRequests", "req-dash-1", {
+    landingVariant: "dashboard",
+    companyName: "Nova Skin",
+    contactName: "Bob",
+    email: "bob@nova.com",
+    country: "Canada",
+    expectedVolume: "5,000",
+    dashboardBrief: {
+      step1: { selection: "anti-aging serum" },
+      step2: { selections: [{ group: "Glass Dropper Bottle" }] },
+      step4: { orderQuantity: 5000 },
+    },
+    message: "Need sample in 2 weeks",
+    createdAt: fixedNow,
+  }, fixedNow);
+
+  assert.match(dashboard.message.subject, /\[랜딩\/대시보드\] Nova Skin/);
+  assert.match(dashboard.message.bodyText, /대시보드 맞춤 브리프/);
+  assert.match(dashboard.message.bodyText, /anti-aging serum/);
+  assert.match(dashboard.message.bodyText, /Glass Dropper Bottle/);
+  assert.match(dashboard.message.bodyText, /5000/);
+  assert.equal(dashboard.message.from, "bob@nova.com");
+
+  const korea = buildWebProjection("landingRequests", "req-kor-1", {
+    landingVariant: "korea",
+    companyName: "Seoul Beauty Co",
+    email: "buyer@seoulbeauty.com",
+    expectedVolume: "10,000",
+    referralSource: "Cold Email",
+    businessType: "Indie Brand",
+    positioningArm: "arm-a",
+    message: "Interested in OEM manufacturing",
+    createdAt: fixedNow,
+  }, fixedNow);
+
+  assert.match(korea.message.subject, /\[랜딩\/korea\] Seoul Beauty Co/);
+  assert.match(korea.message.bodyText, /콜드메일 랜딩\(korea\) 문의/);
+  assert.match(korea.message.bodyText, /Seoul Beauty Co/);
+  assert.match(korea.message.bodyText, /Indie Brand/);
+  assert.match(korea.message.bodyText, /Cold Email/);
+  assert.equal(korea.message.from, "buyer@seoulbeauty.com");
+});
+
 test("materializer creates one message and thread transactionally", async () => {
   const db = fakeDb();
   const data = {
@@ -135,8 +199,8 @@ test("retry does not create duplicates and repairs a missing thread", async () =
 
 test("test submissions follow source policy", async () => {
   const db = fakeDb();
-  const data = { isTest: true, email: "test@example.com", message: "test" };
-  const skipped = await materializeWebSubmission(db, "koreaLeads", "lead-1", data, {
+  const data = { isTest: true, email: "test@example.com", message: "test", landingVariant: "korea", companyName: "Test Co", expectedVolume: "1,000" };
+  const skipped = await materializeWebSubmission(db, "landingRequests", "lead-1", data, {
     skipTest: true,
     now: fixedNow,
   });

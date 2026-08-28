@@ -16,11 +16,21 @@ function dashboardSummary(brief) {
 }
 
 function buildLandingRequestEmail(requestId, data, submittedAt) {
-  const variantLabel = data.landingVariant === "catalog" ? "Catalog consultation" : "Dashboard consultation";
-  const summary = data.landingVariant === "catalog" ? asList(data.catalogItems) : dashboardSummary(data.dashboardBrief);
+  const variant = data.landingVariant;
+  const variantLabel = variant === "catalog"
+    ? "Catalog consultation"
+    : variant === "dashboard"
+      ? "Dashboard consultation"
+      : "Cold email landing (/landing/korea) lead";
+  const summary = variant === "catalog"
+    ? asList(data.catalogItems)
+    : variant === "dashboard"
+      ? dashboardSummary(data.dashboardBrief)
+      : `<p><strong>Business type:</strong> ${escapeHtml(data.businessType)}<br><strong>Referral source:</strong> ${escapeHtml(data.referralSource)}<br><strong>Positioning:</strong> ${escapeHtml(data.positioningArm)}</p>`;
+
   return {
-    subject: `[landing/${escapeHtml(data.landingVariant)}] ${escapeHtml(data.companyName || requestId)}`,
-    html: `<div style="font-family:sans-serif;line-height:1.6"><h2>${variantLabel}</h2><p><strong>Company / brand:</strong> ${escapeHtml(data.companyName)}</p><p><strong>Contact:</strong> ${escapeHtml(data.contactName)}</p><p><strong>Email:</strong> ${escapeHtml(data.email)}</p><p><strong>Country:</strong> ${escapeHtml(data.country)}</p><p><strong>Expected quantity:</strong> ${escapeHtml(data.expectedVolume)}</p><p><strong>Request:</strong></p>${summary}<p><strong>Message:</strong></p><p style="white-space:pre-wrap">${escapeHtml(data.message)}</p><hr><p style="color:#666;font-size:13px">UTM: ${escapeHtml(data.utmSource)} / ${escapeHtml(data.utmMedium)} / ${escapeHtml(data.utmCampaign)} / ${escapeHtml(data.utmContent)}<br>Document: landingRequests/${escapeHtml(requestId)}<br>Received: ${escapeHtml(submittedAt)}</p></div>`,
+    subject: `[landing/${escapeHtml(variant || "inquiry")}] ${escapeHtml(data.companyName || requestId)}`,
+    html: `<div style="font-family:sans-serif;line-height:1.6"><h2>${variantLabel}</h2><p><strong>Company / brand:</strong> ${escapeHtml(data.companyName)}</p><p><strong>Contact:</strong> ${escapeHtml(data.contactName)}</p><p><strong>Email:</strong> ${escapeHtml(data.email)}</p><p><strong>Country:</strong> ${escapeHtml(data.country)}</p><p><strong>Expected quantity:</strong> ${escapeHtml(data.expectedVolume)}</p><p><strong>Request details:</strong></p>${summary}<p><strong>Message:</strong></p><p style="white-space:pre-wrap">${escapeHtml(data.message)}</p><hr><p style="color:#666;font-size:13px">UTM: ${escapeHtml(data.utmSource)} / ${escapeHtml(data.utmMedium)} / ${escapeHtml(data.utmCampaign)} / ${escapeHtml(data.utmContent)}<br>Document: landingRequests/${escapeHtml(requestId)}<br>Received: ${escapeHtml(submittedAt)}</p></div>`,
   };
 }
 

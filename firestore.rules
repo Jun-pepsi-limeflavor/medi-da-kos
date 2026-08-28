@@ -74,25 +74,6 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
-    // koreaLeads/{docId}: 콜드메일 랜딩(/korea) 문의 폼 — create만 허용
-    match /koreaLeads/{docId} {
-      allow create: if
-        request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'expectedVolume', 'status', 'createdAt'])
-        && request.resource.data.companyName is string
-        && request.resource.data.companyName.size() > 0
-        && request.resource.data.companyName.size() <= 200
-        && request.resource.data.email is string
-        && request.resource.data.email.matches('.*@.*\\..*')
-        && request.resource.data.message is string
-        && request.resource.data.message.size() > 0
-        && request.resource.data.message.size() <= 5000
-        && request.resource.data.expectedVolume is string
-        && request.resource.data.expectedVolume.size() > 0
-        && request.resource.data.expectedVolume.size() <= 40
-        && request.resource.data.status == 'submitted';
-      allow read, update, delete: if false;
-    }
-
     function validLandingString(value, max) {
       return value is string && value.size() > 0 && value.size() <= max;
     }
@@ -134,6 +115,9 @@ service cloud.firestore {
         && validLandingString(request.resource.data.createdAt, 64)
         && request.resource.data.serverCreatedAt is timestamp
         && validLandingOptionalString('message', 5000)
+        && validLandingOptionalString('referralSource', 200)
+        && validLandingOptionalString('businessType', 200)
+        && validLandingOptionalString('positioningArm', 200)
         && validLandingOptionalString('utmSource', 200)
         && validLandingOptionalString('utmMedium', 200)
         && validLandingOptionalString('utmCampaign', 200)
@@ -150,7 +134,9 @@ service cloud.firestore {
           && validCatalogItems(request.resource.data.catalogItems))
           || (request.resource.data.landingVariant == 'dashboard'
           && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'dashboardBrief', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
-          && request.resource.data.dashboardBrief is map));
+          && request.resource.data.dashboardBrief is map)
+          || (request.resource.data.landingVariant == 'korea'
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'referralSource', 'businessType', 'positioningArm', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])));
       allow read, update, delete: if false;
     }
 
