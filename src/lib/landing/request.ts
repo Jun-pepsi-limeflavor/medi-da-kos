@@ -87,6 +87,7 @@ export async function submitLandingRequest(input: LandingRequestInput, context: 
     import("firebase/firestore"), import("../firebase"), import("../firestore-sanitize"),
   ]);
   if (isMockAuth()) return { id: `landing-mock-${Date.now()}`, request };
-  const ref = await addDoc(collection(getFirebaseDb(), "landingRequests"), stripUndefined({ ...request, serverCreatedAt: serverTimestamp() }));
+  const payload = { ...stripUndefined(request), serverCreatedAt: serverTimestamp() };
+  const ref = await addDoc(collection(getFirebaseDb(), "landingRequests"), payload);
   return { id: ref.id, request };
 }
