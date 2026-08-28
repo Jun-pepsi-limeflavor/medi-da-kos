@@ -215,6 +215,41 @@ function normalizeMessage(raw, {
   };
 }
 
+async function sendChatMessage(userChatId, { plainText, blocks } = {}, credentials, options = {}) {
+  if (typeof userChatId !== "string" || !userChatId.trim()) {
+    throw new TypeError("Channel Talk userChatId is required");
+  }
+  const text = typeof plainText === "string" ? plainText.trim() : "";
+  if (!text) {
+    throw new TypeError("Channel Talk message plainText is required");
+  }
+  const baseUrl = options.baseUrl || CHANNEL_TALK_BASE;
+  const url = `${baseUrl}/user-chats/${encodeURIComponent(userChatId.trim())}/messages`;
+  const fetchImpl = options.fetchImpl || global.fetch;
+  const body = {
+    plainText: text,
+    blocks: Array.isArray(blocks) ? blocks : [{ type: "text", value: text }],
+  };
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: {
+      ...headers(credentials),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new ChannelTalkRequestError(`Channel Talk send failed (${response.status}): ${errorText}`, {
+      status: response.status,
+      url,
+      code: "CHANNEL_TALK_SEND_FAILED",
+    });
+  }
+  const json = await response.json();
+  return json.message || json;
+}
+
 module.exports = {
   CHANNEL_TALK_BASE,
   ChannelTalkRequestError,
@@ -227,5 +262,7 @@ module.exports = {
   messageDirection,
   blocksToText,
   normalizeMessage,
+  sendChatMessage,
   timestampToIso,
 };
+

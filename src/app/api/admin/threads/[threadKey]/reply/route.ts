@@ -123,8 +123,64 @@ export const POST = withAdmin(async (req) => {
 
   const thread = await getThread(threadKey);
   if (!thread) return NextResponse.json({ error: "thread not found" }, { status: 404 });
+
+  if (thread.channel === "channeltalk") {
+    const accessKey = process.env.CHANNELTALK_ACCESS_KEY;
+    const accessSecret = process.env.CHANNELTALK_ACCESS_SECRET;
+    const channelVersion = process.env.CHANNELTALK_CHANNEL_VERSION || "5";
+
+    if (!accessKey || !accessSecret) {
+      return NextResponse.json({ error: "Channel Talk credentials not configured" }, { status: 500 });
+    }
+
+    const { sendChatMessage } = await import("../../../../../../../functions-ingest/channeltalk.js");
+    let sentMsg: any;
+    try {
+      sentMsg = await sendChatMessage(
+        thread.providerThreadId,
+        { plainText: parsed.data.bodyText },
+        { accessKey, accessSecret, channelVersion },
+      );
+    } catch (err: any) {
+      return NextResponse.json(
+        { error: `Channel Talk send failed: ${err?.message || "unknown"}` },
+        { status: 502 },
+      );
+    }
+
+    const provider = {
+      id: sentMsg.id || `ct-msg-${Date.now()}`,
+      threadId: thread.providerThreadId,
+      historyId: String(sentMsg.version ?? sentMsg.id ?? Date.now()),
+    };
+    const messageId = provider.id;
+
+    try {
+      await persistOutboundReply({
+        threadKey,
+        thread,
+        recipient: thread.sourceAccount,
+        subject: "Channel Talk Reply",
+        bodyText: parsed.data.bodyText,
+        provider,
+        messageId,
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "reply was sent but could not be linked; do not retry this reply" },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      threadKey,
+      messageId: provider.id,
+    });
+  }
+
   if (!thread.channel.startsWith("gmail_")) {
-    return NextResponse.json({ error: "this thread does not support Gmail replies" }, { status: 409 });
+    return NextResponse.json({ error: "this thread does not support Gmail or Channel Talk replies" }, { status: 409 });
   }
   const expectedChannel = `gmail_${thread.sourceAccount.split("@")[0]}`;
   if (thread.channel !== expectedChannel) {

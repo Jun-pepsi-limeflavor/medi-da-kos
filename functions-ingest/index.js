@@ -240,14 +240,25 @@ const ingestGmail = onSchedule(
   },
   async () => {
     const gmailMailboxes = parseMailboxList(INGEST_MAILBOXES.value());
+    const channelTalkKey = process.env.CHANNELTALK_ACCESS_KEY || "";
+    const channelTalkSecret = process.env.CHANNELTALK_ACCESS_SECRET || "";
+    const channelTalkConfig =
+      channelTalkKey && channelTalkSecret
+        ? {
+            account: "main",
+            credentials: {
+              accessKey: channelTalkKey,
+              accessSecret: channelTalkSecret,
+              channelVersion: process.env.CHANNELTALK_CHANNEL_VERSION || "5",
+            },
+          }
+        : null;
+
     await runAllIngestions({
       db: getFirestore(),
       gmailMailboxes,
-      // Provider adapters remain unit-tested but are deliberately not bound
-      // to this production function until their real Secret Manager entries
-      // and read-only canaries are approved (Plan 8).
       outlook: null,
-      channelTalk: null,
+      channelTalk: channelTalkConfig,
       initialAfter: INGEST_INITIAL_AFTER.value(),
     });
   },

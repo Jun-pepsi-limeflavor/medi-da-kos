@@ -5,10 +5,11 @@ import {
   listAllUserChats,
   listChatMessagesPage,
   listUserChatsPage,
+  sendChatMessage,
 } from "../functions-ingest/channeltalk.js";
 
 const credentials = { accessKey: "key", accessSecret: "secret", channelVersion: "2024-01-01" };
-const response = (json, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => json });
+const response = (json, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => json, text: async () => JSON.stringify(json) });
 
 test("user-chat pagination passes the opaque next cursor as since", async () => {
   const urls = [];
@@ -52,3 +53,32 @@ test("user-chat page keeps related messages without requiring their shape", asyn
   });
   assert.deepEqual(page.messages, [{ id: "m1" }]);
 });
+
+test("sendChatMessage sends formatted payload to user-chat message endpoint", async () => {
+  let requestedUrl = "";
+  let requestedBody = null;
+  let requestedHeaders = null;
+
+  const result = await sendChatMessage(
+    "chat-123",
+    { plainText: "안녕하세요. 문의주셔서 감사합니다." },
+    credentials,
+    {
+      baseUrl: "https://channel.test/open/v5",
+      fetchImpl: async (url, init) => {
+        requestedUrl = url;
+        requestedBody = JSON.parse(init.body);
+        requestedHeaders = init.headers;
+        return response({ message: { id: "msg-out-1", chatId: "chat-123" } });
+      },
+    },
+  );
+
+  assert.equal(requestedUrl, "https://channel.test/open/v5/user-chats/chat-123/messages");
+  assert.equal(requestedHeaders["x-access-key"], "key");
+  assert.equal(requestedHeaders["x-access-secret"], "secret");
+  assert.equal(requestedBody.plainText, "안녕하세요. 문의주셔서 감사합니다.");
+  assert.deepEqual(requestedBody.blocks, [{ type: "text", value: "안녕하세요. 문의주셔서 감사합니다." }]);
+  assert.equal(result.id, "msg-out-1");
+});
+
