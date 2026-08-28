@@ -115,12 +115,16 @@ test("buyerId·supplierId·dealId·linkedBy·linkedAt이 있어도 통과한다"
 
 // --- needsReply ---
 
-test("lastDirection이 in이면 needsReply가 참이다", () => {
-  assert.equal(needsReply({ lastDirection: "in" }), true);
+test("lastDirection만으로는 needsReply가 참이 되지 않는다", () => {
+  assert.equal(needsReply({}), false);
 });
 
-test("lastDirection이 out이면 needsReply가 거짓이다", () => {
-  assert.equal(needsReply({ lastDirection: "out" }), false);
+test("관찰된 인바운드가 아웃바운드·수동 완료보다 최신일 때만 needsReply가 참이다", () => {
+  assert.equal(needsReply({ lastInboundAt: "2026-08-20T00:00:00.000Z" }), true);
+  assert.equal(needsReply({
+    lastInboundAt: "2026-08-20T00:00:00.000Z",
+    handledThroughAt: "2026-08-20T00:01:00.000Z",
+  }), false);
 });
 
 // --- sideSource='manual'은 자동 판정을 덮지 않는다 ---

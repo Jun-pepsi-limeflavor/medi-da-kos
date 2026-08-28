@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { channelSchema, directionSchema, sideSchema, sideSourceSchema, type Message } from "./message.ts";
+import { conversationClassificationSchema } from "./conversation-identity.ts";
 
 export const readStateSchema = z.enum(["unread", "read"]);
 export const triageStateSchema = z.enum(["open", "archived", "ignored"]);
@@ -33,6 +34,31 @@ export const threadSchema = z.object({
   dealId: z.string().trim().min(1).optional(),
   linkedBy: z.string().trim().min(1).optional(),
   linkedAt: z.string().optional(),
+  // Customer-centered inbox v2 fields. Old thread documents remain valid
+  // until the ingestion dual-write has populated these optional fields.
+  identityId: z.string().trim().min(1).optional(),
+  classification: conversationClassificationSchema.optional(),
+  conversationId: z.string().trim().min(1).optional(),
+  lastInboundAt: z.iso.datetime().optional(),
+  lastOutboundAt: z.iso.datetime().optional(),
+  handledThroughAt: z.iso.datetime().optional(),
+}).superRefine((thread, ctx) => {
+  if (thread.buyerId && thread.classification === "supplier") {
+    ctx.addIssue({ code: "custom", message: "supplier conversation conflicts with legacy buyer link" });
+  }
+  if (thread.supplierId && thread.classification === "buyer") {
+    ctx.addIssue({ code: "custom", message: "buyer conversation conflicts with legacy supplier link" });
+  }
+
+  const isReview = thread.classification === "unclassified"
+    || thread.classification === "internal"
+    || thread.classification === "advertising";
+  if (isReview && thread.conversationId) {
+    ctx.addIssue({ code: "custom", message: "review threads cannot have a conversationId" });
+  }
+  if (thread.conversationId && !thread.identityId) {
+    ctx.addIssue({ code: "custom", message: "conversation threads require an identityId" });
+  }
 });
 
 // threadKey는 문서 ID이지 저장 필드가 아니다 — store.js가 만든 문서를 보면 안 들어 있다.
@@ -43,9 +69,28 @@ export function buildThreadKey(channel: string, sourceAccount: string, providerT
   return `${channel}:${sourceAccount}:${providerThreadId}`;
 }
 
-/** 이 화면의 존재 이유 — 마지막이 받은 메일이면 아직 답장하지 않은 것이다. */
-export function needsReply(thread: Pick<Thread, "lastDirection">): boolean {
-  return thread.lastDirection === "in";
+/**
+ * A thread is pending only when its latest inbound event is newer than both a
+ * sent reply and an explicit manual completion. Missing timestamps deliberately
+ * mean no pending reply while the v2 dual-write has not observed that thread.
+ */
+export function threadNeedsReply(
+  thread: Pick<Thread, "lastInboundAt" | "lastOutboundAt" | "handledThroughAt">,
+): boolean {
+  if (!thread.lastInboundAt) return false;
+
+  const inbound = Date.parse(thread.lastInboundAt);
+  if (Number.isNaN(inbound)) return false;
+  const outbound = thread.lastOutboundAt ? Date.parse(thread.lastOutboundAt) : Number.NEGATIVE_INFINITY;
+  const handled = thread.handledThroughAt ? Date.parse(thread.handledThroughAt) : Number.NEGATIVE_INFINITY;
+  return inbound > outbound && inbound > handled;
+}
+
+/** Backwards-compatible name for the timestamp-only pending-reply rule. */
+export function needsReply(
+  thread: Pick<Thread, "lastInboundAt" | "lastOutboundAt" | "handledThroughAt">,
+): boolean {
+  return threadNeedsReply(thread);
 }
 
 /**
@@ -141,7 +186,7 @@ export function appendSideCorrection(
 export const threadStatePatchSchema = z.object({
   readState: readStateSchema.optional(),
   triageState: triageStateSchema.optional(),
-}).refine((v) => Object.keys(v).length > 0, { message: "변경할 필드가 없습니다" });
+}).strict().refine((v) => Object.keys(v).length > 0, { message: "변경할 필드가 없습니다" });
 
 export type ThreadStatePatch = z.infer<typeof threadStatePatchSchema>;
 
@@ -150,7 +195,7 @@ export const threadLinkInputSchema = z
     buyerId: z.string().trim().min(1).optional(),
     supplierId: z.string().trim().min(1).optional(),
     dealId: z.string().trim().min(1).nullable().optional(),
-  })
+  }).strict()
   .refine(
     (v) => (v.buyerId ? 1 : 0) + (v.supplierId ? 1 : 0) <= 1,
     { message: "buyerId와 supplierId는 동시에 지정할 수 없습니다" }

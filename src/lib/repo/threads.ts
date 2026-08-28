@@ -15,6 +15,7 @@ import {
 } from "@/lib/schemas/thread";
 import { findBuyerByEmail } from "@/lib/repo/buyers";
 import { findSupplierByEmail } from "@/lib/repo/suppliers";
+import { ConversationNotFoundError } from "@/lib/repo/conversations";
 import type { Buyer } from "@/lib/schemas/buyer";
 import type { Supplier } from "@/lib/schemas/supplier";
 
@@ -35,6 +36,13 @@ const DEFAULT_LIMIT = 300;
 export class ThreadNotFoundError extends Error {
   constructor(threadKey: string) {
     super(`thread not found: ${threadKey}`);
+  }
+}
+
+export class ThreadNotConnectedError extends Error {
+  constructor() {
+    super("thread is not connected to a conversation");
+    this.name = "ThreadNotConnectedError";
   }
 }
 
@@ -69,6 +77,32 @@ export async function listThreads(filters: ThreadFilters = {}, limit = DEFAULT_L
 export async function getThread(threadKey: string): Promise<Thread | null> {
   const doc = await getAdminDb().collection(COLLECTION).doc(threadKey).get();
   return doc.exists ? toThread(doc.id, doc.data()!) : null;
+}
+
+/** Marks the observed inbound work complete without changing provider records. */
+export async function markThreadHandled(threadKey: string, actor: AdminIdentity): Promise<void> {
+  const db = getAdminDb();
+  const threadRef = db.collection(COLLECTION).doc(threadKey);
+  const now = new Date().toISOString();
+
+  await db.runTransaction(async (tx) => {
+    const threadDoc = await tx.get(threadRef);
+    if (!threadDoc.exists) throw new ThreadNotFoundError(threadKey);
+    const thread = toThread(threadDoc.id, threadDoc.data()!);
+    if (!thread.conversationId) throw new ThreadNotConnectedError();
+    const conversationRef = db.collection("conversations").doc(thread.conversationId);
+    const conversation = await tx.get(conversationRef);
+    if (!conversation.exists) throw new ConversationNotFoundError();
+
+    tx.update(threadRef, { handledThroughAt: now });
+    tx.set(conversationRef.collection("events").doc(), {
+      action: "thread_handled",
+      actorEmail: actor.email,
+      at: now,
+      threadKey,
+      handledThroughAt: now,
+    });
+  });
 }
 
 export async function setThreadState(

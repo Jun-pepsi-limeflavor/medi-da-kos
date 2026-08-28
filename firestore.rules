@@ -150,6 +150,12 @@ service cloud.firestore {
     }
     match /messages/{id}  { allow read, write: if false; }
     match /threads/{id}   { allow read, write: if false; }
+    match /conversationIdentities/{id} { allow read, write: if false; }
+    match /conversations/{id} {
+      allow read, write: if false;
+      match /brief/{briefId} { allow read, write: if false; }
+      match /events/{eventId} { allow read, write: if false; }
+    }
     match /intakeReviews/{id} { allow read, write: if false; }
     match /ingestState/{account} { allow read, write: if false; }
 
