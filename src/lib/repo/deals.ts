@@ -331,7 +331,7 @@ export async function updateDeal(
 }
 
 /**
- * 인박스에서 제안 확정 시 연결된 딜에 제품, 바이어, 배송, 일정 정보를 동기화한다.
+ * 인박스에서 제안 확정 시 연결된 딜에 제품, 바이어, 배송, 일정 정보를 동기화.
  */
 export async function syncDealFromAcceptedExtraction(
   dealId: string,
@@ -406,7 +406,7 @@ export async function syncDealFromAcceptedExtraction(
       const pType = extItem.productName || extItem.category || "화장품";
       const vName = extItem.variantName || extItem.category || "";
       const vol = extItem.volume || "";
-      
+
       let parsedQty = 1000;
       if (typeof extItem.expectedQty === "number") {
         parsedQty = extItem.expectedQty > 0 ? Math.floor(extItem.expectedQty) : 1000;
