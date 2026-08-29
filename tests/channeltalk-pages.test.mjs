@@ -25,7 +25,9 @@ test("user-chat pagination passes the opaque next cursor as since", async () => 
   assert.equal(result.complete, true);
   assert.equal(result.nextCursor, null);
   assert.equal(new URL(urls[0]).searchParams.get("since"), null);
+  assert.equal(new URL(urls[0]).searchParams.get("state"), "opened");
   assert.equal(new URL(urls[1]).searchParams.get("since"), "cursor-2");
+  assert.equal(new URL(urls[1]).searchParams.get("state"), "opened");
 });
 
 test("chat messages pagination is isolated per user chat and empty pages are valid", async () => {
@@ -81,4 +83,3 @@ test("sendChatMessage sends formatted payload to user-chat message endpoint", as
   assert.deepEqual(requestedBody.blocks, [{ type: "text", value: "안녕하세요. 문의주셔서 감사합니다." }]);
   assert.equal(result.id, "msg-out-1");
 });
-

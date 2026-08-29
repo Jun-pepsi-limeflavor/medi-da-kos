@@ -73,7 +73,7 @@ test("Channel Talk credentials are required and are only used as request headers
       return { ok: true, status: 200, json: async () => ({ userChats: [], next: null }) };
     },
   });
-  assert.doesNotMatch(seen.url, /state=/);
+  assert.match(seen.url, /state=opened/);
   assert.equal(seen.options.headers["x-access-key"], "access-key");
   assert.equal(seen.options.headers["x-access-secret"], "access-secret");
   assert.equal(seen.options.headers["Channel-Version"], "2024-01-01");

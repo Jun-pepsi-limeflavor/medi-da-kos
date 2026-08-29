@@ -51,7 +51,7 @@ async function fetchJson(url, credentials, { fetchImpl = global.fetch } = {}) {
 }
 
 async function listUserChatsPage(credentials, options = {}) {
-  const url = queryUrl("user-chats", options);
+  const url = queryUrl("user-chats", { state: "opened", ...options });
   const json = await fetchJson(url, credentials, options);
   return {
     userChats: Array.isArray(json.userChats) ? json.userChats : [],
@@ -265,4 +265,3 @@ module.exports = {
   sendChatMessage,
   timestampToIso,
 };
-
