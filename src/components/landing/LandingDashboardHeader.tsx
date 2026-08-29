@@ -9,6 +9,7 @@ import {
   ArrowRight,
   ArrowDown,
 } from "lucide-react";
+import { trackLandingEvent } from "@/lib/analytics";
 import { SpecularButton } from "./SpecularButton";
 
 export interface LandingDashboardHeaderProps {
@@ -276,7 +277,11 @@ export function LandingDashboardHeader({
                 </p>
                 <div className="mt-4 flex flex-col items-center gap-2">
                   <SpecularButton
-                    onClick={onStart}
+                    onClick={() => {
+                      trackLandingEvent("cta_click", "dashboard", { cta_id: "start_brief" });
+                      onStart();
+                    }}
+                    data-cta="start_brief"
                     data-testid="start-brief-btn"
                     size="md"
                     radius={28}
@@ -313,7 +318,11 @@ export function LandingDashboardHeader({
               </span>
               <button
                 type="button"
-                onClick={onStart}
+                data-cta="scroll_to_form"
+                onClick={() => {
+                  trackLandingEvent("cta_click", "dashboard", { cta_id: "scroll_to_form" });
+                  onStart();
+                }}
                 className="font-medium text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
               >
                 Scroll to form ↓

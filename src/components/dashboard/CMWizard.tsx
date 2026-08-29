@@ -39,8 +39,9 @@ import { PackagingGroupButton } from "./PackagingGroupButton";
 import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
-import { trackConversionEvent } from "@/lib/analytics";
-import { trackLandingEvent } from "@/lib/analytics";
+import { trackConversionEvent, trackLandingEvent } from "@/lib/analytics";
+import { getBriefStepLabel } from "@/lib/brief-steps";
+import { LandingSignals } from "@/components/landing/LandingSignals";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import { Top10Products } from "./Top10Products";
 import { LandingDashboardHeader } from "@/components/landing/LandingDashboardHeader";
@@ -105,11 +106,23 @@ export function CMWizard({ uid = "landing", mode = "order", onConsultationReady 
     return () => context.revert();
   }, [currentStep, mode]);
 
+  useEffect(() => {
+    if (mode !== "consultation" || !currentStep || !activeStarted) return;
+    trackLandingEvent("brief_step_open", "dashboard", {
+      brief_step: currentStep,
+      brief_step_label: getBriefStepLabel(currentStep),
+    });
+  }, [currentStep, mode, activeStarted]);
+
   async function persist(next: CMBrief, advance = false) {
     setSaving(true);
+    const completingStep = next.currentStep;
     const updated = await persistBrief(next, advance);
-    if (mode === "consultation") {
-      trackLandingEvent("dashboard_step_view", "dashboard", { dashboard_step: updated.currentStep });
+    if (mode === "consultation" && advance) {
+      trackLandingEvent("brief_step_complete", "dashboard", {
+        brief_step: completingStep,
+        brief_step_label: getBriefStepLabel(completingStep),
+      });
     }
     setSaving(false);
     setMessage(
@@ -180,12 +193,15 @@ export function CMWizard({ uid = "landing", mode = "order", onConsultationReady 
   return (
     <div className="flex min-h-[calc(100dvh-6.5rem)] flex-col lg:min-h-[calc(100vh-5rem)]">
       {mode === "consultation" ? (
-        <LandingDashboardHeader
-          currentStep={step}
-          message={message}
-          isStarted={activeStarted}
-          onStart={handleStartBrief}
-        />
+        <>
+          <LandingSignals variant="dashboard" />
+          <LandingDashboardHeader
+            currentStep={step}
+            message={message}
+            isStarted={activeStarted}
+            onStart={handleStartBrief}
+          />
+        </>
       ) : (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>

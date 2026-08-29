@@ -54,7 +54,7 @@ test("CMWizard integrates LandingDashboardHeader conditionally and manages progr
   );
   assert.match(
     wizardContent,
-    /mode === "consultation" \?\s*\(\s*<LandingDashboardHeader[\s\S]*currentStep=\{step\}[\s\S]*message=\{message\}[\s\S]*isStarted=\{activeStarted\}[\s\S]*onStart=\{handleStartBrief\}[\s\S]*\/>\s*\)\s*:\s*\(/,
+    /mode === "consultation" \?\s*\(\s*<>\s*<LandingSignals\s+variant="dashboard"\s*\/>\s*<LandingDashboardHeader[\s\S]*currentStep=\{step\}[\s\S]*message=\{message\}[\s\S]*isStarted=\{activeStarted\}[\s\S]*onStart=\{handleStartBrief\}[\s\S]*\/>\s*<\/>\s*\)\s*:\s*\(/,
   );
   assert.match(wizardContent, /handleStartBrief/);
   assert.match(wizardContent, /scrollIntoView\(\{/);
