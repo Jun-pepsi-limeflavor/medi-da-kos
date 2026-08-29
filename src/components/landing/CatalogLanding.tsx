@@ -12,6 +12,7 @@ import { trackLandingEvent } from "@/lib/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import type { LandingCatalogItem } from "@/lib/landing/types";
 import { ConsultationForm } from "./ConsultationForm";
+import { LandingSignals } from "./LandingSignals";
 import { SpecularButton } from "./SpecularButton";
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -30,7 +31,6 @@ export function CatalogLanding() {
   const [form, setForm] = useState(false);
   const [formItems, setFormItems] = useState<LandingCatalogItem[] | null>(null);
   const [notice, setNotice] = useState("");
-  const [hasStartedConsultation, setHasStartedConsultation] = useState(false);
   const landingRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const trayRef = useRef<HTMLElement>(null);
@@ -57,6 +57,10 @@ export function CatalogLanding() {
       );
     }, landingRef);
     return () => context.revert();
+  }, []);
+
+  useEffect(() => {
+    trackLandingEvent("catalog_category_view", "catalog", { catalog_category: category });
   }, []);
 
   useEffect(() => {
@@ -113,13 +117,10 @@ export function CatalogLanding() {
     const next = [...selected, { id: product.id, name: product.name, category: product.category }];
     setSelected(next);
     setNotice("");
-    if (!hasStartedConsultation) {
-      setHasStartedConsultation(true);
-      trackLandingEvent("consultation_start", "catalog");
-    }
     trackLandingEvent("catalog_product_select", "catalog", {
       product_id: product.id,
-      product_category: product.category,
+      catalog_category: product.category,
+      cart_size: next.length,
     });
     return next;
   };
@@ -170,6 +171,7 @@ export function CatalogLanding() {
 
   return (
     <section ref={landingRef}>
+      <LandingSignals variant="catalog" />
       <div className="max-w-3xl" data-catalog-intro>
         <p className="text-sm font-semibold uppercase tracking-[.2em] text-sky-700">Private label catalog</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">Start with a formula your brand can make its own.</h1>
@@ -185,7 +187,7 @@ export function CatalogLanding() {
       <div ref={gridRef} className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {products.map((product, index) => (
           <article key={product.id} data-catalog-tile className="flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white">
-            <button type="button" onClick={() => { setDetail(product); trackLandingEvent("catalog_product_view", "catalog", { product_id: product.id, product_category: product.category }); }} className="flex flex-1 flex-col w-full text-left">
+            <button type="button" onClick={() => { setDetail(product); trackLandingEvent("catalog_product_view", "catalog", { product_id: product.id, catalog_category: product.category }); }} className="flex flex-1 flex-col w-full text-left">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-100"><Image src={product.image} alt="" fill unoptimized priority={index === 0} className="object-cover object-center" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /></div>
               <div className="flex flex-1 flex-col p-5"><p className="text-xs font-medium uppercase tracking-wide text-sky-700">{product.category}</p><h2 className="mt-2 font-semibold leading-snug">{product.name}</h2><p className="mt-2 line-clamp-2 text-sm text-slate-600">{product.description}</p></div>
             </button>
@@ -195,11 +197,16 @@ export function CatalogLanding() {
       </div>
       <aside ref={trayRef} className="sticky bottom-3 mt-10 rounded-2xl border border-white/[.44] bg-white/[.48] p-4 shadow-[0_4px_30px_rgba(0,0,0,0.1)] backdrop-blur-[4.9px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><strong>{selected.length} item{selected.length === 1 ? "" : "s"} selected</strong>{selected.length > 0 ? <div className="mt-1 flex flex-wrap gap-2">{selected.map((item) => <button type="button" onClick={() => setSelected((items) => items.filter((selectedItem) => selectedItem.id !== item.id))} key={item.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">{item.name} ×</button>)}</div> : <p className="mt-1 text-sm text-slate-600">Add at least one product to start a consultation.</p>}</div>
+          <div><strong>{selected.length} item{selected.length === 1 ? "" : "s"} selected</strong>{selected.length > 0 ? <div className="mt-1 flex flex-wrap gap-2">{selected.map((item) => <button type="button" onClick={() => setSelected((items) => { const next = items.filter((selectedItem) => selectedItem.id !== item.id); trackLandingEvent("catalog_product_remove", "catalog", { product_id: item.id, cart_size: next.length }); return next; })} key={item.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">{item.name} ×</button>)}</div> : <p className="mt-1 text-sm text-slate-600">Add at least one product to start a consultation.</p>}</div>
           <SpecularButton
             data-catalog-consultation-cta
+            data-cta="request_consultation"
             disabled={selected.length === 0}
-            onClick={() => { setFormItems(selected); setForm(true); }}
+            onClick={() => {
+              trackLandingEvent("cta_click", "catalog", { cta_id: "request_consultation" });
+              setFormItems(selected);
+              setForm(true);
+            }}
             size="sm"
             radius={8}
             textColor="#f8fafc"
