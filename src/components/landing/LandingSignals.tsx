@@ -1,23 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
-import {
-  setKoreaArm,
-  trackCtaView,
-  trackEngaged15s,
-  trackScrollDepth,
-  trackSectionView,
-  type KoreaCtaId,
-  type KoreaSectionId,
-} from "./analytics";
+import { trackLandingEvent } from "@/lib/analytics";
+import { setKoreaArm } from "@/app/landing/korea/analytics";
+import type { LandingVariant } from "@/lib/landing/types";
 
 const DEPTHS = [25, 50, 75, 100] as const;
-
-/** CTA가 이만큼 머물러야 "봤다"로 친다. 스쳐 지나간 노출을 세지 않기 위함. */
 const CTA_DWELL_MS = 3000;
-
-/** 사람만 남기는 자체 참여 기준. GA4 기본 10초는 봇이 통과한다. */
 const ENGAGED_MS = 15000;
+
+interface LandingSignalsProps {
+  variant: LandingVariant;
+  /** korea 전용. 넘기면 setKoreaArm(arm)을 호출해 emit={track} 쪽 positioning_arm을 채운다. */
+  arm?: string;
+  /** 기본값은 trackLandingEvent(event, variant, params). korea는 emit={track}으로 positioning_arm을 보존한다. */
+  emit?: (event: string, params: Record<string, unknown>) => void;
+  sectionSelector?: string;
+  ctaSelector?: string;
+}
 
 /**
  * 화면에 아무것도 그리지 않는 계측 전용 컴포넌트.
@@ -29,9 +29,15 @@ const ENGAGED_MS = 15000;
  * 구간 노출은 IntersectionObserver로 잡는다. `data-section` 속성이 붙은
  * 요소를 자동으로 찾으므로 섹션이 늘어도 이 파일은 안 고친다.
  */
-export function KoreaPageSignals({ arm }: { arm: string }) {
+export function LandingSignals({
+  variant,
+  arm,
+  emit = (event, params) => trackLandingEvent(event, variant, params),
+  sectionSelector = "[data-section]",
+  ctaSelector = "[data-cta]",
+}: LandingSignalsProps) {
   useEffect(() => {
-    setKoreaArm(arm);
+    if (arm !== undefined) setKoreaArm(arm);
   }, [arm]);
 
   useEffect(() => {
@@ -47,7 +53,7 @@ export function KoreaPageSignals({ arm }: { arm: string }) {
       for (const depth of DEPTHS) {
         if (reached >= depth && !fired.has(depth)) {
           fired.add(depth);
-          trackScrollDepth(depth);
+          emit("scroll_depth", { percent_scrolled: depth });
         }
       }
     };
@@ -69,7 +75,7 @@ export function KoreaPageSignals({ arm }: { arm: string }) {
 
   useEffect(() => {
     const seen = new Set<string>();
-    const targets = document.querySelectorAll<HTMLElement>("[data-section]");
+    const targets = document.querySelectorAll<HTMLElement>(sectionSelector);
     if (!targets.length) return;
 
     const observer = new IntersectionObserver(
@@ -78,7 +84,7 @@ export function KoreaPageSignals({ arm }: { arm: string }) {
           const id = entry.target.getAttribute("data-section");
           if (!id || seen.has(id) || !entry.isIntersecting) continue;
           seen.add(id);
-          trackSectionView(id as KoreaSectionId);
+          emit("section_view", { section_id: id });
           observer.unobserve(entry.target);
         }
       },
@@ -94,7 +100,7 @@ export function KoreaPageSignals({ arm }: { arm: string }) {
   useEffect(() => {
     const seen = new Set<string>();
     const timers = new Map<Element, number>();
-    const targets = document.querySelectorAll<HTMLElement>("[data-cta]");
+    const targets = document.querySelectorAll<HTMLElement>(ctaSelector);
     if (!targets.length) return;
 
     const observer = new IntersectionObserver(
@@ -119,7 +125,7 @@ export function KoreaPageSignals({ arm }: { arm: string }) {
               timers.delete(entry.target);
               if (seen.has(id)) return;
               seen.add(id);
-              trackCtaView(id as KoreaCtaId);
+              emit("cta_view", { cta_id: id });
             }, CTA_DWELL_MS),
           );
         }
@@ -144,7 +150,7 @@ export function KoreaPageSignals({ arm }: { arm: string }) {
     const fire = () => {
       if (fired) return;
       fired = true;
-      trackEngaged15s();
+      emit("engaged_15s", {});
     };
 
     const schedule = () => {

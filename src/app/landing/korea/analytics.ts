@@ -34,7 +34,7 @@ export function setKoreaArm(arm: string) {
   armForSession = arm;
 }
 
-function track(event: string, params: Record<string, unknown>) {
+export function track(event: string, params: Record<string, unknown>) {
   trackConversionEvent(event, { ...params, positioning_arm: armForSession });
 }
 
