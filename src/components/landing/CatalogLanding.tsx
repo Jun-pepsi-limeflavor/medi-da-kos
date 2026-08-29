@@ -8,7 +8,7 @@ import {
   CATALOG_PRODUCTS,
   type CatalogProduct,
 } from "@/lib/landing/catalog-products";
-import { trackLandingEvent } from "@/lib/landing/analytics";
+import { trackLandingEvent } from "@/lib/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import type { LandingCatalogItem } from "@/lib/landing/types";
 import { ConsultationForm } from "./ConsultationForm";

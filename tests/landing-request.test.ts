@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  buildLandingRequest,
-  validateLandingContact,
-} from "../src/lib/landing/request.ts";
-import { trackLandingEvent } from "../src/lib/landing/analytics.ts";
+import { register } from "node:module";
 import type { LandingRequestInput } from "../src/lib/landing/types.ts";
+
+try {
+  register("./esm-alias-loader.mjs", import.meta.url);
+} catch {
+  // 이미 --loader로 등록된 경우 무시
+}
+
+const { buildLandingRequest, validateLandingContact } = await import(
+  "../src/lib/landing/request.ts"
+);
+const { trackLandingEvent } = await import("../src/lib/analytics.ts");
 
 const context = {
   pageUrl: "https://www.medidakos.com/landing/catalog?utm_content=catalog",
@@ -191,6 +198,7 @@ test("analytics wrapper strips personal data before forwarding", () => {
       calls.push([event, params]);
       assert.equal(name, "event");
     },
+    location: { hostname: "qa.example.com", search: "" },
   };
 
   try {
@@ -212,5 +220,6 @@ test("analytics wrapper strips personal data before forwarding", () => {
   assert.deepEqual(calls[0][1], {
     product_id: catalogItem.id,
     landing_variant: "catalog",
+    is_test: true,
   });
 });

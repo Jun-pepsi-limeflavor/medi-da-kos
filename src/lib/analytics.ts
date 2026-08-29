@@ -1,4 +1,5 @@
 import { isNonProductionEnv } from "./env-flags";
+import type { LandingVariant } from "./landing/types";
 
 /**
  * 모든 GA4 이벤트에 `is_test`를 붙인다.
@@ -23,5 +24,36 @@ export function trackBriefStep(step: number, stepLabel: string) {
   trackConversionEvent("brief_step_changed", {
     brief_step: step,
     brief_step_label: stepLabel,
+  });
+}
+
+/**
+ * 개인정보가 절대 GA4로 나가지 않게 거르는 신뢰 경계.
+ * landing/analytics.ts에서 그대로 옮겼다 — 간소화 대상이 아니다.
+ */
+const privateKeys = new Set([
+  "companyName",
+  "contactName",
+  "email",
+  "message",
+  "pageUrl",
+  "gaClientId",
+  "userAgent",
+]);
+
+/** 모든 랜딩 이벤트의 단일 진입점. is_test·landing_variant를 전역으로 붙인다. */
+export function trackLandingEvent(
+  name: string,
+  variant: LandingVariant,
+  params: Record<string, unknown> = {},
+) {
+  if (typeof window === "undefined" || typeof window.gtag !== "function") return;
+  const safe = Object.fromEntries(
+    Object.entries(params).filter(([key]) => !privateKeys.has(key)),
+  );
+  window.gtag("event", name, {
+    ...safe,
+    landing_variant: variant,
+    is_test: isNonProductionEnv(),
   });
 }

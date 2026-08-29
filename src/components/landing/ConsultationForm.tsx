@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { submitLandingRequest, validateLandingContact } from "@/lib/landing/request";
-import { trackLandingEvent } from "@/lib/landing/analytics";
+import { trackLandingEvent } from "@/lib/analytics";
 import type { LandingCatalogItem, LandingRequestInput, LandingVariant } from "@/lib/landing/types";
 import type { CMBrief } from "@/lib/types";
 import { useLandingAttribution } from "./useLandingAttribution";

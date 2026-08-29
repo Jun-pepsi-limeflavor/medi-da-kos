@@ -5,7 +5,7 @@ import { CMWizard } from "@/components/dashboard/CMWizard";
 import { DashboardStepProvider } from "@/lib/dashboard-step-context";
 import { LandingDashboardBriefProvider } from "@/lib/dashboard-brief-context";
 import type { CMBrief } from "@/lib/types";
-import { trackLandingEvent } from "@/lib/landing/analytics";
+import { trackLandingEvent } from "@/lib/analytics";
 import { ConsultationForm } from "./ConsultationForm";
 
 function DashboardContent() {

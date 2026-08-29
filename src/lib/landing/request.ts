@@ -1,5 +1,6 @@
 "use client";
 
+import { isNonProductionEnv } from "../env-flags";
 import type { CMBrief } from "../types";
 import type { LandingContactFields, LandingRequestContext, LandingRequestInput, LandingRequestSubmission } from "./types";
 
@@ -68,7 +69,7 @@ export function buildLandingRequest(input: LandingRequestInput, context: Landing
     businessType: input.businessType?.trim() || undefined,
     positioningArm: input.positioningArm?.trim() || undefined,
     ...context,
-    isTest: typeof window === "undefined" || window.location.hostname.replace(/^www\./, "") !== "medidakos.com" || new URLSearchParams(window.location.search).has("qa"),
+    isTest: isNonProductionEnv(),
     status: "new" as const,
     createdAt: new Date().toISOString(),
   };

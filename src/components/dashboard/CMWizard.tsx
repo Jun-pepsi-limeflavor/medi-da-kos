@@ -40,7 +40,7 @@ import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
 import { trackConversionEvent } from "@/lib/analytics";
-import { trackLandingEvent } from "@/lib/landing/analytics";
+import { trackLandingEvent } from "@/lib/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import { Top10Products } from "./Top10Products";
 import { LandingDashboardHeader } from "@/components/landing/LandingDashboardHeader";
