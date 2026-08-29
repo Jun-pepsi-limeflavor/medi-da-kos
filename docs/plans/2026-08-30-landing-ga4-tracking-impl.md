@@ -21,24 +21,27 @@
 - 테스트는 Node 내장 `node --test`. 컴포넌트 내부 로직 검증은 이 저장소의 기존 관례대로 소스 텍스트 정규식 검증(`tests/landing-dashboard-header.test.ts` 패턴)을 쓴다 — jsdom/RTL 추가하지 않는다.
 - 스키마·Firestore 규칙 변경(§5 `funnelSummary`)은 구현 전 별도 사용자 승인이 필요하다 (AGENTS.md). 이 계획의 Phase 4로 분리했다.
 - 커밋·푸시·배포는 사용자가 명시적으로 요청할 때만 한다.
+- **`npm run lint`는 이 작업 이전부터 이미 31 errors / 62 warnings를 낸다** (2026-08-30 실측). 전부 이 계획이 건드리지 않는 파일이다 — `functions-ingest/*.js`, `src/app/(marketing)/compare/page.tsx`, `src/lib/firestore-service.ts`, `src/components/marketing/*` 등. 검증 시 **총 개수가 늘지 않았는지**로 판정하고, 0을 기대하지 않는다. 기존 오류를 고치는 건 이 계획의 범위가 아니다.
 
 ---
 
 ## 코드 실사 결과 — 스펙과 다른 점 (구현 전에 읽을 것)
 
-실제 코드를 전수 확인한 결과, 스펙 본문과 3가지가 어긋난다. 아래를 반영해 태스크를 구성했다.
+실제 코드를 전수 확인한 결과 스펙 본문과 3가지가 어긋났고, 조사 중 2건이 더 나와 사용자 결정으로 범위에 편입됐다. 아래를 반영해 태스크를 구성했다.
 
 1. **"파일 6개, 신규 파일 0개"는 부정확하다.** `src/components/landing/LandingDashboard.tsx`가 `src/lib/landing/analytics.ts`에서 `trackLandingEvent`를 직접 import해 `consultation_start` 이벤트를 쏘고 있는데(8·14번 줄), 스펙 §3의 6개 파일 목록에 이 파일이 빠져 있다. `landing/analytics.ts`를 지우면 이 import는 무조건 깨지므로 이 파일은 반드시 같이 고쳐야 한다. **실제로는 7개 파일.**
 2. **`bin/ga4_setup.py`는 앱 저장소가 아니라 위키 vault에 있다.** 실제 경로는 `/Users/giwook/Documents/한국기술자산/bin/ga4_setup.py`다. 이 저장소에 없는 게 맞고(`bin/` 디렉터리 없음, `.py` 파일 0개), 스펙이 가리킨 건 vault 쪽 도구였다. 따라서 Phase 2는 **vault 파일 수정**이고, AGENTS.md에 따라 **vault 루트에서 별도 세션으로** 수행해야 한다 — 이 저장소 세션에서 고치지 않는다.
 3. **`ConsultationForm.tsx`의 param 이름이 스펙과 다르다.** 현재 `catalog_product_view`/`catalog_category_view` 호출은 `product_category`라는 키를 쓰는데, 스펙 §1 표는 `catalog_category`를 요구한다. `src/lib/landing/request.ts:71`에도 `trackLandingEvent`·`env-flags.ts`와 별개인 **세 번째** `isTest` 인라인 재구현이 있다(스펙은 두 곳만 언급). 이건 GA4 이벤트가 아니라 Firestore 문서의 `isTest` 필드값이라 이번 계측 스펙의 직접 대상이 아니므로 이 계획에서는 건드리지 않는다 — 다만 "판정이 갈리면 어느 쪽이 맞는지 알 수 없다"는 스펙의 우려가 여기도 적용된다는 점을 별도 이슈로 남긴다.
 
-추가로 코드에서 발견했지만 스펙 범위 밖이라 **이 계획에서 손대지 않는** 것: `src/lib/dashboard-brief-context.tsx:21-25`의 `notifyBriefStepChange`는 `mode`와 무관하게 모든 `persistBrief` 호출에서 `brief_step_changed`(GA4)와 `syncBriefStepToChannelTalk`를 이미 쏘고 있다. 즉 랜딩 대시보드(consultation 모드)에서도 스텝을 넘길 때마다 이 기존 이벤트가 새 `brief_step_open`/`brief_step_complete`와 나란히 발화한다. 스펙이 이 파일을 언급하지 않으므로 그대로 두되, GA4 판독 시 `brief_step_changed`와 새 이벤트가 같은 전환에서 중복 발화한다는 걸 알고 있어야 한다.
+4. **`brief_step_changed`가 랜딩에서도 발화한다 — 사용자 결정으로 범위에 편입.** `src/lib/dashboard-brief-context.tsx:21-25`의 `notifyBriefStepChange`가 `mode`와 무관하게 모든 `persistBrief` 호출에서 `brief_step_changed`(GA4)와 `syncBriefStepToChannelTalk`를 쏜다. 그대로 두면 랜딩 대시보드의 스텝 전환 한 번에 GA4 이벤트가 3개 나간다. **2026-08-30 사용자 결정: consultation 모드에서 끈다** (Task 1.8). 이 이벤트의 주목적인 채널톡 스텝 동기화는 랜딩에 채널톡 프로필이 없어 무의미하고, `trackConversionEvent` 경로라 `landing_variant`가 붙지 않아 랜딩별 분리도 안 된다.
+
+**5. 세 번째 `isTest`도 이번에 통합한다 — 사용자 결정.** 위 3번의 `src/lib/landing/request.ts:71`을 `isNonProductionEnv()`로 교체한다 (Task 1.1 Step 5). 현재 두 구현의 결과는 같지만(`SITE_URL`이 `https://www.medidakos.com`) request.ts는 도메인을 하드코딩해둔 것이라 도메인이 바뀌면 조용히 갈라지고, 그러면 Firestore 리드 수와 GA4 보고서가 서로 다른 수를 말하게 된다.
 
 ---
 
 ## Phase 1 — 이벤트 배선 (승인 게이트 없음, 바로 구현)
 
-스키마·권한 변경이 없으므로 AGENTS.md의 계획 승인 게이트 대상이 아니다. 7개 파일 + 신규 테스트 파일 1개.
+스키마·권한 변경이 없으므로 AGENTS.md의 계획 승인 게이트 대상이 아니다. 8개 파일 + 신규 테스트 파일 1개.
 
 ### Task 1.1: `src/lib/analytics.ts`에 `trackLandingEvent` 흡수 + `landing/analytics.ts` 삭제
 
@@ -136,7 +139,20 @@ rm src/lib/landing/analytics.ts
 
 `qa.example.com`은 `SITE_URL`(`https://www.medidakos.com`)과 호스트가 다르므로 `isNonProductionEnv()`가 결정적으로 `true`를 반환한다.
 
-- [ ] **Step 5: 검증**
+- [ ] **Step 5: `src/lib/landing/request.ts:71`의 세 번째 `isTest` 재구현 제거**
+
+`buildLandingRequest`의 payload에서 인라인 호스트 비교를 `isNonProductionEnv()`로 교체한다.
+
+```diff
++import { isNonProductionEnv } from "../env-flags";
+...
+-    isTest: typeof window === "undefined" || window.location.hostname.replace(/^www\./, "") !== "medidakos.com" || new URLSearchParams(window.location.search).has("qa"),
++    isTest: isNonProductionEnv(),
+```
+
+두 구현은 현재 같은 값을 내지만(`SITE_URL` = `https://www.medidakos.com`), request.ts 쪽은 도메인 하드코딩이라 도메인이 바뀌면 조용히 갈라진다. `tests/landing-request.test.ts`의 기존 `isTest` 단정이 이 교체 후에도 통과하는지 확인한다 — 통과하지 않으면 stub의 hostname을 Step 4와 같은 방식으로 맞춘다.
+
+- [ ] **Step 6: 검증**
 
 ```bash
 npm run typecheck
@@ -144,10 +160,10 @@ node --test tests/landing-request.test.ts
 ```
 기대: 타입 에러 없음, 전체 통과.
 
-- [ ] **Step 6: 커밋**
+- [ ] **Step 7: 커밋** (사용자가 요청할 때만)
 
 ```bash
-git add src/lib/analytics.ts src/lib/landing/analytics.ts \
+git add src/lib/analytics.ts src/lib/landing/analytics.ts src/lib/landing/request.ts \
   src/components/landing/CatalogLanding.tsx src/components/landing/ConsultationForm.tsx \
   src/components/dashboard/CMWizard.tsx src/components/landing/LandingDashboard.tsx \
   tests/landing-request.test.ts
@@ -788,6 +804,33 @@ git commit -m "test: add source-assertion regression tests for landing GA4 event
 
 ---
 
+### Task 1.8: `brief_step_changed`를 consultation 모드에서 끄기
+
+**사용자 결정 (2026-08-30).** 이대로 두면 랜딩 대시보드의 스텝 전환 한 번에 `brief_step_changed` + `brief_step_open` + `brief_step_complete` 3개가 나간다.
+
+**Files:**
+- Modify: `src/lib/dashboard-brief-context.tsx`
+
+**주의 — 이 파일은 GA4 이벤트만 쏘는 게 아니다.** `notifyBriefStepChange`는 `trackBriefStep`(GA4)과 `syncBriefStepToChannelTalk`(채널톡)를 **둘 다** 호출한다. 게이트를 걸면 랜딩에서 채널톡 동기화도 같이 멈춘다. 랜딩 대시보드에는 채널톡 회원 프로필이 없으므로 이게 의도한 결과지만, **구현 시 두 호출 모두 멈추는 것이 맞는지 코드를 열어 확인하고 진행한다.** 채널톡 쪽만 남겨야 한다면 게이트를 `trackBriefStep` 호출에만 건다.
+
+- [ ] **Step 1: 호출부가 mode를 알 수 있는지 확인**
+
+`dashboard-brief-context.tsx`의 3개 호출 지점(`:58`, `:75`, `:93`)이 `mode`에 접근할 수 있는지 먼저 읽는다. 컨텍스트가 `mode`를 모른다면 provider prop으로 받아야 하고, 그러면 `LandingDashboardBriefProvider`(랜딩)와 로그인 대시보드 provider의 호출부가 함께 바뀐다. **이 확인 전에는 diff를 쓰지 않는다.**
+
+- [ ] **Step 2: 게이트 적용**
+
+랜딩 provider는 consultation 전용이므로, provider 단에서 플래그를 내려주는 형태가 가장 짧을 가능성이 높다. 정확한 형태는 Step 1의 결과로 정한다.
+
+- [ ] **Step 3: 로그인 대시보드 회귀 확인**
+
+`mode === "order"` 경로에서 `brief_step_changed`와 채널톡 동기화가 **그대로 발화하는지** 확인한다. 이게 이 태스크의 유일한 회귀 위험이다.
+
+```bash
+npm run typecheck && npm run lint
+```
+
+---
+
 ### Phase 1 최종 검증
 
 - [ ] `npm test` (전체 스위트)
@@ -851,7 +894,7 @@ git commit -m "test: add source-assertion regression tests for landing GA4 event
 
 ## Phase 4 — `funnelSummary` + Firestore 규칙 (별도 승인 게이트, 스키마 변경)
 
-**이 페이즈는 구현하지 않는다. 아래는 설계안이며, 사용자가 데이터 모양과 접근 규칙을 승인한 뒤 별도 계획/세션에서 코드화한다 (AGENTS.md: "스키마, 권한 규칙... 바꿀 때는 데이터 모양과 접근 규칙을 먼저 적고 사용자 승인을 받은 뒤 구현한다").**
+**2026-08-30 사용자 결정: 설계와 접근 규칙을 지금 확정한다.** 아래 데이터 모양과 규칙안을 사용자가 승인하면 코드화에 들어간다. 승인 전에는 코드를 쓰지 않는다 (AGENTS.md: "스키마, 권한 규칙... 바꿀 때는 데이터 모양과 접근 규칙을 먼저 적고 사용자 승인을 받은 뒤 구현한다").**
 
 ### 왜 이 페이즈가 분리됐는가
 
@@ -882,6 +925,63 @@ interface LandingFunnelSummary {
 
 이 방식은 신규 상태관리 라이브러리·context·store 없이 기존 `useRef` 관례만으로 끝난다. `funnelSummary` 자체는 `submitLandingRequest` 호출 시점에 이 ref들의 스냅샷을 한 번 읽어 `buildLandingRequest`에 새 인자로 넘기는 형태가 될 것이다 (정확한 함수 시그니처는 승인 후 코드화 단계에서 확정).
 
+### 접근 규칙안 (승인 대상)
+
+`landingRequests`는 **클라이언트가 직접 create하는 유일한 공개 컬렉션**이다. 규칙이 허용 키를 화이트리스트(`hasOnly`)로 검사하므로, `funnelSummary`는 화이트리스트에 넣지 않으면 **제출 자체가 거부된다.** 넣되 모든 값을 상한으로 묶는다.
+
+기존 헬퍼 스타일을 그대로 따른다 — 규칙 언어에 반복문이 없어 `validCatalogItems`가 5개를 펼쳐 쓰고 있고(`firestore.rules:93-102`), 같은 방식을 쓴다.
+
+```
+function validProductsViewed(list) {
+  return list is list
+    && list.size() <= 10
+    && (list.size() < 1  || validLandingString(list[0], 200))
+    && (list.size() < 2  || validLandingString(list[1], 200))
+    && (list.size() < 3  || validLandingString(list[2], 200))
+    && (list.size() < 4  || validLandingString(list[3], 200))
+    && (list.size() < 5  || validLandingString(list[4], 200))
+    && (list.size() < 6  || validLandingString(list[5], 200))
+    && (list.size() < 7  || validLandingString(list[6], 200))
+    && (list.size() < 8  || validLandingString(list[7], 200))
+    && (list.size() < 9  || validLandingString(list[8], 200))
+    && (list.size() < 10 || validLandingString(list[9], 200));
+}
+
+function validFunnelSummary(s) {
+  return s is map
+    && s.keys().hasOnly(['categoriesViewed', 'productsViewed', 'cartSize', 'maxBriefStep', 'msToForm'])
+    && s.keys().hasAll(['cartSize', 'maxBriefStep', 'msToForm'])
+    && s.cartSize is int     && s.cartSize >= 0     && s.cartSize <= 5
+    && s.maxBriefStep is int && s.maxBriefStep >= 0 && s.maxBriefStep <= 6
+    && s.msToForm is int     && s.msToForm >= 0     && s.msToForm <= 86400000
+    && (!('categoriesViewed' in s.keys()) || (s.categoriesViewed is list
+        && s.categoriesViewed.size() <= 4
+        && s.categoriesViewed.hasOnly(['serum', 'toner', 'cream', 'mist'])))
+    && (!('productsViewed' in s.keys()) || validProductsViewed(s.productsViewed));
+}
+
+function validLandingFunnel() {
+  return !('funnelSummary' in request.resource.data)
+    || validFunnelSummary(request.resource.data.funnelSummary);
+}
+```
+
+`match /landingRequests/{requestId}`의 `allow create` 조건에 `&& validLandingFunnel()`을 더하고, **`catalog`·`dashboard` 두 분기의 `hasOnly([...])` 목록에만** `'funnelSummary'`를 추가한다. **korea 분기에는 넣지 않는다** — korea는 이번 스펙 범위 밖이고, 화이트리스트에 없으면 규칙이 자동으로 거부한다.
+
+**상한값의 근거**
+
+| 필드 | 상한 | 왜 |
+|---|---|---|
+| `productsViewed` | 10개 × 200자 | 상품 상세를 10개 넘게 여는 세션은 진단 가치가 없다. 200자는 기존 `validCatalogItem`의 `id` 상한과 같다 |
+| `categoriesViewed` | `hasOnly(['serum','toner','cream','mist'])` | 값 집합이 닫혀 있어 길이 제한보다 열거가 정확하다. 임의 문자열이 아예 못 들어간다 |
+| `cartSize` | 0~5 | `validCatalogItems`의 `size() <= 5`와 같은 상한 |
+| `maxBriefStep` | 0~6 | `CM_BRIEF_STEPS`가 6단계 |
+| `msToForm` | 0~86400000 (24시간) | 탭을 열어둔 채 하루 넘긴 세션은 값이 무의미하다 |
+
+**`funnelSummary`는 optional로 둔다.** 필수로 만들면 구버전 번들이 캐시된 클라이언트의 제출이 전부 거부된다 — 리드를 잃는 쪽이 요약을 잃는 쪽보다 훨씬 비싸다.
+
+**개인정보 없음.** 전부 카테고리명·상품 id·숫자다. `landingRequests`는 `allow read, update, delete: if false`라 클라이언트가 되읽을 수 없고, 이 필드가 그 성질을 바꾸지 않는다.
+
 ### 건드릴 파일 (승인 후)
 
 - `src/lib/landing/types.ts` — `LandingFunnelSummary`, `LandingRequestInput`/`Submission` 확장
@@ -890,7 +990,7 @@ interface LandingFunnelSummary {
 - `src/components/dashboard/CMWizard.tsx` — `maxStepRef`, `onConsultationReady` 시그니처 확장
 - `src/components/landing/LandingDashboard.tsx` — 확장된 `onConsultationReady` 수신
 - `src/components/landing/ConsultationForm.tsx` — `landingEnteredAt` prop, 제출 시 `funnelSummary` 조립
-- `firestore.rules` — `landingRequests`의 `catalog`/`dashboard` 분기 `hasOnly([...])`에 `funnelSummary` 추가 + 크기·타입 상한 규칙(문자열 배열 길이, 개별 문자열 길이, `cartSize`/`maxBriefStep`/`msToForm`의 숫자 범위)
+- `firestore.rules` — 아래 "접근 규칙안" 그대로
 - `tests/firestore-landing-requests.test.ts` — 에뮬레이터 규칙 테스트에 `funnelSummary` 포함/누락/초과 케이스 추가 (Firestore Emulator + JDK 21+ 필요, AGENTS.md)
 
 ### 어드민 UI 위치 제안 (스펙이 "구현 계획에서 정한다"고 위임한 부분)
@@ -921,8 +1021,13 @@ interface LandingFunnelSummary {
 
 ---
 
-## 판단이 필요한 지점 — 요약 (사용자 확인 요청)
+## 판단이 필요했던 지점 — 2026-08-30 사용자 결정 완료
 
-1. **파일명/위치:** `KoreaPageSignals.tsx`를 `src/components/landing/LandingSignals.tsx`로 이동·개명한다 (Task 1.2). 이유: catalog가 `korea/` 아래 파일을 import하는 모양이 방향이 뒤집혀 보인다. korea의 `section_view`/`faq_open`/`positioning_arm`은 `emit` prop 주입으로 그대로 유지된다.
-2. **`brief_step_open` 발화 위치:** `persist()`가 아니라 `[currentStep, mode, activeStarted]`에 걸린 별도 `useEffect`에서 쏜다 (Task 1.6). 이유: `activeStarted`가 deps에 있어야 "Start Your Product Brief" 클릭으로 1단계가 처음 열리는 순간도 잡힌다 — 진행(advance) 때만 쏘면 스펙이 지적한 "1단계 열고 이탈이 구조적으로 0" 문제가 그대로 남는다.
-3. **`funnelSummary` 누적 방식 (Phase 4, 설계만):** 신규 상태관리 없이 `useRef` 스냅샷(카테고리/상품은 `Set`, 스텝은 최댓값, 진입시각은 고정 타임스탬프)으로 처리한다. 이유: 이 코드베이스가 이미 여러 곳에서 `useRef`로 렌더 비영향 상태를 다루고 있고(gsap 타임라인 등), 이 패턴이 가장 짧은 diff다.
+1. **[결정됨]** **파일명/위치:** `KoreaPageSignals.tsx`를 `src/components/landing/LandingSignals.tsx`로 이동·개명한다 (Task 1.2). 이유: catalog가 `korea/` 아래 파일을 import하는 모양이 방향이 뒤집혀 보인다. korea의 `section_view`/`faq_open`/`positioning_arm`은 `emit` prop 주입으로 그대로 유지된다.
+2. **[결정됨]** **`brief_step_open` 발화 위치:** `persist()`가 아니라 `[currentStep, mode, activeStarted]`에 걸린 별도 `useEffect`에서 쏜다 (Task 1.6). 이유: `activeStarted`가 deps에 있어야 "Start Your Product Brief" 클릭으로 1단계가 처음 열리는 순간도 잡힌다 — 진행(advance) 때만 쏘면 스펙이 지적한 "1단계 열고 이탈이 구조적으로 0" 문제가 그대로 남는다.
+3. **[결정됨]** **`funnelSummary` 누적 방식:** 신규 상태관리 없이 `useRef` 스냅샷(카테고리/상품은 `Set`, 스텝은 최댓값, 진입시각은 고정 타임스탬프)으로 처리한다. 이유: 이 코드베이스가 이미 여러 곳에서 `useRef`로 렌더 비영향 상태를 다루고 있고(gsap 타임라인 등), 이 패턴이 가장 짧은 diff다.
+
+4. **[결정됨] `brief_step_changed` 중복:** consultation 모드에서 끈다 (Task 1.8). 로그인 대시보드는 그대로.
+5. **[결정됨] 세 번째 `isTest`:** `landing/request.ts:71`을 `isNonProductionEnv()`로 통합한다 (Task 1.1 Step 5).
+6. **[결정됨] `product_category` → `catalog_category` 정규화:** 손실 없음을 확인했다. `ga4_setup.py`의 `DIMENSIONS`에 `product_category`가 **등록된 적이 없어**(등록된 건 `product_id`) 그 파라미터로 수집된 값은 애초에 보고서에 나온 적이 없다.
+7. **[결정됨] Phase 4 시점:** 설계와 접근 규칙을 지금 확정해 승인받고 간다. 아래 Phase 4의 규칙안이 그 결과물이다.
