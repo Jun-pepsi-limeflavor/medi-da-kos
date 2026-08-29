@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import type { AdminIdentity } from "@/lib/admin-auth";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { messageSchema } from "@/lib/schemas/message";
+import { messageSchema, type Message } from "@/lib/schemas/message";
 import { conversationIdentitySchema, type ConversationIdentity } from "@/lib/schemas/conversation-identity";
 import {
   conversationPatchSchema,
@@ -14,6 +14,10 @@ import {
   type ConversationRollup,
 } from "@/lib/schemas/conversation";
 import { threadSchema, type Thread } from "@/lib/schemas/thread";
+import { getIntakeReview } from "@/lib/repo/intake-reviews";
+import { getDeal } from "@/lib/repo/deals";
+import { listThreadMessages } from "@/lib/repo/messages";
+import type { IntakeReview } from "@/lib/schemas/intake-review";
 
 const CONVERSATIONS = "conversations";
 const IDENTITIES = "conversationIdentities";
@@ -74,6 +78,8 @@ export const conversationMessageSchema = messageSchema.pick({
   fromName: true,
   to: true,
   subject: true,
+  bodyText: true,
+  attachments: true,
   sentAt: true,
 }).strict();
 
@@ -166,8 +172,11 @@ export type ConversationDetail = {
   conversation: Conversation;
   identities: ConversationIdentity[];
   threads: Thread[];
-  messages: ConversationMessage[];
+  messages: Message[];
   events: ConversationEvent[];
+  anchorMessage: Message | null;
+  intakeReview: IntakeReview | null;
+  linkedDeal: { id: string; reference?: string } | null;
 };
 
 /** Detail-only reads are server-only; message reads never occur in the list path. */
@@ -183,9 +192,20 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
     conversationRef.collection("events").orderBy("at", "desc").limit(30).get(),
   ]);
   const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
-  const messageSnaps = await Promise.all(
-    threads.map((thread) => db.collection(MESSAGES).where("threadKey", "==", thread.threadKey).get()),
+  threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
+
+  const messageArrays = await Promise.all(
+    threads.map((thread) => listThreadMessages(thread.threadKey)),
   );
+  const messages = messageArrays
+    .flat()
+    .sort((a, b) => (a.sentAt || "").localeCompare(b.sentAt || ""));
+
+  const anchorMessage =
+    [...messages].reverse().find((m) => m.direction === "in") ??
+    messages[messages.length - 1] ??
+    null;
+
   const events: ConversationEvent[] = eventSnap.docs.map((doc) => ({
     id: doc.id,
     action: String(doc.data().action || "unknown"),
@@ -196,13 +216,31 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
     ...doc.data(),
   }));
 
+  const primaryThread = threads[0] ?? null;
+  let intakeReview: IntakeReview | null = null;
+  let linkedDeal: { id: string; reference?: string } | null = null;
+
+  if (primaryThread) {
+    if (primaryThread.channel !== "web") {
+      intakeReview = await getIntakeReview("message", primaryThread.threadKey);
+    }
+    if (primaryThread.dealId) {
+      const deal = await getDeal(primaryThread.dealId);
+      if (deal) {
+        linkedDeal = { id: deal.id, reference: deal.reference };
+      }
+    }
+  }
+
   return {
     conversation: projectConversation(conversationDoc.id, conversationDoc.data()!),
     identities: identitySnap.docs.map((doc) => projectConversationIdentity(doc.id, doc.data())),
     threads,
-    messages: messageSnaps.flatMap((snap) => snap.docs.map((doc) => projectConversationMessage(doc.id, doc.data())))
-      .sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
+    messages,
     events,
+    anchorMessage,
+    intakeReview,
+    linkedDeal,
   };
 }
 
@@ -272,7 +310,10 @@ export async function listReviewIdentities(
 export type ReviewIdentityDetail = {
   identity: ConversationIdentity;
   threads: Thread[];
-  messages: ConversationMessage[];
+  messages: Message[];
+  anchorMessage: Message | null;
+  intakeReview: IntakeReview | null;
+  linkedDeal: { id: string; reference?: string } | null;
 };
 
 export async function getReviewIdentityDetail(identityId: string): Promise<ReviewIdentityDetail | null> {
@@ -283,16 +324,44 @@ export async function getReviewIdentityDetail(identityId: string): Promise<Revie
   const identity = projectConversationIdentity(identityDoc.id, identityDoc.data()!);
   const threadSnap = await db.collection(THREADS).where("identityId", "==", identityId).get();
   const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
-  const messageSnaps = await Promise.all(
-    threads.map((thread) => db.collection(MESSAGES).where("threadKey", "==", thread.threadKey).get()),
+  threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
+
+  const messageArrays = await Promise.all(
+    threads.map((thread) => listThreadMessages(thread.threadKey)),
   );
+
+  const messages = messageArrays
+    .flat()
+    .sort((a, b) => (a.sentAt || "").localeCompare(b.sentAt || ""));
+
+  const anchorMessage =
+    [...messages].reverse().find((m) => m.direction === "in") ??
+    messages[messages.length - 1] ??
+    null;
+
+  const primaryThread = threads[0] ?? null;
+  let intakeReview: IntakeReview | null = null;
+  let linkedDeal: { id: string; reference?: string } | null = null;
+
+  if (primaryThread) {
+    if (primaryThread.channel !== "web") {
+      intakeReview = await getIntakeReview("message", primaryThread.threadKey);
+    }
+    if (primaryThread.dealId) {
+      const deal = await getDeal(primaryThread.dealId);
+      if (deal) {
+        linkedDeal = { id: deal.id, reference: deal.reference };
+      }
+    }
+  }
 
   return {
     identity,
     threads,
-    messages: messageSnaps
-      .flatMap((snap) => snap.docs.map((doc) => projectConversationMessage(doc.id, doc.data())))
-      .sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
+    messages,
+    anchorMessage,
+    intakeReview,
+    linkedDeal,
   };
 }
 

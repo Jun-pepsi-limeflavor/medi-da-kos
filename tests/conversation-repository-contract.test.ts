@@ -89,10 +89,10 @@ test("conversation responses are explicit safe DTOs, not Firestore document spre
 
   assert.equal(serialized.includes("grossMargin"), false);
   assert.equal(serialized.includes("supplierPrice"), false);
-  assert.equal(serialized.includes("bodyText"), false);
-  assert.equal(serialized.includes("attachments"), false);
   assert.equal(serialized.includes("extraction"), false);
   assert.equal(payload.message.subject, "Inquiry");
+  assert.equal(payload.message.bodyText, "Cost is $12");
+  assert.equal(payload.message.attachments.length, 1);
 });
 
 test("every review classification produces an actor/reason/action audit payload", () => {

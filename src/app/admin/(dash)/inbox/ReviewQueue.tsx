@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
   Building,
   CheckCircle2,
   ChevronLeft,
@@ -15,6 +17,7 @@ import {
   Keyboard,
   Mail,
   MessageSquare,
+  Paperclip,
   Radio,
   Search,
   ShieldAlert,
@@ -25,6 +28,20 @@ import type { ReviewIdentityItem, ReviewIdentityDetail } from "@/lib/repo/conver
 import type { Buyer } from "@/lib/schemas/buyer";
 import type { Supplier } from "@/lib/schemas/supplier";
 import type { ConversationRollup } from "@/lib/schemas/conversation";
+import ExtractionPanel from "./[threadKey]/ExtractionPanel";
+import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
+
+const CHANNEL_NAMES: Record<string, string> = {
+  gmail_thomas: "Gmail · Thomas",
+  gmail_hally: "Gmail · Hally",
+  gmail_rheekw: "Gmail · Rheekw",
+  gmail_songjh: "Gmail · Songjh",
+  gmail_kimhs: "Gmail · Kimhs",
+  gmail_parkjy: "Gmail · Parkjy",
+  outlook_support: "Outlook · Support",
+  channeltalk: "Channel Talk",
+  web: "웹 문의",
+};
 
 interface ReviewQueueProps {
   queue: "unclassified" | "supplier" | "advertising";
@@ -168,33 +185,37 @@ export default function ReviewQueue({
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-12 overflow-hidden bg-neutral-950">
-      {/* Column 1: Review Items List (Left) */}
-      <div className="md:col-span-4 lg:col-span-4 flex h-full min-h-0 flex-col border-r border-neutral-800 bg-neutral-950 overflow-hidden">
-        <div className="shrink-0 border-b border-neutral-800 p-3 space-y-2">
+    <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-12 overflow-hidden bg-neutral-950">
+      {/* Column 1: Inbound Triage List (Left - 4 Cols) */}
+      <div className="lg:col-span-4 flex h-full min-h-0 flex-col border-r border-neutral-800/80 bg-neutral-950/80 backdrop-blur-md overflow-hidden">
+        <div className="shrink-0 border-b border-neutral-800/80 p-3.5 space-y-2.5">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-500" />
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-500" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="식별자, 내용 검색…"
-              className="w-full rounded-lg border border-neutral-800 bg-neutral-900 py-1.5 pl-8 pr-3 text-xs text-neutral-200 placeholder:text-neutral-500 outline-none focus-visible:border-indigo-500"
+              placeholder="식별자, 이메일, 내용 검색…"
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-900/90 py-2 pl-9 pr-3 text-xs text-neutral-200 placeholder:text-neutral-500 outline-none transition-colors focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
           </div>
           <div className="flex items-center justify-between text-[11px] text-neutral-400">
-            <span>대기 건수: <strong className="text-neutral-200">{filteredItems.length}</strong>건</span>
+            <span className="flex items-center gap-1.5">
+              <Inbox className="h-3.5 w-3.5 text-indigo-400" />
+              대기 건수: <strong className="text-neutral-100 font-semibold">{filteredItems.length}</strong>건
+            </span>
             <span className="text-[10px] text-neutral-500 flex items-center gap-1">
-              <Keyboard className="h-3 w-3" /> [1~4] 키보드 단축키
+              <Keyboard className="h-3 w-3 text-neutral-400" /> 단축키 <kbd className="rounded bg-neutral-800 px-1 py-0.5 font-mono text-[9px] text-neutral-300">1~4</kbd>
             </span>
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-neutral-800/60" role="list">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-neutral-800/40" role="list">
           {filteredItems.length === 0 ? (
-            <div className="p-8 text-center text-xs text-neutral-500">
-              <Inbox className="mx-auto mb-2 h-6 w-6 text-neutral-600" />
-              검토 대기 항목이 없습니다
+            <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-neutral-500">
+              <Inbox className="mb-2 h-8 w-8 text-neutral-700" />
+              <p className="font-medium text-neutral-400">검토 대기 항목이 없습니다</p>
+              <p className="mt-1 text-[11px] text-neutral-600">모든 인바운드 문의가 분류 완료되었습니다.</p>
             </div>
           ) : (
             filteredItems.map((item) => {
@@ -209,17 +230,21 @@ export default function ReviewQueue({
                   href={`/admin/inbox?${params.toString()}`}
                   role="listitem"
                   aria-current={isSelected ? "true" : undefined}
-                  className={`block p-3.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  className={`group relative block p-3.5 transition-all outline-none ${
                     isSelected
-                      ? "bg-neutral-900 border-l-2 border-indigo-500 pl-3 text-neutral-100"
-                      : "hover:bg-neutral-900/60 text-neutral-300"
+                      ? "bg-neutral-900/90 text-neutral-100 shadow-inner"
+                      : "hover:bg-neutral-900/50 text-neutral-300"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-mono text-xs font-semibold text-neutral-100 truncate">
+                  {isSelected && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                  )}
+
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <span className="font-mono text-xs font-semibold text-neutral-100 truncate group-hover:text-indigo-300 transition-colors">
                       {item.identity.value}
                     </span>
-                    <span className="text-[10px] text-neutral-500 uppercase">
+                    <span className="shrink-0 rounded bg-neutral-800/80 px-1.5 py-0.5 text-[9px] font-mono uppercase text-neutral-400 border border-neutral-700/50">
                       {item.identity.kind}
                     </span>
                   </div>
@@ -230,11 +255,13 @@ export default function ReviewQueue({
                     </p>
                   )}
 
-                  <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-                    <span className="rounded bg-neutral-800 px-1.5 py-0.5">
-                      스레드 {item.threadCount}개
-                    </span>
-                    <span>{item.channels.join(", ")}</span>
+                  <div className="flex items-center justify-between text-[10px] text-neutral-500">
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-md bg-neutral-800/90 px-1.5 py-0.5 font-medium text-neutral-300 border border-neutral-700/40">
+                        스레드 {item.threadCount}개
+                      </span>
+                      <span className="truncate max-w-[140px]">{item.channels.join(", ")}</span>
+                    </div>
                   </div>
                 </Link>
               );
@@ -243,19 +270,26 @@ export default function ReviewQueue({
         </div>
       </div>
 
-      {/* Column 2: Selected Item Timeline and Classification Actions (Right) */}
-      <div className="md:col-span-8 lg:col-span-8 flex h-full min-h-0 flex-col overflow-hidden bg-neutral-950">
+      {/* Column 2: Full Conversation Stream, Action Bar & Reply (Right - 8 Cols) */}
+      <div className="lg:col-span-8 flex h-full min-h-0 flex-col overflow-hidden bg-neutral-950">
         {activeIdentity ? (
           <>
             {/* Header & Quick Action Buttons */}
-            <div className="shrink-0 border-b border-neutral-800 p-4 bg-neutral-900/80 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="shrink-0 border-b border-neutral-800/80 p-4 bg-neutral-900/60 backdrop-blur-md space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-100 font-mono">
+                  <h3 className="text-sm font-bold text-neutral-100 font-mono flex items-center gap-2">
                     {activeIdentity.identity.value}
+                    {selectedDetail && (
+                      <span className="rounded-full bg-indigo-950/80 border border-indigo-800/60 px-2 py-0.5 text-[10px] font-medium text-indigo-300">
+                        총 {selectedDetail.messages.length}개 메시지
+                      </span>
+                    )}
                   </h3>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    분류: <span className="font-semibold text-neutral-200">{activeIdentity.identity.classification}</span> · {activeIdentity.channels.join(", ")}
+                  <p className="text-[11px] text-neutral-400 mt-0.5 flex items-center gap-2">
+                    <span>분류: <strong className="font-semibold text-neutral-200">{activeIdentity.identity.classification}</strong></span>
+                    <span>•</span>
+                    <span>{activeIdentity.channels.join(", ")}</span>
                   </p>
                 </div>
 
@@ -265,12 +299,12 @@ export default function ReviewQueue({
                     type="button"
                     onClick={() => {
                       setModalMode("buyer");
-                      setReason("바이어 문의 확인");
+                      setReason("정상 바이어 문의 확인");
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-sky-800 bg-sky-950/80 px-2.5 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-900 min-h-[36px]"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-sky-600/60 bg-sky-950/80 px-3 py-2 text-xs font-semibold text-sky-200 hover:bg-sky-900 hover:border-sky-500 transition-all shadow-[0_0_12px_rgba(14,165,233,0.15)] min-h-[36px]"
                   >
-                    <span className="rounded bg-sky-900 px-1 font-mono text-[10px]">1</span>
-                    바이어 연결
+                    <span className="rounded bg-sky-900 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">1</span>
+                    정상 바이어 승인
                   </button>
 
                   <button
@@ -279,9 +313,9 @@ export default function ReviewQueue({
                       setModalMode("supplier");
                       setReason("제조사 연락 확인");
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-800 bg-emerald-950/80 px-2.5 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-900 min-h-[36px]"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-700/60 bg-emerald-950/80 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-900 hover:border-emerald-500 transition-all min-h-[36px]"
                   >
-                    <span className="rounded bg-emerald-900 px-1 font-mono text-[10px]">2</span>
+                    <span className="rounded bg-emerald-900 px-1.5 py-0.5 font-mono text-[10px] text-emerald-200">2</span>
                     제조사 연결
                   </button>
 
@@ -289,11 +323,11 @@ export default function ReviewQueue({
                     type="button"
                     onClick={() => {
                       setModalMode("advertising");
-                      setReason("광고/스팸 처리");
+                      setReason("스팸/광고 처리");
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 min-h-[36px]"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-800/90 px-3 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 transition-all min-h-[36px]"
                   >
-                    <span className="rounded bg-neutral-700 px-1 font-mono text-[10px]">3</span>
+                    <span className="rounded bg-neutral-700 px-1.5 py-0.5 font-mono text-[10px] text-neutral-300">3</span>
                     광고 분류
                   </button>
 
@@ -301,11 +335,11 @@ export default function ReviewQueue({
                     type="button"
                     onClick={() => {
                       setModalMode("internal");
-                      setReason("내부 직원 소통");
+                      setReason("사내 직원 소통");
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-purple-800 bg-purple-950/80 px-2.5 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-900 min-h-[36px]"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-purple-800/60 bg-purple-950/80 px-3 py-2 text-xs font-semibold text-purple-200 hover:bg-purple-900 hover:border-purple-500 transition-all min-h-[36px]"
                   >
-                    <span className="rounded bg-purple-900 px-1 font-mono text-[10px]">4</span>
+                    <span className="rounded bg-purple-900 px-1.5 py-0.5 font-mono text-[10px] text-purple-200">4</span>
                     내부 메일
                   </button>
                 </div>
@@ -313,12 +347,14 @@ export default function ReviewQueue({
 
               {/* Status feedback */}
               {actionError && (
-                <div role="alert" className="rounded-lg border border-rose-800 bg-rose-950/80 p-2.5 text-xs text-rose-300">
+                <div role="alert" className="rounded-xl border border-rose-800 bg-rose-950/80 p-3 text-xs text-rose-300 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
                   {actionError}
                 </div>
               )}
               {actionSuccess && (
-                <div role="status" className="rounded-lg border border-emerald-800 bg-emerald-950/80 p-2.5 text-xs text-emerald-300">
+                <div role="status" className="rounded-xl border border-emerald-800 bg-emerald-950/80 p-3 text-xs text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
                   {actionSuccess}
                 </div>
               )}
@@ -326,34 +362,34 @@ export default function ReviewQueue({
 
             {/* Modal / Action Form Overlay */}
             {modalMode && (
-              <div className="shrink-0 border-b border-neutral-700 bg-neutral-900 p-4 shadow-lg">
-                <form onSubmit={handleClassifySubmit} className="space-y-3">
+              <div className="shrink-0 border-b border-neutral-700 bg-neutral-900/95 backdrop-blur-md p-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
+                <form onSubmit={handleClassifySubmit} className="space-y-4 max-w-2xl">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-neutral-100 flex items-center gap-1.5">
-                      <Tag className="h-3.5 w-3.5 text-indigo-400" />
-                      {modalMode === "buyer" && "바이어 엔티티 및 대화 연결"}
+                    <h4 className="text-xs font-bold text-neutral-100 flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-indigo-400" />
+                      {modalMode === "buyer" && "정상 바이어 승인 및 고객 업무 승격"}
                       {modalMode === "supplier" && "제조사 엔티티 및 대화 연결"}
                       {modalMode === "advertising" && "광고/스팸으로 분류"}
-                      {modalMode === "internal" && "내부 직원 메일로 분류"}
+                      {modalMode === "internal" && "사내 직원 메일로 분류"}
                     </h4>
                     <button
                       type="button"
                       onClick={() => setModalMode(null)}
-                      className="text-xs text-neutral-400 hover:text-neutral-200"
+                      className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
                     >
                       취소 (Esc)
                     </button>
                   </div>
 
                   {modalMode === "buyer" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       <div className="space-y-1">
                         <label className="text-[11px] font-semibold text-neutral-300">연결할 바이어 선택</label>
                         <select
                           value={selectedBuyerId}
                           onChange={(e) => setSelectedBuyerId(e.target.value)}
                           required
-                          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-xs text-neutral-200"
+                          className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
                         >
                           {buyers.map((b) => (
                             <option key={b.id} value={b.id}>
@@ -369,7 +405,7 @@ export default function ReviewQueue({
                           value={targetConversationId}
                           onChange={(e) => setTargetConversationId(e.target.value)}
                           required
-                          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-xs text-neutral-200"
+                          className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
                         >
                           {conversations.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -382,14 +418,14 @@ export default function ReviewQueue({
                   )}
 
                   {modalMode === "supplier" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       <div className="space-y-1">
                         <label className="text-[11px] font-semibold text-neutral-300">연결할 제조사 선택</label>
                         <select
                           value={selectedSupplierId}
                           onChange={(e) => setSelectedSupplierId(e.target.value)}
                           required
-                          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-xs text-neutral-200"
+                          className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
                         >
                           {suppliers.map((s) => (
                             <option key={s.id} value={s.id}>
@@ -405,7 +441,7 @@ export default function ReviewQueue({
                           value={targetConversationId}
                           onChange={(e) => setTargetConversationId(e.target.value)}
                           required
-                          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-xs text-neutral-200"
+                          className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
                         >
                           {conversations.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -425,61 +461,165 @@ export default function ReviewQueue({
                       onChange={(e) => setReason(e.target.value)}
                       required
                       placeholder="분류 판단 사유를 입력하세요…"
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-950 p-2 text-xs text-neutral-200 outline-none focus-visible:border-indigo-500"
+                      className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus-visible:border-indigo-500"
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2.5 pt-1">
                     <button
                       type="button"
                       onClick={() => setModalMode(null)}
-                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
+                      className="rounded-xl border border-neutral-700 px-4 py-2 text-xs text-neutral-300 hover:bg-neutral-800 transition-colors"
                     >
                       취소
                     </button>
                     <button
                       type="submit"
                       disabled={classifying || !reason.trim()}
-                      className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 min-h-[36px]"
+                      className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-all shadow-[0_0_12px_rgba(99,102,241,0.3)] min-h-[36px]"
                     >
-                      {classifying ? "처리 중…" : "분류 확정"}
+                      {classifying ? "승인 처리 중…" : "분류 확정"}
                     </button>
                   </div>
                 </form>
               </div>
             )}
 
-            {/* Timeline preview for review */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+            {/* Chronological Messages Timeline */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
               {selectedDetail && selectedDetail.messages.length > 0 ? (
-                selectedDetail.messages.map((m, idx) => (
-                  <div key={m.id || idx} className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4 space-y-2">
-                    <div className="flex items-center justify-between text-xs text-neutral-400 border-b border-neutral-800 pb-2">
-                      <span className="font-semibold text-neutral-200">
-                        {m.fromName ? `${m.fromName} (${m.from})` : m.from}
-                      </span>
-                      <span>{new Date(m.sentAt).toLocaleString("ko-KR")}</span>
+                selectedDetail.messages.map((m, idx) => {
+                  const isInbound = m.direction === "in";
+                  const channelName = CHANNEL_NAMES[m.channel] || m.channel;
+                  const sentDate = new Date(m.sentAt);
+
+                  return (
+                    <div
+                      key={m.id || idx}
+                      className={`rounded-2xl border p-4.5 transition-all space-y-3.5 ${
+                        isInbound
+                          ? "border-neutral-800 bg-neutral-900/80 text-neutral-200 shadow-sm"
+                          : "border-indigo-900/40 bg-indigo-950/20 text-neutral-100 shadow-sm"
+                      }`}
+                    >
+                      {/* Message Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
+                              isInbound
+                                ? "border-sky-800/80 bg-sky-950/80 text-sky-300"
+                                : "border-indigo-700/80 bg-indigo-950/90 text-indigo-200"
+                            }`}
+                          >
+                            {isInbound ? (
+                              <ArrowDownLeft className="h-3 w-3" />
+                            ) : (
+                              <ArrowUpRight className="h-3 w-3" />
+                            )}
+                            {isInbound ? "수신 (Inbound)" : "발신 (Outbound)"}
+                          </span>
+
+                          <span className="text-xs font-semibold text-neutral-100">
+                            {m.fromName ? `${m.fromName} (${m.from})` : m.from}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[11px] text-neutral-400">
+                          <span className="rounded-md bg-neutral-800/90 px-2 py-0.5 font-mono text-[10px] text-neutral-300 border border-neutral-700/50">
+                            {channelName}
+                          </span>
+                          <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
+                            {sentDate.toLocaleString("ko-KR", {
+                              year: "numeric",
+                              month: "numeric",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </time>
+                        </div>
+                      </div>
+
+                      {/* Subject & Single View Link */}
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-bold text-neutral-100">
+                          {m.subject || "(제목 없음)"}
+                        </h4>
+                        <Link
+                          href={`/admin/inbox/${encodeURIComponent(m.threadKey)}`}
+                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-1 shrink-0"
+                        >
+                          단독 뷰 &rarr;
+                        </Link>
+                      </div>
+
+                      {/* Message Body Content */}
+                      {m.bodyText ? (
+                        <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 whitespace-pre-wrap font-sans break-words border border-neutral-800/60 select-text max-h-[500px] overflow-y-auto">
+                          {m.bodyText}
+                        </div>
+                      ) : (
+                        <div className="text-xs italic text-neutral-500 py-1">
+                          (본문 내용이 비어있습니다)
+                        </div>
+                      )}
+
+                      {/* Attachments */}
+                      {m.attachments && m.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-800/60">
+                          {m.attachments.map((att, attIdx) => {
+                            const isGmail = m.channel.startsWith("gmail_");
+                            const label = (
+                              <>
+                                <Paperclip className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                                <span className="max-w-[220px] truncate font-medium">{att.filename}</span>
+                                <span className="text-neutral-500 text-[10px] shrink-0 font-mono">
+                                  ({Math.max(1, Math.round(att.size / 1024))} KB)
+                                </span>
+                              </>
+                            );
+
+                            return isGmail ? (
+                              <a
+                                key={att.attachmentId || attIdx}
+                                href={`/api/admin/messages/${encodeURIComponent(m.id)}/attachments/${encodeURIComponent(att.attachmentId)}`}
+                                download={att.filename}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800/90 px-3 py-1.5 text-[11px] text-neutral-200 border border-neutral-700/60 hover:bg-neutral-700 hover:text-white transition-colors"
+                              >
+                                {label}
+                              </a>
+                            ) : (
+                              <span
+                                key={att.attachmentId || attIdx}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800/90 px-3 py-1.5 text-[11px] text-neutral-200 border border-neutral-700/60"
+                              >
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-1">
-                      <h5 className="text-xs font-semibold text-neutral-100">{m.subject || "(제목 없음)"}</h5>
-                      <Link
-                        href={`/admin/inbox/${encodeURIComponent(m.threadKey)}`}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium shrink-0"
-                      >
-                        원문 본문 확인 &rarr;
-                      </Link>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="p-8 text-center text-xs text-neutral-500">
-                  수신된 원문 메시지를 불러오는 중이거나 없습니다.
+                <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-neutral-500">
+                  <Inbox className="mb-2 h-8 w-8 text-neutral-700" />
+                  <p className="font-medium text-neutral-400">메시지 내역이 없습니다</p>
                 </div>
               )}
             </div>
+
+            {/* Bottom Quick Reply Box */}
+            {selectedDetail && selectedDetail.threads.length > 0 && (
+              <div className="shrink-0 border-t border-neutral-800/80">
+                <ThreadReplyForm threadKey={selectedDetail.threads[0].threadKey} />
+              </div>
+            )}
           </>
         ) : (
-          <div className="flex h-full items-center justify-center p-8 text-center text-xs text-neutral-500">
+          <div className="flex h-full items-center justify-center p-12 text-center text-xs text-neutral-500">
             검토할 항목을 선택해주세요.
           </div>
         )}

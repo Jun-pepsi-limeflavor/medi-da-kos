@@ -167,10 +167,10 @@ export default function InboxWorkspace({
                   totalUnanswered={totalUnanswered}
                 />
               </div>
-              <div className="col-span-6 h-full min-h-0 overflow-hidden border-r border-neutral-800">
+              <div className="col-span-5 h-full min-h-0 overflow-hidden border-r border-neutral-800">
                 <ConversationTimeline detail={conversationDetail} />
               </div>
-              <div className="col-span-3 h-full min-h-0 overflow-hidden">
+              <div className="col-span-4 h-full min-h-0 overflow-hidden">
                 <ConversationInspector detail={conversationDetail} />
               </div>
             </div>

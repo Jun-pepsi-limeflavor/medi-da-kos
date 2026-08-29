@@ -279,16 +279,45 @@ export default function ConversationTimeline({
 
                 {/* Subject & Detail Link */}
                 <div className="flex items-center justify-between gap-2 mt-1">
-                  <h4 className="text-xs font-semibold text-neutral-100">
+                  <h4 className="text-xs font-bold text-neutral-100">
                     {msg.subject || "(제목 없음)"}
                   </h4>
                   <Link
                     href={`/admin/inbox/${encodeURIComponent(msg.threadKey)}`}
                     className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-1 shrink-0"
                   >
-                    원문 본문 / 추출 확인 &rarr;
+                    원문 / 인테이크 추출 확인 &rarr;
                   </Link>
                 </div>
+
+                {/* Message Body Content */}
+                {msg.bodyText ? (
+                  <div className="mt-2.5 rounded-lg bg-neutral-950/70 p-3.5 text-xs leading-relaxed text-neutral-200 whitespace-pre-wrap font-sans break-words border border-neutral-800/60 select-text max-h-[500px] overflow-y-auto">
+                    {msg.bodyText}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs italic text-neutral-500 py-1">
+                    (본문 내용이 비어있습니다)
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-2 pt-2 border-t border-neutral-800/60">
+                    {msg.attachments.map((att, attIdx) => (
+                      <span
+                        key={att.attachmentId || attIdx}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800/80 px-2.5 py-1 text-[11px] text-neutral-300 border border-neutral-700/50"
+                      >
+                        <Paperclip className="h-3 w-3 text-neutral-400" />
+                        <span className="max-w-[240px] truncate">{att.filename}</span>
+                        <span className="text-neutral-500 text-[10px]">
+                          ({Math.max(1, Math.round(att.size / 1024))} KB)
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })
