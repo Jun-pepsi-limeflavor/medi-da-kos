@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { SITE_URL } from "@/lib/site";
 import { KoreaCta } from "./KoreaCta";
 import { KoreaFaq } from "./KoreaFaq";
-import { LandingSignals } from "@/components/landing/LandingSignals";
-import { track } from "./analytics";
+import { KoreaLandingSignals } from "./KoreaLandingSignals";
 import { KoreaLeadForm } from "./KoreaLeadForm";
 import { StickyFormCta } from "./StickyFormCta";
 
@@ -189,7 +188,7 @@ export default async function KoreaLandingPage({
 
   return (
     <>
-      <LandingSignals variant="korea" arm={arm} emit={track} />
+      <KoreaLandingSignals arm={arm} />
 
       {/* §1 히어로 — 메일 제목 "A note from Korea about your next line"과 톤을 맞춘다 */}
       <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28" data-section="hero">

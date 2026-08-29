@@ -63,9 +63,11 @@ test("LandingDashboard no longer fires the deprecated consultation_start event",
 test("korea's own event surface is unchanged by the LandingSignals generalization", async () => {
   const analytics = await source("../src/app/landing/korea/analytics.ts");
   const page = await source("../src/app/landing/korea/page.tsx");
+  const koreaSignals = await source("../src/app/landing/korea/KoreaLandingSignals.tsx");
 
   for (const name of ["section_view", "faq_open", "positioning_arm", "scroll_depth", "cta_view", "engaged_15s", "form_start", "form_abandon"]) {
     assert.ok(analytics.includes(name), `korea/analytics.ts should still reference ${name}`);
   }
-  assert.match(page, /<LandingSignals variant="korea" arm=\{arm\} emit=\{track\} \/>/);
+  assert.match(page, /<KoreaLandingSignals arm=\{arm\} \/>/);
+  assert.match(koreaSignals, /<LandingSignals variant="korea" arm=\{arm\} emit=\{track\} \/>/);
 });
