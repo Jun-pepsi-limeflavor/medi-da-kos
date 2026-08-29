@@ -64,18 +64,15 @@ export default async function AdminInboxPage({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-neutral-100 flex items-center gap-2">
+          <h1 className="text-lg font-bold text-neutral-100 flex items-center gap-2">
             고객 중심 통합 받은편지함
-            <span className="text-xs bg-indigo-950 text-indigo-300 border border-indigo-800 px-2.5 py-0.5 rounded-full font-semibold">
+            <span className="text-xs bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-semibold">
               v2
             </span>
           </h1>
-          <p className="text-xs text-neutral-400 mt-1">
-            Gmail, Outlook, Channel Talk의 여러 채널 문의를 고객 단위 하나의 대화 타임라인으로 통합하여 관리합니다.
-          </p>
         </div>
       </div>
 

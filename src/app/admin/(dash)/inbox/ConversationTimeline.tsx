@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import type { ConversationDetail } from "@/lib/repo/conversations";
 import { needsReply } from "@/lib/schemas/thread";
+import MessageBodyClean from "./MessageBodyClean";
+import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
 
 interface ConversationTimelineProps {
   detail: ConversationDetail | null;
@@ -291,31 +293,43 @@ export default function ConversationTimeline({
                 </div>
 
                 {/* Message Body Content */}
-                {msg.bodyText ? (
-                  <div className="mt-2.5 rounded-lg bg-neutral-950/70 p-3.5 text-xs leading-relaxed text-neutral-200 whitespace-pre-wrap font-sans break-words border border-neutral-800/60 select-text max-h-[500px] overflow-y-auto">
-                    {msg.bodyText}
-                  </div>
-                ) : (
-                  <div className="mt-1 text-xs italic text-neutral-500 py-1">
-                    (본문 내용이 비어있습니다)
-                  </div>
-                )}
+                <div className="mt-2.5 rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 font-sans break-words border border-neutral-800/60 select-text">
+                  <MessageBodyClean bodyText={msg.bodyText || ""} />
+                </div>
 
                 {/* Attachments */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="mt-2.5 flex flex-wrap gap-2 pt-2 border-t border-neutral-800/60">
-                    {msg.attachments.map((att, attIdx) => (
-                      <span
-                        key={att.attachmentId || attIdx}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-neutral-800/80 px-2.5 py-1 text-[11px] text-neutral-300 border border-neutral-700/50"
-                      >
-                        <Paperclip className="h-3 w-3 text-neutral-400" />
-                        <span className="max-w-[240px] truncate">{att.filename}</span>
-                        <span className="text-neutral-500 text-[10px]">
-                          ({Math.max(1, Math.round(att.size / 1024))} KB)
+                    {msg.attachments.map((att, attIdx) => {
+                      const isGmail = msg.channel.startsWith("gmail_");
+                      const label = (
+                        <>
+                          <Paperclip className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
+                          <span className="max-w-[220px] truncate font-medium">{att.filename}</span>
+                          <span className="text-neutral-500 text-[10px] shrink-0 font-mono">
+                            ({Math.max(1, Math.round(att.size / 1024))} KB)
+                          </span>
+                        </>
+                      );
+
+                      return isGmail ? (
+                        <a
+                          key={att.attachmentId || attIdx}
+                          href={`/api/admin/messages/${encodeURIComponent(msg.id)}/attachments/${encodeURIComponent(att.attachmentId)}`}
+                          download={att.filename}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800/90 px-3 py-1.5 text-[11px] text-neutral-200 border border-neutral-700/60 hover:bg-neutral-700 hover:text-white transition-colors"
+                        >
+                          {label}
+                        </a>
+                      ) : (
+                        <span
+                          key={att.attachmentId || attIdx}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800/90 px-3 py-1.5 text-[11px] text-neutral-200 border border-neutral-700/60"
+                        >
+                          {label}
                         </span>
-                      </span>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -325,77 +339,11 @@ export default function ConversationTimeline({
       </div>
 
       {/* Action and Reply Box */}
-      <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/90 p-3 sm:p-4 space-y-3">
-        {/* Status Alerts */}
-        {actionError && (
-          <div role="alert" className="rounded-lg border border-rose-800 bg-rose-950/80 px-3 py-2 text-xs text-rose-300">
-            {actionError}
-          </div>
-        )}
-        {actionSuccess && (
-          <div role="status" className="rounded-lg border border-emerald-800 bg-emerald-950/80 px-3 py-2 text-xs text-emerald-300">
-            {actionSuccess}
-          </div>
-        )}
-
-        {/* Action Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-neutral-200">
-              {activeThread ? `${CHANNEL_NAMES[activeThread.channel] || activeThread.channel} 회신` : "답장"}
-            </span>
-            {isThreadPendingReply && (
-              <span className="text-[10px] rounded bg-rose-950 text-rose-300 border border-rose-900 px-1.5 py-0.5 font-medium">
-                답장 대기 중
-              </span>
-            )}
-          </div>
-
-          {activeThread && (
-            <button
-              type="button"
-              onClick={handleMarkHandled}
-              disabled={handling}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 disabled:opacity-50 min-h-[36px]"
-            >
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-              {handling ? "처리 중…" : "수동 처리 완료"}
-            </button>
-          )}
+      {activeThread && (
+        <div className="shrink-0 border-t border-neutral-800/80">
+          <ThreadReplyForm threadKey={activeThread.threadKey} />
         </div>
-
-        {/* Reply Form */}
-        <form onSubmit={handleSendReply} className="space-y-2.5">
-          <textarea
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            disabled={sending || !activeThread}
-            placeholder={
-              activeThread
-                ? "고객에게 발송할 답장 내용을 입력하세요…"
-                : "회신할 스레드가 없습니다"
-            }
-            rows={3}
-            className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-3 text-xs leading-5 text-neutral-100 placeholder:text-neutral-500 outline-none focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:opacity-50"
-          />
-
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
-              <Info className="h-3 w-3" />
-              원문 메시지의 스레드 정보(In-Reply-To, References)가 유지되어 안전하게 전송됩니다.
-            </span>
-
-            <button
-              type="submit"
-              disabled={sending || !replyText.trim() || !activeThread}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px]"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {sending ? "발송 중…" : "답장 발송"}
-            </button>
-          </div>
-        </form>
-      </div>
+      )}
     </div>
   );
 }

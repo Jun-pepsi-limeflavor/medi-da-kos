@@ -67,7 +67,7 @@ export default function InboxWorkspace({
   }
 
   return (
-    <div className="flex h-[calc(100vh-9.5rem)] flex-col rounded-2xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl">
+    <div className="flex h-[calc(100vh-7rem)] flex-col rounded-2xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl">
       {/* Health Summary Alert (if degraded) */}
       {!healthSummary.healthy && healthSummary.warnings.length > 0 && (
         <div

@@ -126,11 +126,27 @@ export function projectConversationRollup(id: string, data: FirebaseFirestore.Do
 }
 
 export function projectConversationIdentity(id: string, data: FirebaseFirestore.DocumentData): ConversationIdentity {
-  return { id, ...conversationIdentitySchema.parse(pickFields(data, IDENTITY_FIELDS)) };
+  const fields = pickFields(data, IDENTITY_FIELDS);
+  const now = new Date().toISOString();
+  if (!fields.createdAt) {
+    fields.createdAt = (typeof data.updatedAt === "string" ? data.updatedAt : null) || now;
+  }
+  if (!fields.updatedAt) {
+    fields.updatedAt = fields.createdAt || now;
+  }
+  return { id, ...conversationIdentitySchema.parse(fields) };
 }
 
 export function projectConversationThread(id: string, data: FirebaseFirestore.DocumentData): Thread {
-  return { threadKey: id, ...threadSchema.parse(pickFields(data, THREAD_FIELDS)) };
+  const fields = pickFields(data, THREAD_FIELDS);
+  const now = new Date().toISOString();
+  if (!fields.createdAt) {
+    fields.createdAt = (typeof data.updatedAt === "string" ? data.updatedAt : null) || now;
+  }
+  if (!fields.updatedAt) {
+    fields.updatedAt = fields.createdAt || now;
+  }
+  return { threadKey: id, ...threadSchema.parse(fields) };
 }
 
 export function projectConversationMessage(id: string, data: FirebaseFirestore.DocumentData): ConversationMessage {

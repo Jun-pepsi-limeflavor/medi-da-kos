@@ -30,6 +30,7 @@ import type { Supplier } from "@/lib/schemas/supplier";
 import type { ConversationRollup } from "@/lib/schemas/conversation";
 import ExtractionPanel from "./[threadKey]/ExtractionPanel";
 import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
+import MessageBodyClean from "./MessageBodyClean";
 
 const CHANNEL_NAMES: Record<string, string> = {
   gmail_thomas: "Gmail · Thomas",
@@ -555,15 +556,9 @@ export default function ReviewQueue({
                       </div>
 
                       {/* Message Body Content */}
-                      {m.bodyText ? (
-                        <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 whitespace-pre-wrap font-sans break-words border border-neutral-800/60 select-text max-h-[500px] overflow-y-auto">
-                          {m.bodyText}
-                        </div>
-                      ) : (
-                        <div className="text-xs italic text-neutral-500 py-1">
-                          (본문 내용이 비어있습니다)
-                        </div>
-                      )}
+                      <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 font-sans break-words border border-neutral-800/60 select-text">
+                        <MessageBodyClean bodyText={m.bodyText || ""} />
+                      </div>
 
                       {/* Attachments */}
                       {m.attachments && m.attachments.length > 0 && (
