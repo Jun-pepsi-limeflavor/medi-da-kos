@@ -1,0 +1,100 @@
+name: KakaoWork Notification
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - closed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Send KakaoWork Notification
+        env:
+          KAKAOWORK_WEBHOOK_URL: ${{ secrets.KAKAOWORK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$KAKAOWORK_WEBHOOK_URL" ]; then
+            echo "Error: KAKAOWORK_WEBHOOK_URL secret is not set."
+            exit 1
+          fi
+
+          EVENT_NAME="${{ github.event_name }}"
+          PR_ACTION="${{ github.event.action }}"
+          PR_MERGED="${{ github.event.pull_request.merged }}"
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            TITLE="🚀 [dev] 새로운 Push 이벤트"
+            PUSHER="${{ github.actor }}"
+            COMPARE_URL="${{ github.event.compare }}"
+            
+            cat << 'EOF' > commits.json
+          ${{ toJson(github.event.commits) }}
+          EOF
+            
+            COMMITS_LIST=$(python3 -c "
+          import json
+          try:
+              with open('commits.json') as f:
+                  commits = json.load(f)
+              lines = []
+              for c in commits[:10]:
+                  msg = c.get('message', '').split('\n')[0]
+                  author = c.get('author', {}).get('name', 'Unknown')
+                  lines.append(f'• {msg} ({author})')
+              print('\n'.join(lines))
+          except Exception as e:
+              print('커밋 정보를 가져올 수 없습니다.')
+          ")
+
+            PAYLOAD=$(cat <<EOF
+          {
+            "text": "${TITLE}\n- 작성자: ${PUSHER}\n- 커밋 목록:\n${COMMITS_LIST}\n\n👉 비교: ${COMPARE_URL}"
+          }
+          EOF
+          )
+
+          elif [ "$EVENT_NAME" = "pull_request" ] && { [ "$PR_ACTION" = "opened" ] || [ "$PR_ACTION" = "reopened" ]; }; then
+            TITLE="🔀 [main] 새로운 PR 생성"
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_URL="${{ github.event.pull_request.html_url }}"
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
+
+            PAYLOAD=$(cat <<EOF
+          {
+            "text": "${TITLE}\n- 제목: ${PR_TITLE}\n- 작성자: ${PR_AUTHOR} (${HEAD_BRANCH} -> main)\n👉 PR 확인: ${PR_URL}"
+          }
+          EOF
+          )
+
+          elif [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_ACTION" = "closed" ] && [ "$PR_MERGED" = "true" ]; then
+            TITLE="✅ [main] PR 머지 완료!"
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_URL="${{ github.event.pull_request.html_url }}"
+            MERGED_BY="${{ github.event.pull_request.merged_by.login }}"
+
+            PAYLOAD=$(cat <<EOF
+          {
+            "text": "${TITLE}\n- 제목: ${PR_TITLE}\n- 머지 진행자: ${MERGED_BY}\n👉 PR 확인: ${PR_URL}"
+          }
+          EOF
+          )
+
+          else
+            echo "Skipping notification for unhandled event/action ($EVENT_NAME / $PR_ACTION)."
+            exit 0
+          fi
+
+          curl -X POST "$KAKAOWORK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
