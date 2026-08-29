@@ -117,7 +117,12 @@ export function DashboardBriefProvider({
 }
 
 /** Browser-only provider for the public landing. It deliberately satisfies the
- * same wizard contract without creating a guest Firebase identity or document. */
+ * same wizard contract without creating a guest Firebase identity or document.
+ *
+ * INTENTIONALLY DOES NOT FIRE notifyBriefStepChange (brief_step_changed GA4 event
+ * and ChannelTalk sync) because the landing dashboard is consultation-only with no
+ * ChannelTalk member profile. The landing dashboard fires separate brief_step_open
+ * and brief_step_complete GA4 events instead, tracked by CMWizard. */
 export function LandingDashboardBriefProvider({ children }: { children: ReactNode }) {
   const [brief, setBrief] = useState<CMBrief | null>(null);
   const [loading, setLoading] = useState(true);
