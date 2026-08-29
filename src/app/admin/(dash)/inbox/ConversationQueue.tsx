@@ -59,9 +59,9 @@ export default function ConversationQueue({
   const nowIso = new Date().toISOString();
 
   return (
-    <div className="flex h-full flex-col border-r border-neutral-800 bg-neutral-950">
+    <div className="flex h-full min-h-0 flex-col border-r border-neutral-800 bg-neutral-950 overflow-hidden">
       {/* Header & Filter Controls */}
-      <div className="border-b border-neutral-800 p-3 space-y-2.5">
+      <div className="shrink-0 border-b border-neutral-800 p-3 space-y-2.5">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-500" />
           <input
@@ -126,7 +126,7 @@ export default function ConversationQueue({
       </div>
 
       {/* List items */}
-      <div className="flex-1 overflow-y-auto divide-y divide-neutral-800/60" role="list">
+      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-neutral-800/60" role="list">
         {filtered.length === 0 ? (
           <div className="p-8 text-center text-xs text-neutral-500">
             <MessageSquare className="mx-auto mb-2 h-6 w-6 text-neutral-600" />

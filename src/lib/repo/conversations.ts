@@ -231,38 +231,34 @@ export async function listReviewIdentities(
       .get();
   }
   const identities = snap.docs.map((doc) => projectConversationIdentity(doc.id, doc.data()));
+  if (identities.length === 0) return [];
 
-  const items: ReviewIdentityItem[] = await Promise.all(
-    identities.map(async (identity) => {
-      const threadSnap = await db.collection(THREADS).where("identityId", "==", identity.id).get();
-      const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
-      threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
-      const latestThread = threads[0];
-      const channels = Array.from(new Set(threads.map((t) => t.channel)));
+  // Bulk query all threads to avoid 1,000+ individual roundtrips
+  const threadSnap = await db.collection(THREADS).get();
+  const threadsByIdentity = new Map<string, Thread[]>();
+  for (const doc of threadSnap.docs) {
+    const data = doc.data();
+    const id = data.identityId as string | undefined;
+    if (id) {
+      if (!threadsByIdentity.has(id)) threadsByIdentity.set(id, []);
+      threadsByIdentity.get(id)!.push(projectConversationThread(doc.id, data));
+    }
+  }
 
-      let latestMessageSnippet: string | undefined;
-      if (latestThread) {
-        const msgSnap = await db.collection(MESSAGES)
-          .where("threadKey", "==", latestThread.threadKey)
-          .limit(1)
-          .get();
-        if (!msgSnap.empty) {
-          const body = msgSnap.docs[0].data().bodyText;
-          if (typeof body === "string") {
-            latestMessageSnippet = body.replace(/\s+/g, " ").trim().slice(0, 120);
-          }
-        }
-      }
+  const items: ReviewIdentityItem[] = identities.map((identity) => {
+    const threads = threadsByIdentity.get(identity.id) || [];
+    threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
+    const latestThread = threads[0];
+    const channels = Array.from(new Set(threads.map((t) => t.channel)));
 
-      return {
-        identity,
-        threadCount: threads.length,
-        latestThread,
-        latestMessageSnippet,
-        channels,
-      };
-    }),
-  );
+    return {
+      identity,
+      threadCount: threads.length,
+      latestThread,
+      latestMessageSnippet: undefined,
+      channels,
+    };
+  });
 
   items.sort((a, b) => {
     const timeA = a.latestThread?.lastMessageAt || a.identity.updatedAt || "";

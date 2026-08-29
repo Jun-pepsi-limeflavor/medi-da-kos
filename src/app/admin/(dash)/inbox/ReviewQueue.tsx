@@ -168,10 +168,10 @@ export default function ReviewQueue({
   }
 
   return (
-    <div className="grid h-full grid-cols-1 md:grid-cols-12 overflow-hidden bg-neutral-950">
+    <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-12 overflow-hidden bg-neutral-950">
       {/* Column 1: Review Items List (Left) */}
-      <div className="md:col-span-4 lg:col-span-4 flex h-full flex-col border-r border-neutral-800 bg-neutral-950">
-        <div className="border-b border-neutral-800 p-3 space-y-2">
+      <div className="md:col-span-4 lg:col-span-4 flex h-full min-h-0 flex-col border-r border-neutral-800 bg-neutral-950 overflow-hidden">
+        <div className="shrink-0 border-b border-neutral-800 p-3 space-y-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-500" />
             <input
@@ -190,7 +190,7 @@ export default function ReviewQueue({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-neutral-800/60" role="list">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-neutral-800/60" role="list">
           {filteredItems.length === 0 ? (
             <div className="p-8 text-center text-xs text-neutral-500">
               <Inbox className="mx-auto mb-2 h-6 w-6 text-neutral-600" />
@@ -244,11 +244,11 @@ export default function ReviewQueue({
       </div>
 
       {/* Column 2: Selected Item Timeline and Classification Actions (Right) */}
-      <div className="md:col-span-8 lg:col-span-8 flex h-full flex-col overflow-hidden bg-neutral-950">
+      <div className="md:col-span-8 lg:col-span-8 flex h-full min-h-0 flex-col overflow-hidden bg-neutral-950">
         {activeIdentity ? (
           <>
             {/* Header & Quick Action Buttons */}
-            <div className="border-b border-neutral-800 p-4 bg-neutral-900/80 space-y-3">
+            <div className="shrink-0 border-b border-neutral-800 p-4 bg-neutral-900/80 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100 font-mono">
@@ -326,7 +326,7 @@ export default function ReviewQueue({
 
             {/* Modal / Action Form Overlay */}
             {modalMode && (
-              <div className="border-b border-neutral-700 bg-neutral-900 p-4 shadow-lg">
+              <div className="shrink-0 border-b border-neutral-700 bg-neutral-900 p-4 shadow-lg">
                 <form onSubmit={handleClassifySubmit} className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold text-neutral-100 flex items-center gap-1.5">
@@ -450,7 +450,7 @@ export default function ReviewQueue({
             )}
 
             {/* Timeline preview for review */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
               {selectedDetail && selectedDetail.messages.length > 0 ? (
                 selectedDetail.messages.map((m, idx) => (
                   <div key={m.id || idx} className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-4 space-y-2">

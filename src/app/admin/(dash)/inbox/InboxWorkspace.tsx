@@ -67,12 +67,12 @@ export default function InboxWorkspace({
   }
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col rounded-2xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl">
+    <div className="flex h-[calc(100vh-9.5rem)] flex-col rounded-2xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl">
       {/* Health Summary Alert (if degraded) */}
       {!healthSummary.healthy && healthSummary.warnings.length > 0 && (
         <div
           role="alert"
-          className="flex items-center justify-between border-b border-amber-900/60 bg-amber-950/40 px-4 py-2.5 text-xs text-amber-200"
+          className="shrink-0 flex items-center justify-between border-b border-amber-900/60 bg-amber-950/40 px-4 py-2.5 text-xs text-amber-200"
         >
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
@@ -88,7 +88,7 @@ export default function InboxWorkspace({
       )}
 
       {/* Top Level Navigation Tabs */}
-      <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900/90 px-4 py-2">
+      <div className="shrink-0 flex items-center justify-between border-b border-neutral-800 bg-neutral-900/90 px-4 py-2">
         <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-semibold">
           <Link
             href={getQueueLink("customer-work")}
@@ -155,28 +155,28 @@ export default function InboxWorkspace({
       </div>
 
       {/* Main Workspace Area */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {queue === "customer-work" ? (
           <>
             {/* Desktop 3-Panel Layout (>= 1024px) */}
-            <div className="hidden lg:grid h-full grid-cols-12 overflow-hidden">
-              <div className="col-span-3 h-full overflow-hidden">
+            <div className="hidden lg:grid h-full min-h-0 grid-cols-12 overflow-hidden">
+              <div className="col-span-3 h-full min-h-0 overflow-hidden">
                 <ConversationQueue
                   rollups={rollups}
                   selectedId={selectedConversationId}
                   totalUnanswered={totalUnanswered}
                 />
               </div>
-              <div className="col-span-6 h-full overflow-hidden border-r border-neutral-800">
+              <div className="col-span-6 h-full min-h-0 overflow-hidden border-r border-neutral-800">
                 <ConversationTimeline detail={conversationDetail} />
               </div>
-              <div className="col-span-3 h-full overflow-hidden">
+              <div className="col-span-3 h-full min-h-0 overflow-hidden">
                 <ConversationInspector detail={conversationDetail} />
               </div>
             </div>
 
             {/* Mobile / Tablet Staged Layout (< 1024px) */}
-            <div className="lg:hidden h-full overflow-hidden">
+            <div className="lg:hidden h-full min-h-0 overflow-hidden">
               {mobilePanel === "queue" && (
                 <ConversationQueue
                   rollups={rollups}

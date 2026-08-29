@@ -138,9 +138,9 @@ export default function ConversationTimeline({
   }
 
   return (
-    <div className="flex h-full flex-col bg-neutral-950">
+    <div className="flex h-full min-h-0 flex-col bg-neutral-950 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-800 p-3.5 bg-neutral-900/60">
+      <div className="shrink-0 flex items-center justify-between border-b border-neutral-800 p-3.5 bg-neutral-900/60">
         <div className="flex items-center gap-2">
           {/* Mobile Back Button to Queue */}
           <Link
@@ -190,7 +190,7 @@ export default function ConversationTimeline({
 
       {/* Original Thread Selector Tabs (if multi-thread) */}
       {threads.length > 1 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-neutral-800/80 bg-neutral-900/40 px-3.5 py-2">
+        <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto border-b border-neutral-800/80 bg-neutral-900/40 px-3.5 py-2">
           <span className="text-[11px] font-semibold text-neutral-400 mr-1">스레드 선택:</span>
           {threads.map((t) => {
             const isSelected = (activeThread?.threadKey || "") === t.threadKey;
@@ -219,7 +219,7 @@ export default function ConversationTimeline({
       )}
 
       {/* Messages Timeline Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="py-12 text-center text-xs text-neutral-500">
             수신된 메시지 원문이 없습니다.
@@ -296,7 +296,7 @@ export default function ConversationTimeline({
       </div>
 
       {/* Action and Reply Box */}
-      <div className="border-t border-neutral-800 bg-neutral-900/90 p-3 sm:p-4 space-y-3">
+      <div className="shrink-0 border-t border-neutral-800 bg-neutral-900/90 p-3 sm:p-4 space-y-3">
         {/* Status Alerts */}
         {actionError && (
           <div role="alert" className="rounded-lg border border-rose-800 bg-rose-950/80 px-3 py-2 text-xs text-rose-300">
