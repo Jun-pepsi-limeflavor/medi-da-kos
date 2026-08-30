@@ -9,9 +9,12 @@ import {
   ArrowUpRight,
   Building,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
+  ChevronUp,
   Clock,
   ExternalLink,
+  Forward,
   HelpCircle,
   Inbox,
   Keyboard,
@@ -44,6 +47,21 @@ const CHANNEL_NAMES: Record<string, string> = {
   web: "웹 문의",
 };
 
+export function isForwardedMessage(m: { subject?: string; direction?: string; to?: string[]; bodyText?: string }): boolean {
+  const subj = (m.subject || "").toLowerCase().trim();
+  if (subj.startsWith("fwd:") || subj.startsWith("fwd :") || subj.startsWith("전달:") || subj.startsWith("[fwd]")) {
+    return true;
+  }
+  const internalDomains = ["@techasset.co.kr", "@medidakoslabs.com", "@medidakos.com"];
+  if (m.direction === "out" && m.to && m.to.length > 0) {
+    const allInternal = m.to.every((recipient) =>
+      internalDomains.some((d) => recipient.toLowerCase().endsWith(d))
+    );
+    if (allInternal) return true;
+  }
+  return false;
+}
+
 interface ReviewQueueProps {
   queue: "unclassified" | "supplier" | "advertising";
   items: ReviewIdentityItem[];
@@ -70,6 +88,11 @@ export default function ReviewQueue({
   const [classifying, setClassifying] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [expandedForwards, setExpandedForwards] = useState<Record<string, boolean>>({});
+
+  function toggleForward(id: string) {
+    setExpandedForwards((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
 
   // Classification Dialog / Inline Controls
   const [modalMode, setModalMode] = useState<"buyer" | "supplier" | "advertising" | "internal" | null>(null);
@@ -489,115 +512,140 @@ export default function ReviewQueue({
             {/* Chronological Messages Timeline */}
             <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
               {selectedDetail && selectedDetail.messages.length > 0 ? (
-                selectedDetail.messages.map((m, idx) => {
-                  const isInbound = m.direction === "in";
-                  const channelName = CHANNEL_NAMES[m.channel] || m.channel;
-                  const sentDate = new Date(m.sentAt);
-
-                  return (
-                    <div
-                      key={m.id || idx}
-                      className={`rounded-2xl border p-4.5 transition-all space-y-3.5 ${
-                        isInbound
-                          ? "border-neutral-800 bg-neutral-900/80 text-neutral-200 shadow-sm"
-                          : "border-indigo-900/40 bg-indigo-950/20 text-neutral-100 shadow-sm"
-                      }`}
-                    >
-                      {/* Message Header */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
-                              isInbound
-                                ? "border-sky-800/80 bg-sky-950/80 text-sky-300"
-                                : "border-indigo-700/80 bg-indigo-950/90 text-indigo-200"
-                            }`}
-                          >
-                            {isInbound ? (
-                              <ArrowDownLeft className="h-3 w-3" />
-                            ) : (
-                              <ArrowUpRight className="h-3 w-3" />
-                            )}
-                            {isInbound ? "수신 (Inbound)" : "발신 (Outbound)"}
-                          </span>
-
-                          <span className="text-xs font-semibold text-neutral-100">
-                            {m.fromName ? `${m.fromName} (${m.from})` : m.from}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                          <span className="rounded-md bg-neutral-800/90 px-2 py-0.5 font-mono text-[10px] text-neutral-300 border border-neutral-700/50">
-                            {channelName}
-                          </span>
-                          <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
-                            {sentDate.toLocaleString("ko-KR", {
-                              year: "numeric",
-                              month: "numeric",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </time>
-                        </div>
-                      </div>
-
-                      {/* Subject & Single View Link */}
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="text-xs font-bold text-neutral-100">
-                          {m.subject || "(제목 없음)"}
-                        </h4>
-                        <Link
-                          href={`/admin/inbox/${encodeURIComponent(m.threadKey)}`}
-                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-1 shrink-0"
-                        >
-                          단독 뷰 &rarr;
-                        </Link>
-                      </div>
-
-                      {/* Message Body Content */}
-                      <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 font-sans break-words border border-neutral-800/60 select-text">
-                        <MessageBodyClean bodyText={m.bodyText || ""} />
-                      </div>
-
-                      {/* Attachments */}
-                      {m.attachments && m.attachments.length > 0 && (
-                        <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-800/60">
-                          {m.attachments.map((att, attIdx) => {
-                            const isGmail = m.channel.startsWith("gmail_");
-                            const label = (
-                              <>
-                                <Paperclip className="h-3.5 w-3.5 text-neutral-400 shrink-0" />
-                                <span className="max-w-[220px] truncate font-medium">{att.filename}</span>
-                                <span className="text-neutral-500 text-[10px] shrink-0 font-mono">
-                                  ({Math.max(1, Math.round(att.size / 1024))} KB)
-                                </span>
-                              </>
-                            );
-
-                            return isGmail ? (
-                              <a
-                                key={att.attachmentId || attIdx}
-                                href={`/api/admin/messages/${encodeURIComponent(m.id)}/attachments/${encodeURIComponent(att.attachmentId)}`}
-                                download={att.filename}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800/90 px-3 py-1.5 text-[11px] text-neutral-200 border border-neutral-700/60 hover:bg-neutral-700 hover:text-white transition-colors"
-                              >
-                                {label}
-                              </a>
-                            ) : (
-                              <span
-                                key={att.attachmentId || attIdx}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-800/90 px-3 py-1.5 text-[11px] text-neutral-200 border border-neutral-700/60"
-                              >
-                                {label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                (() => {
+                  const returnUrlParam = encodeURIComponent(
+                    `/admin/inbox?queue=${encodeURIComponent(queue)}&identityId=${encodeURIComponent(selectedIdentityId || "")}&panel=timeline`
                   );
-                })
+
+                  return selectedDetail.messages.map((m, idx) => {
+                    const isInbound = m.direction === "in";
+                    const channelName = CHANNEL_NAMES[m.channel] || m.channel;
+                    const sentDate = new Date(m.sentAt);
+                    const isFwd = isForwardedMessage(m);
+                    const isFwdExpanded = expandedForwards[m.id || String(idx)];
+
+                    if (isFwd && !isFwdExpanded) {
+                      return (
+                        <div key={m.id || idx} className="flex justify-center my-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleForward(m.id || String(idx))}
+                            className="inline-flex items-center gap-2 rounded-full border border-purple-900/50 bg-purple-950/30 px-3.5 py-1.5 text-[11px] text-purple-300 hover:bg-purple-950/60 hover:text-purple-200 hover:border-purple-700/60 transition-all shadow-sm group"
+                          >
+                            <Forward className="h-3.5 w-3.5 text-purple-400 group-hover:scale-110 transition-transform" />
+                            <span>
+                              사내 전달: {m.fromName ? `${m.fromName} (${m.from.split("@")[0]})` : m.from} ➔ {m.to?.map(e => e.split("@")[0]).join(", ") || "내부"}
+                            </span>
+                            <span className="text-[10px] text-neutral-400 font-mono">
+                              {sentDate.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <span className="text-[10px] text-purple-400 font-semibold ml-1">펼치기 ▾</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={m.id || idx}
+                        className={`flex w-full ${
+                          isInbound
+                            ? "justify-start pr-6 sm:pr-16"
+                            : "justify-end pl-6 sm:pl-16"
+                        }`}
+                      >
+                        <div
+                          className={`w-full max-w-[90%] sm:max-w-[84%] rounded-2xl border p-4.5 transition-all space-y-3.5 shadow-md ${
+                            isFwd
+                              ? "border-purple-900/60 bg-purple-950/20 text-neutral-100 rounded-tr-sm"
+                              : isInbound
+                                ? "border-neutral-800 bg-neutral-900/90 text-neutral-200 rounded-tl-sm"
+                                : "border-indigo-900/50 bg-indigo-950/25 text-neutral-100 rounded-tr-sm"
+                          }`}
+                        >
+                          {/* Forward Header if expanded */}
+                          {isFwd && (
+                            <div className="flex items-center justify-between border-b border-purple-900/50 pb-2 text-[10px] text-purple-300 font-semibold">
+                              <span className="flex items-center gap-1.5">
+                                <Forward className="h-3 w-3 text-purple-400" />
+                                사내 포워딩 메시지
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleForward(m.id || String(idx))}
+                                className="text-purple-400 hover:text-purple-200 underline font-medium"
+                              >
+                                접기 ▴
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Message Header */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
+                                  isInbound
+                                    ? "border-sky-800/80 bg-sky-950/80 text-sky-300"
+                                    : "border-indigo-700/80 bg-indigo-950/90 text-indigo-200"
+                                }`}
+                              >
+                                {isInbound ? (
+                                  <ArrowDownLeft className="h-3 w-3" />
+                                ) : (
+                                  <ArrowUpRight className="h-3 w-3" />
+                                )}
+                                {isInbound ? "수신 (Inbound)" : "발신 (Outbound)"}
+                              </span>
+
+                              <span className="text-xs font-semibold text-neutral-100 truncate max-w-[200px]">
+                                {m.fromName ? `${m.fromName} (${m.from})` : m.from}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[11px] text-neutral-400">
+                              <span className="rounded-md bg-neutral-800/90 px-2 py-0.5 font-mono text-[10px] text-neutral-300 border border-neutral-700/50">
+                                {channelName}
+                              </span>
+                              <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
+                                {sentDate.toLocaleString("ko-KR", {
+                                  year: "numeric",
+                                  month: "numeric",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </time>
+                            </div>
+                          </div>
+
+                          {/* Subject & Single View Link */}
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-xs font-bold text-neutral-100 truncate">
+                              {m.subject || "(제목 없음)"}
+                            </h4>
+                            <Link
+                              href={`/admin/inbox/${encodeURIComponent(m.threadKey)}?returnUrl=${returnUrlParam}`}
+                              className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-1 shrink-0"
+                            >
+                              단독 뷰 &rarr;
+                            </Link>
+                          </div>
+
+                          {/* Message Body & Media Content */}
+                          <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 font-sans break-words border border-neutral-800/60 select-text">
+                            <MessageBodyClean
+                              bodyText={m.bodyText || ""}
+                              attachments={m.attachments}
+                              messageId={m.id}
+                              isGmail={m.channel.startsWith("gmail_")}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-neutral-500">
                   <Inbox className="mb-2 h-8 w-8 text-neutral-700" />

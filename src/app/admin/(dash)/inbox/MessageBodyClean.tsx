@@ -2,72 +2,95 @@
 
 import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
+import type { Attachment } from "@/lib/schemas/message";
+import MessageMediaGallery from "./MessageMediaGallery";
+import {
+  splitEmailQuotes,
+  extractMediaFromText,
+  isAttributionLine,
+  type ExtractedMediaItem,
+} from "@/lib/email-body";
+
+export { splitEmailQuotes, extractMediaFromText, isAttributionLine };
 
 interface MessageBodyCleanProps {
   bodyText: string;
+  attachments?: Attachment[];
+  messageId?: string;
+  isGmail?: boolean;
   className?: string;
 }
 
-export function splitEmailQuotes(raw: string): { clean: string; quoted: string | null; quoteLineCount: number } {
-  if (!raw) return { clean: "", quoted: null, quoteLineCount: 0 };
-
-  const lines = raw.split("\n");
-  const cleanLines: string[] = [];
-  const quotedLines: string[] = [];
-  let inQuote = false;
-
-  const quoteStartRegex = /^(?:-{2,}\s*(?:전달된 메일|forwarded message|original message)\s*-{2,}|on\s+.+wrote:\s*$|20\d\d년\s+.+님이\s+작성:\s*$|-----original message-----|from:\s+.+@.+)/i;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (!inQuote) {
-      if (trimmed.startsWith(">") || quoteStartRegex.test(trimmed)) {
-        inQuote = true;
-        quotedLines.push(line);
-      } else {
-        cleanLines.push(line);
-      }
-    } else {
-      quotedLines.push(line);
-    }
-  }
-
-  const clean = cleanLines.join("\n").trim();
-  const quoted = quotedLines.join("\n").trim();
-
-  // If the entire text was flagged as quote (e.g. buyer's reply was somehow formatted with >), display it in clean
-  if (!clean && quoted) {
-    return { clean: quoted, quoted: null, quoteLineCount: 0 };
-  }
-
-  return { clean, quoted: quoted.length > 0 ? quoted : null, quoteLineCount: quotedLines.length };
-}
-
-export default function MessageBodyClean({ bodyText, className = "" }: MessageBodyCleanProps) {
+export default function MessageBodyClean({
+  bodyText,
+  attachments = [],
+  messageId,
+  isGmail = false,
+  className = "",
+}: MessageBodyCleanProps) {
   const [showQuotes, setShowQuotes] = useState(false);
 
-  const { clean, quoted, quoteLineCount } = useMemo(() => splitEmailQuotes(bodyText), [bodyText]);
+  // 1. Separate quote boilerplate first
+  const { clean: rawClean, quoted, quoteLineCount } = useMemo(
+    () => splitEmailQuotes(bodyText),
+    [bodyText],
+  );
 
-  if (!bodyText) {
-    return (
-      <div className="text-xs italic text-neutral-500 py-1">
-        (본문 내용이 비어있습니다)
-      </div>
-    );
-  }
+  // 2. Extract Google Drive & embedded image links from clean text
+  const { cleanText, media } = useMemo(() => extractMediaFromText(rawClean), [rawClean]);
+
+  // 3. Parse clean text lines to render inline blockquotes beautifully if any exist
+  const textBlocks = useMemo(() => {
+    if (!cleanText) return [];
+    const paragraphs = cleanText.split("\n\n");
+    return paragraphs.map((para) => {
+      const trimmed = para.trim();
+      const isQuoteBlock = trimmed.startsWith("> ") || trimmed.startsWith(">");
+      return {
+        isQuoteBlock,
+        content: isQuoteBlock ? trimmed.replace(/^>\s?/gm, "") : para,
+      };
+    });
+  }, [cleanText]);
 
   return (
-    <div className={`space-y-2.5 ${className}`}>
-      {/* Clean Primary Message Text */}
-      {clean ? (
-        <div className="text-xs leading-relaxed text-neutral-200 whitespace-pre-wrap font-sans break-words select-text">
-          {clean}
+    <div className={`space-y-3 ${className}`}>
+      {/* Clean Primary Message Text with Rich Inline Blockquote Styling */}
+      {textBlocks.length > 0 ? (
+        <div className="space-y-2 select-text">
+          {textBlocks.map((block, bIdx) =>
+            block.isQuoteBlock ? (
+              <blockquote
+                key={bIdx}
+                className="rounded-r-lg border-l-2 border-neutral-600 bg-neutral-900/60 px-3 py-1.5 font-sans text-xs italic text-neutral-400 whitespace-pre-wrap break-words"
+              >
+                {block.content}
+              </blockquote>
+            ) : (
+              <div
+                key={bIdx}
+                className="text-xs leading-relaxed text-neutral-200 whitespace-pre-wrap font-sans break-words"
+              >
+                {block.content}
+              </div>
+            )
+          )}
         </div>
-      ) : (
-        <div className="text-xs italic text-neutral-500">
-          (인용문 외 본문 없음)
+      ) : !media.length && !attachments.length ? (
+        <div className="text-xs italic text-neutral-500 py-1">
+          {bodyText ? "(인용문 외 본문 없음)" : "(본문 내용이 비어있습니다)"}
+        </div>
+      ) : null}
+
+      {/* Embedded Visual Image Gallery (Google Drive + Email Attachments) */}
+      {(media.length > 0 || attachments.length > 0) && (
+        <div className="pt-1">
+          <MessageMediaGallery
+            extractedMedia={media}
+            attachments={attachments}
+            messageId={messageId}
+            isGmail={isGmail}
+          />
         </div>
       )}
 

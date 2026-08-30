@@ -287,15 +287,29 @@ export async function listReviewIdentities(
   const identities = snap.docs.map((doc) => projectConversationIdentity(doc.id, doc.data()));
   if (identities.length === 0) return [];
 
-  // Bulk query all threads to avoid 1,000+ individual roundtrips
-  const threadSnap = await db.collection(THREADS).get();
+  // Query threads specifically for these identities in chunks of 30
+  const identityIds = identities.map((i) => i.id);
+  const CHUNK_SIZE = 30;
+  const chunkPromises: Promise<FirebaseFirestore.QuerySnapshot>[] = [];
+
+  for (let i = 0; i < identityIds.length; i += CHUNK_SIZE) {
+    const chunk = identityIds.slice(i, i + CHUNK_SIZE);
+    chunkPromises.push(
+      db.collection(THREADS).where("identityId", "in", chunk).get(),
+    );
+  }
+
+  const chunkSnaps = await Promise.all(chunkPromises);
   const threadsByIdentity = new Map<string, Thread[]>();
-  for (const doc of threadSnap.docs) {
-    const data = doc.data();
-    const id = data.identityId as string | undefined;
-    if (id) {
-      if (!threadsByIdentity.has(id)) threadsByIdentity.set(id, []);
-      threadsByIdentity.get(id)!.push(projectConversationThread(doc.id, data));
+
+  for (const snap of chunkSnaps) {
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const id = data.identityId as string | undefined;
+      if (id) {
+        if (!threadsByIdentity.has(id)) threadsByIdentity.set(id, []);
+        threadsByIdentity.get(id)!.push(projectConversationThread(doc.id, data));
+      }
     }
   }
 
