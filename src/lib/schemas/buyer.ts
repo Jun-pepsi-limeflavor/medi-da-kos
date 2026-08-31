@@ -4,7 +4,7 @@ const trimmed = z.string().transform((s) => s.trim());
 const required = trimmed.refine((s) => s.length > 0, { message: "필수 항목입니다" });
 
 export const INFLOW_CHANNELS = [
-  "gmail_thomas", "gmail_hally", "outlook", "website",
+  "gmail_thomas", "gmail_hally", "support", "outlook", "website",
   "channel_talk", "coldmail", "manual",
 ] as const;
 

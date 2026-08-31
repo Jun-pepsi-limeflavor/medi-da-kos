@@ -35,19 +35,21 @@ import MessageBodyClean from "./MessageBodyClean";
 import { getIdentityDisplay } from "@/lib/inbox-display";
 
 const CHANNEL_NAMES: Record<string, string> = {
-  gmail_thomas: "Gmail · Thomas",
-  gmail_hally: "Gmail · Hally",
-  gmail_rheekw: "Gmail · Rheekw",
-  gmail_songjh: "Gmail · Songjh",
-  gmail_kimhs: "Gmail · Kimhs",
-  gmail_parkjy: "Gmail · Parkjy",
-  outlook_support: "Outlook · Support",
-  channeltalk: "Channel Talk",
+  gmail_thomas: "Thomas",
+  gmail_hally: "Hally",
+  gmail_support: "Support",
+  gmail_rheekw: "Rheekw",
+  gmail_songjh: "Songjh",
+  gmail_kimhs: "Kimhs",
+  gmail_parkjy: "Parkjy",
+  outlook_support: "Support",
+  channeltalk: "채널톡",
   web: "웹 문의",
 };
 
 function mapChannelToInflow(channel?: string): (typeof INFLOW_CHANNELS)[number] {
   if (!channel) return "manual";
+  if (channel === "gmail_support" || channel === "outlook_support") return "support";
   if (channel.startsWith("gmail_hally")) return "gmail_hally";
   if (channel.startsWith("gmail_thomas")) return "gmail_thomas";
   if (channel.startsWith("gmail_")) return "gmail_hally";

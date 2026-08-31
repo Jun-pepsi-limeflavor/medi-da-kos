@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_GMAIL_MAILBOXES,
+  gmailContext,
   ingestChannelTalkAccount,
   ingestGmailAccount,
   initialEpochSeconds,
@@ -11,7 +12,7 @@ import {
 
 const fixedNow = Date.parse("2026-08-28T00:00:00.000Z");
 
-test("scheduler mailbox contract maps exactly the six known accounts and rejects unsafe input", () => {
+test("scheduler mailbox contract maps exactly the known accounts and rejects unsafe input", () => {
   const value = DEFAULT_GMAIL_MAILBOXES.map((mailbox) => mailbox.account).join(",");
   assert.deepEqual(
     parseMailboxList(value).map((mailbox) => mailbox.channel),
@@ -20,6 +21,17 @@ test("scheduler mailbox contract maps exactly the six known accounts and rejects
   assert.throws(() => parseMailboxList("thomas@medidakoslabs.com,,hally@medidakoslabs.com"), /blank/);
   assert.throws(() => parseMailboxList("thomas@medidakoslabs.com,THOMAS@MEDIDAKOSLABS.COM"), /Duplicate/);
   assert.throws(() => parseMailboxList("thomas@medidakoslabs.com,secret-value"), /invalid|not approved/);
+});
+
+test("support@medidakos.com is approved as gmail_support and lands on the brand side", () => {
+  const [mailbox] = parseMailboxList("support@medidakos.com");
+  assert.equal(mailbox.channel, "gmail_support");
+  assert.deepEqual(gmailContext("support@medidakos.com"), {
+    channel: "gmail_support",
+    side: "brand",
+    sideSource: "account_rule",
+    account: "support@medidakos.com",
+  });
 });
 
 test("initial Gmail lower bound is explicit and defaults to a bounded 30 days", () => {

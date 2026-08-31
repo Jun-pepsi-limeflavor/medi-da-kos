@@ -15,14 +15,15 @@ import type { Message } from "@/lib/schemas/message";
 import type { Thread } from "@/lib/schemas/thread";
 
 const CHANNEL_LABELS: Record<Thread["channel"], string> = {
-  gmail_thomas: "Gmail · Thomas",
-  gmail_hally: "Gmail · Hally",
-  gmail_rheekw: "Gmail · Rheekw",
-  gmail_songjh: "Gmail · Songjh",
-  gmail_kimhs: "Gmail · Kimhs",
-  gmail_parkjy: "Gmail · Parkjy",
-  outlook_support: "Outlook · Support",
-  channeltalk: "Channel Talk",
+  gmail_thomas: "Thomas",
+  gmail_hally: "Hally",
+  gmail_support: "Support",
+  gmail_rheekw: "Rheekw",
+  gmail_songjh: "Songjh",
+  gmail_kimhs: "Kimhs",
+  gmail_parkjy: "Parkjy",
+  outlook_support: "Support",
+  channeltalk: "채널톡",
   web: "웹 문의",
 };
 

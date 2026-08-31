@@ -4,6 +4,7 @@ import { z } from "zod";
 // 지어내지 않는다 — 여기 없는 채널·필드가 필요해지면 수집기부터 먼저 바뀐다.
 export const channelSchema = z.enum([
   "gmail_thomas", "gmail_hally", "gmail_rheekw", "gmail_songjh", "gmail_kimhs", "gmail_parkjy",
+  "gmail_support",
   "outlook_support", "channeltalk", "web",
 ]);
 
