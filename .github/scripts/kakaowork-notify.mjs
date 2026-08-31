@@ -1,6 +1,21 @@
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+function safeHeader(text) {
+  if (!text) return '';
+  return text.length > 40 ? text.substring(0, 39) + '…' : text;
+}
+
+function safeTerm(text) {
+  if (!text) return '';
+  return text.length > 10 ? text.substring(0, 9) + '…' : text;
+}
+
+function safeContent(text) {
+  if (!text) return '';
+  return text.length > 100 ? text.substring(0, 97) + '…' : text;
+}
+
 /**
  * KakaoWork Block Kit 페이로드를 생성합니다.
  * @param {string} eventName - GitHub Actions 이벤트 이름 ('push' | 'pull_request')
@@ -23,12 +38,15 @@ export function buildKakaoWorkPayload(eventName, event) {
     const repoName = event.repository?.full_name || 'Jun-pepsi-limeflavor/medi-da-kos';
     const compareUrl = event.compare || '';
 
-    // 커밋 최대 15개 표시
+    // 커밋 최대 15개 표시 (단일 text 블록 500자 제한 준수를 위해 35자 요약)
     const maxCommits = 15;
     const displayCommits = commits.slice(0, maxCommits);
     const commitLines = displayCommits.map((c) => {
       const shortHash = (c.id || '').substring(0, 7) || 'unknown';
-      const firstLine = (c.message || '').split('\n')[0].trim();
+      let firstLine = (c.message || '').split('\n')[0].trim();
+      if (firstLine.length > 35) {
+        firstLine = firstLine.substring(0, 33) + '…';
+      }
       const author = c.author?.username || c.author?.name || 'unknown';
       return `• [\`${shortHash}\`] ${firstLine} (@${author})`;
     });
@@ -42,38 +60,30 @@ export function buildKakaoWorkPayload(eventName, event) {
         ? `**📝 푸시된 커밋 (${commitCount}개):**\n${commitLines.join('\n')}`
         : '**📝 푸시된 커밋이 없습니다.**';
 
+    const headerTitle = safeHeader(`🚀 [dev] 새 커밋 푸시 (${commitCount}개)`);
+
     const blocks = [
       {
         type: 'header',
-        text: `🚀 [dev] 새 커밋 푸시 (${commitCount}개)`,
+        text: headerTitle,
         style: 'blue',
       },
       {
         type: 'description',
-        term: '저장소',
+        term: safeTerm('저장소'),
         content: {
           type: 'text',
-          text: repoName,
+          text: safeContent(repoName),
           markdown: true,
         },
         accent: true,
       },
       {
         type: 'description',
-        term: '작성자',
+        term: safeTerm('작성자'),
         content: {
           type: 'text',
-          text: pusher,
-          markdown: true,
-        },
-        accent: false,
-      },
-      {
-        type: 'description',
-        term: '브랜치',
-        content: {
-          type: 'text',
-          text: '`dev`',
+          text: safeContent(pusher),
           markdown: true,
         },
         accent: false,
@@ -124,9 +134,11 @@ export function buildKakaoWorkPayload(eventName, event) {
     if (action === 'opened' || action === 'reopened') {
       const isReopened = action === 'reopened';
       const statusText = isReopened ? '재오픈 (Reopened)' : '검토 요청 (Open)';
-      const headerTitle = isReopened
-        ? `📬 [PR #${prNumber}] 풀 리퀘스트 재오픈`
-        : `📬 [PR #${prNumber}] 풀 리퀘스트 등록`;
+      const headerTitle = safeHeader(
+        isReopened
+          ? `📬 [PR #${prNumber}] 풀 리퀘스트 재오픈`
+          : `📬 [PR #${prNumber}] 풀 리퀘스트 등록`
+      );
 
       return {
         text: `${headerTitle}: ${prTitle}`,
@@ -138,40 +150,40 @@ export function buildKakaoWorkPayload(eventName, event) {
           },
           {
             type: 'description',
-            term: 'PR 제목',
+            term: safeTerm('PR 제목'),
             content: {
               type: 'text',
-              text: prTitle,
+              text: safeContent(prTitle),
               markdown: true,
             },
             accent: true,
           },
           {
             type: 'description',
-            term: '작성자',
+            term: safeTerm('작성자'),
             content: {
               type: 'text',
-              text: `@${author}`,
+              text: safeContent(`@${author}`),
               markdown: true,
             },
             accent: false,
           },
           {
             type: 'description',
-            term: '브랜치',
+            term: safeTerm('브랜치'),
             content: {
               type: 'text',
-              text: `\`${headBranch}\` ➔ \`${baseBranch}\``,
+              text: safeContent(`\`${headBranch}\` ➔ \`${baseBranch}\``),
               markdown: true,
             },
             accent: false,
           },
           {
             type: 'description',
-            term: '상태',
+            term: safeTerm('상태'),
             content: {
               type: 'text',
-              text: statusText,
+              text: safeContent(statusText),
               markdown: true,
             },
             accent: false,
@@ -197,48 +209,49 @@ export function buildKakaoWorkPayload(eventName, event) {
       }
 
       const mergedBy = pr.merged_by?.login || author;
+      const headerTitle = safeHeader(`🎉 [PR #${prNumber}] main 브랜치 머지 완료`);
 
       return {
         text: `🎉 [PR #${prNumber}] main 브랜치 머지 완료: ${prTitle}`,
         blocks: [
           {
             type: 'header',
-            text: `🎉 [PR #${prNumber}] main 브랜치 머지 완료`,
+            text: headerTitle,
             style: 'blue',
           },
           {
             type: 'description',
-            term: 'PR 제목',
+            term: safeTerm('PR 제목'),
             content: {
               type: 'text',
-              text: prTitle,
+              text: safeContent(prTitle),
               markdown: true,
             },
             accent: true,
           },
           {
             type: 'description',
-            term: '머지 진행자',
+            term: safeTerm('머지 진행자'),
             content: {
               type: 'text',
-              text: `@${mergedBy}`,
+              text: safeContent(`@${mergedBy}`),
               markdown: true,
             },
             accent: false,
           },
           {
             type: 'description',
-            term: '브랜치',
+            term: safeTerm('브랜치'),
             content: {
               type: 'text',
-              text: `\`${headBranch}\` ➔ \`${baseBranch}\``,
+              text: safeContent(`\`${headBranch}\` ➔ \`${baseBranch}\``),
               markdown: true,
             },
             accent: false,
           },
           {
             type: 'description',
-            term: '배포 안내',
+            term: safeTerm('배포 안내'),
             content: {
               type: 'text',
               text: 'main 브랜치에 성공적으로 머지되었습니다.',
