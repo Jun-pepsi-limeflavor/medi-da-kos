@@ -11,6 +11,8 @@ import {
   Clock,
   History,
   Mail,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Save,
   Settings,
@@ -25,10 +27,14 @@ import ExtractionPanel from "./[threadKey]/ExtractionPanel";
 
 interface ConversationInspectorProps {
   detail: ConversationDetail | null;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export default function ConversationInspector({
   detail,
+  isCollapsed = false,
+  onToggleCollapse,
 }: ConversationInspectorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -67,6 +73,21 @@ export default function ConversationInspector({
   const [newCollab, setNewCollab] = useState("");
 
   if (!detail) {
+    if (isCollapsed) {
+      return (
+        <div className="flex h-full w-12 flex-col items-center justify-between border-l border-neutral-800 bg-neutral-950 py-3 text-neutral-500">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white transition shadow-sm"
+            title="인스펙터 펼치기"
+            aria-label="인스펙터 펼치기"
+          >
+            <PanelRightOpen className="h-4 w-4 text-indigo-400" />
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full flex-col items-center justify-center bg-neutral-950 p-6 text-center text-neutral-500">
         <Sparkles className="mb-2 h-8 w-8 text-neutral-700" />
@@ -134,6 +155,76 @@ export default function ConversationInspector({
     }
   }
 
+  // Collapsed Sidebar Rail View
+  if (isCollapsed) {
+    return (
+      <div className="flex h-full w-12 flex-col items-center justify-between border-l border-neutral-800 bg-neutral-950 py-3 text-neutral-400">
+        <div className="flex flex-col items-center gap-3 w-full">
+          {/* Expand Button */}
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white transition shadow-sm"
+            title="인스펙터 펼치기"
+            aria-label="인스펙터 펼치기"
+          >
+            <PanelRightOpen className="h-4 w-4 text-indigo-400" />
+          </button>
+
+          <div className="w-6 border-t border-neutral-800 my-0.5" />
+
+          {/* Tab 1 Icon Trigger */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("deal");
+              onToggleCollapse?.();
+            }}
+            className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
+              activeTab === "deal"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+            }`}
+            title="딜 인큐베이터 열기"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+
+          {/* Tab 2 Icon Trigger */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("settings");
+              onToggleCollapse?.();
+            }}
+            className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
+              activeTab === "settings"
+                ? "bg-neutral-800 text-neutral-100 border border-neutral-700 shadow-sm"
+                : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+            }`}
+            title="설정 & 이력 열기"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Bottom Workflow Status Indicator Dot */}
+        <div className="flex flex-col items-center gap-1.5">
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${
+              workflowState === "active"
+                ? "bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.6)]"
+                : workflowState === "waiting_customer"
+                  ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"
+                  : "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"
+            }`}
+            title={`상태: ${workflowState === "active" ? "진행 중" : workflowState === "waiting_customer" ? "고객 대기" : "완료"}`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-neutral-950 overflow-hidden">
       {/* Header & Tabs */}
@@ -173,32 +264,46 @@ export default function ConversationInspector({
             </div>
           </div>
 
-          {/* Segmented Tab Switcher */}
-          <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded-xl border border-neutral-800 shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab("deal")}
-              className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                activeTab === "deal"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-neutral-400 hover:text-neutral-200"
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>딜 인큐베이터</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("settings")}
-              className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                activeTab === "settings"
-                  ? "bg-neutral-800 text-neutral-100 shadow-sm border border-neutral-700"
-                  : "text-neutral-400 hover:text-neutral-200"
-              }`}
-            >
-              <Settings className="h-3.5 w-3.5" />
-              <span>설정 & 이력</span>
-            </button>
+          {/* Segmented Tab Switcher & Collapse Button */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 bg-neutral-950 p-0.5 rounded-xl border border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab("deal")}
+                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  activeTab === "deal"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>딜 인큐베이터</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("settings")}
+                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  activeTab === "settings"
+                    ? "bg-neutral-800 text-neutral-100 shadow-sm border border-neutral-700"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span>설정 & 이력</span>
+              </button>
+            </div>
+
+            {onToggleCollapse && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="hidden lg:flex h-8 w-8 items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition"
+                title="인스펙터 접어서 대화창 넓히기"
+                aria-label="인스펙터 접기"
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

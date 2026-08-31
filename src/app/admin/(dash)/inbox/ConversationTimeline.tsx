@@ -6,24 +6,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  Check,
   ChevronLeft,
   Forward,
-  Info,
   Mail,
-  Paperclip,
-  Send,
   SlidersHorizontal,
 } from "lucide-react";
 import type { ConversationDetail } from "@/lib/repo/conversations";
-import { needsReply } from "@/lib/schemas/thread";
 import MessageBodyClean from "./MessageBodyClean";
 import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
 import { isForwardedMessage } from "./ReviewQueue";
 
 interface ConversationTimelineProps {
   detail: ConversationDetail | null;
-  onOpenInspector?: () => void;
 }
 
 const CHANNEL_NAMES: Record<string, string> = {
@@ -41,17 +35,8 @@ const CHANNEL_NAMES: Record<string, string> = {
 export default function ConversationTimeline({
   detail,
 }: ConversationTimelineProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [selectedThreadKey, setSelectedThreadKey] = useState<string>(
-    detail?.threads[0]?.threadKey || "",
-  );
-  const [replyText, setReplyText] = useState("");
-  const [sending, setSending] = useState(false);
-  const [handling, setHandling] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [expandedForwards, setExpandedForwards] = useState<Record<string, boolean>>({});
 
   function toggleForward(id: string) {
@@ -71,7 +56,7 @@ export default function ConversationTimeline({
   }
 
   const { conversation, threads, messages } = detail;
-  const activeThread = threads.find((t) => t.threadKey === selectedThreadKey) || threads[0];
+  const activeThread = threads[0];
   
   // Query param links for mobile navigation
   const queueParams = new URLSearchParams(searchParams.toString());
@@ -84,72 +69,21 @@ export default function ConversationTimeline({
     `/admin/inbox?queue=customer-work&conversationId=${encodeURIComponent(conversation.id)}&panel=timeline`
   );
 
-  async function handleSendReply(e: React.FormEvent) {
-    e.preventDefault();
-    if (!replyText.trim() || !activeThread || sending) return;
-
-    setSending(true);
-    setActionError(null);
-    setActionSuccess(null);
-
-    try {
-      const res = await fetch(`/api/admin/threads/${encodeURIComponent(activeThread.threadKey)}/reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bodyText: replyText.trim() }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => null) as { error?: string } | null;
-        setActionError(err?.error || "답장 전송에 실패했습니다.");
-        return;
-      }
-
-      setReplyText("");
-      setActionSuccess("답장이 성공적으로 발송되었습니다.");
-      router.refresh();
-    } catch {
-      setActionError("네트워크 오류가 발생했습니다.");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function handleMarkHandled() {
-    if (!activeThread || handling) return;
-    setHandling(true);
-    setActionError(null);
-    try {
-      const res = await fetch(`/api/admin/threads/${encodeURIComponent(activeThread.threadKey)}/handled`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        setActionError("수동 처리 완료 상태 변경에 실패했습니다.");
-        return;
-      }
-      router.refresh();
-    } catch {
-      setActionError("네트워크 오류가 발생했습니다.");
-    } finally {
-      setHandling(false);
-    }
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col bg-neutral-950">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900/60 p-3.5">
-        <div className="flex items-center gap-2">
-          {/* Mobile Back Button to Queue */}
+      <div className="shrink-0 flex items-center justify-between border-b border-neutral-800/80 bg-neutral-900/70 p-3 backdrop-blur-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Mobile Back to Queue */}
           <Link
             href={`/admin/inbox?${queueParams.toString()}`}
-            aria-label="목록으로 돌아가기"
-            className="lg:hidden inline-flex items-center justify-center p-2 rounded-lg text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 min-h-[44px] min-w-[44px]"
+            aria-label="대화 목록으로 돌아가기"
+            className="lg:hidden inline-flex items-center justify-center p-1.5 rounded-lg text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 min-h-[36px] min-w-[36px]"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-4 w-4" />
           </Link>
 
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-neutral-100 truncate max-w-[200px] sm:max-w-[320px]">
                 {conversation.counterpartyLabel || "알 수 없는 고객"}
@@ -166,27 +100,8 @@ export default function ConversationTimeline({
           </div>
         </div>
 
-        {/* Right side controls: Threads switcher & Mobile inspector button */}
-        <div className="flex items-center gap-2">
-          {threads.length > 1 && (
-            <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 rounded-lg p-0.5 text-xs">
-              {threads.map((t, idx) => (
-                <button
-                  key={t.threadKey}
-                  type="button"
-                  onClick={() => setSelectedThreadKey(t.threadKey)}
-                  className={`px-2 py-1 rounded text-[11px] font-medium transition-all ${
-                    (activeThread?.threadKey === t.threadKey)
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-neutral-400 hover:text-neutral-200"
-                  }`}
-                >
-                  스레드 {idx + 1}
-                </button>
-              ))}
-            </div>
-          )}
-
+        {/* Right side controls: Mobile inspector button */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* Mobile Button to open Inspector Panel */}
           <Link
             href={`/admin/inbox?${inspectorParams.toString()}`}

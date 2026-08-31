@@ -129,7 +129,6 @@ export default function ExtractionPanel({
 
   // 제품 아코디언 펼침 상태 (품목별 인덱스)
   const [expandedItemIndex, setExpandedItemIndex] = useState<number | null>(0);
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(false);
 
   // 정상 리드로 승인 모달 상태
   const mounted = useSyncExternalStore(
@@ -596,71 +595,28 @@ export default function ExtractionPanel({
               <Ban className="h-3 w-3 text-neutral-500" />
               무시
             </button>
-
-            {/* 접기/펼치기 토글 버튼 */}
-            <button
-              type="button"
-              onClick={() => setIsPanelCollapsed((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700/80 bg-neutral-800/90 px-2.5 py-1 text-xs font-semibold text-neutral-200 hover:bg-neutral-700 hover:text-white transition shadow-sm"
-              aria-expanded={!isPanelCollapsed}
-              aria-label={isPanelCollapsed ? "AI 제안 패널 펼치기" : "AI 제안 패널 접기"}
-            >
-              <span className="text-[11px]">{isPanelCollapsed ? "펼치기" : "접기"}</span>
-              {isPanelCollapsed ? <ChevronDown className="h-3.5 w-3.5 text-neutral-400" /> : <ChevronUp className="h-3.5 w-3.5 text-neutral-400" />}
-            </button>
           </div>
         </div>
 
-        {isPanelCollapsed && (
-          <div className="mt-3 p-2.5 rounded-xl border border-neutral-800/80 bg-neutral-950/60 flex items-center justify-between text-xs text-neutral-300">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-950/80 px-2 py-0.5 text-[11px] font-semibold text-indigo-300 border border-indigo-800/50">
-                <Package className="h-3 w-3" />
-                제품 {formData.items?.length ?? 0}건
-              </span>
-              {formData.buyer?.name && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-sky-950/80 px-2 py-0.5 text-[11px] font-medium text-sky-300 border border-sky-800/50">
-                  <User className="h-3 w-3" />
-                  {formData.buyer.name} {formData.buyer.brandName ? `(${formData.buyer.brandName})` : ""}
-                </span>
-              )}
-              {formData.shipping?.country && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-neutral-800 px-2 py-0.5 text-[11px] text-neutral-400">
-                  <Truck className="h-3 w-3" />
-                  {formData.shipping.country} {formData.shipping.city || ""}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPanelCollapsed(false)}
-              className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-0.5"
-            >
-              상세 검토 & 확정 펼치기 &rarr;
-            </button>
-          </div>
-        )}
-
-        {!isPanelCollapsed && (
-          /* ─────────────────────────────────────────────────────────────
-              2. Segmented Navigation Tabs (제품 사양 / 바이어·배송 / 일정·인증)
-          ───────────────────────────────────────────────────────────── */
-          <div className="mt-4 flex items-center gap-1 rounded-xl bg-neutral-950 p-1 border border-neutral-800/70">
-            <button
-              type="button"
-              onClick={() => setActiveTab("items")}
-              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "items"
-                  ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
-              }`}
-            >
-              <Package className="h-3.5 w-3.5 text-indigo-400" />
-              <span>제품 사양 (Items)</span>
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-950 px-1 text-[10px] font-bold text-indigo-300 border border-indigo-800/60">
-                {formData.items?.length ?? 0}
-              </span>
-            </button>
+        {/* ─────────────────────────────────────────────────────────────
+            2. Segmented Navigation Tabs (제품 사양 / 바이어·배송 / 일정·인증)
+        ───────────────────────────────────────────────────────────── */}
+        <div className="mt-4 flex items-center gap-1 rounded-xl bg-neutral-950 p-1 border border-neutral-800/70">
+          <button
+            type="button"
+            onClick={() => setActiveTab("items")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "items"
+                ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
+                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
+            }`}
+          >
+            <Package className="h-3.5 w-3.5 text-indigo-400" />
+            <span>제품 사양 (Items)</span>
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-950 px-1 text-[10px] font-bold text-indigo-300 border border-indigo-800/60">
+              {formData.items?.length ?? 0}
+            </span>
+          </button>
 
             <button
               type="button"
@@ -693,13 +649,10 @@ export default function ExtractionPanel({
               )}
             </button>
           </div>
-        )}
-      </div>
+        </div>
 
-      {!isPanelCollapsed && (
-        <>
-          {/* 상태 피드백 알림 배너 */}
-      {statusMessage && (
+        {/* 상태 피드백 알림 배너 */}
+        {statusMessage && (
         <div
           className={`mx-5 mt-4 rounded-xl border p-3 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
             statusMessage.type === "success"
@@ -1322,8 +1275,6 @@ export default function ExtractionPanel({
           </button>
         </div>
       </div>
-      </>
-      )}
 
       {/* ─────────────────────────────────────────────────────────────
           5. Modal: 정상 리드로 승인 (createPortal 뷰포트 정중앙 렌더링)

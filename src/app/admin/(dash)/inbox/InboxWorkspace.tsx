@@ -1,15 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   AlertTriangle,
   Building,
-  CheckCircle2,
-  Clock,
   HelpCircle,
-  Inbox,
-  Radio,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -54,6 +51,7 @@ export default function InboxWorkspace({
   suppliers,
 }: InboxWorkspaceProps) {
   const searchParams = useSearchParams();
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 
   const totalUnanswered = rollups.reduce((acc, r) => acc + (r.unansweredThreadCount || 0), 0);
 
@@ -158,20 +156,30 @@ export default function InboxWorkspace({
       <div className="flex-1 min-h-0 overflow-hidden">
         {queue === "customer-work" ? (
           <>
-            {/* Desktop 3-Panel Layout (>= 1024px) */}
-            <div className="hidden lg:grid h-full min-h-0 grid-cols-12 overflow-hidden">
-              <div className="col-span-3 h-full min-h-0 overflow-hidden">
+            {/* Desktop 3-Panel Flex Layout (>= 1024px) */}
+            <div className="hidden lg:flex h-full min-h-0 overflow-hidden">
+              <div className="w-80 shrink-0 h-full min-h-0 overflow-hidden border-r border-neutral-800">
                 <ConversationQueue
                   rollups={rollups}
                   selectedId={selectedConversationId}
                   totalUnanswered={totalUnanswered}
                 />
               </div>
-              <div className="col-span-5 h-full min-h-0 overflow-hidden border-r border-neutral-800">
+              <div className="flex-1 min-w-0 h-full min-h-0 overflow-hidden border-r border-neutral-800 transition-all duration-200">
                 <ConversationTimeline detail={conversationDetail} />
               </div>
-              <div className="col-span-4 h-full min-h-0 overflow-hidden">
-                <ConversationInspector detail={conversationDetail} />
+              <div
+                className={`h-full min-h-0 overflow-hidden transition-all duration-200 ${
+                  inspectorCollapsed
+                    ? "w-12 shrink-0 bg-neutral-950"
+                    : "w-[440px] xl:w-[480px] shrink-0"
+                }`}
+              >
+                <ConversationInspector
+                  detail={conversationDetail}
+                  isCollapsed={inspectorCollapsed}
+                  onToggleCollapse={() => setInspectorCollapsed((prev) => !prev)}
+                />
               </div>
             </div>
 
