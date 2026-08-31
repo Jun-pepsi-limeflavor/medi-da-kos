@@ -267,16 +267,16 @@ export function buildKakaoWorkPayload(eventName, event) {
 /**
  * 카카오워크 봇이 참여한 대화방 목록에서 방 이름으로 conversation_id를 조회합니다.
  * @param {string} appKey - 카카오워크 봇 App Key
- * @param {string} roomName - 검색할 대화방 이름 (예: '마케팅-medidakos')
+ * @param {string} [roomName='개발-medidakos(화장품)'] - 검색할 대화방 이름
  * @param {typeof fetch} [fetchFn=fetch] - fetch 함수
  * @returns {Promise<string | null>}
  */
-export async function resolveConversationId(appKey, roomName = '마케팅-medidakos', fetchFn = fetch) {
+export async function resolveConversationId(appKey, roomName = '개발-medidakos(화장품)', fetchFn = fetch) {
   if (!appKey) return null;
 
   try {
     let cursor = null;
-    let foundId = null;
+    const allConversations = [];
 
     do {
       const url = cursor
@@ -298,26 +298,45 @@ export async function resolveConversationId(appKey, roomName = '마케팅-medida
         break;
       }
 
-      // 1. 정확히 일치하는 방 이름 찾기
-      const exactMatch = data.conversations.find((c) => c.name === roomName);
-      if (exactMatch) {
-        foundId = exactMatch.id;
-        break;
-      }
-
-      // 2. 포함하는 방 이름 찾기
-      const partialMatch = data.conversations.find(
-        (c) => c.name && c.name.includes(roomName)
-      );
-      if (partialMatch) {
-        foundId = partialMatch.id;
-        break;
-      }
-
+      allConversations.push(...data.conversations);
       cursor = data.cursor;
     } while (cursor);
 
-    return foundId;
+    if (allConversations.length === 0) {
+      return null;
+    }
+
+    // 1. 정확히 일치하는 방 이름 찾기
+    const exactMatch = allConversations.find((c) => c.name === roomName);
+    if (exactMatch) {
+      return exactMatch.id;
+    }
+
+    // 2. 입력된 roomName을 포함하는 방 찾기
+    if (roomName) {
+      const partialMatch = allConversations.find(
+        (c) => c.name && c.name.includes(roomName)
+      );
+      if (partialMatch) {
+        return partialMatch.id;
+      }
+    }
+
+    // 3. 'medidakos' 키워드를 포함하는 그룹 대화방 찾기
+    const medidakosGroup = allConversations.find(
+      (c) => c.type === 'group' && c.name && c.name.toLowerCase().includes('medidakos')
+    );
+    if (medidakosGroup) {
+      return medidakosGroup.id;
+    }
+
+    // 4. 단체 대화방이 1개만 존재하는 경우 자동 매핑
+    const groupConversations = allConversations.filter((c) => c.type === 'group');
+    if (groupConversations.length === 1) {
+      return groupConversations[0].id;
+    }
+
+    return null;
   } catch (error) {
     console.error('[KakaoWork] Error resolving conversation ID:', error);
     return null;
@@ -336,7 +355,7 @@ export async function sendKakaoWorkMessage(config, payload, fetchFn = fetch) {
   let appKey = '';
   let webhookUrl = '';
   let conversationId = '';
-  let roomName = '마케팅-medidakos';
+  let roomName = '개발-medidakos(화장품)';
 
   if (typeof config === 'string') {
     if (config.startsWith('http://') || config.startsWith('https://')) {
@@ -380,12 +399,12 @@ export async function sendKakaoWorkMessage(config, payload, fetchFn = fetch) {
 
   if (!conversationId) {
     console.warn(
-      `[KakaoWork] '${roomName}' 대화방을 찾을 수 없습니다. 카카오워크의 '${roomName}' 채팅방에 'git알리미' 봇을 먼저 초대해 주세요.`
+      `[KakaoWork] 대화방을 찾을 수 없습니다. 카카오워크 채팅방에 'git알리미' 봇을 먼저 초대해 주세요.`
     );
     return {
       ok: false,
       status: 404,
-      body: `Conversation not found for room '${roomName}'. Please invite git알리미 bot to the chat room.`,
+      body: `Conversation not found. Please invite git알리미 bot to the chat room.`,
     };
   }
 
@@ -439,7 +458,7 @@ async function run() {
     process.env.KAKAOWORK_WEBHOOK_URL ||
     '';
   const conversationId = process.env.KAKAOWORK_CONVERSATION_ID || '';
-  const roomName = process.env.KAKAOWORK_ROOM_NAME || '마케팅-medidakos';
+  const roomName = process.env.KAKAOWORK_ROOM_NAME || '개발-medidakos(화장품)';
 
   if (!eventPath || !eventName) {
     console.log('[KakaoWork Notify] GITHUB_EVENT_PATH or GITHUB_EVENT_NAME is missing. Exiting.');
@@ -475,7 +494,6 @@ async function run() {
       console.log('[KakaoWork Notify] Successfully delivered notification to KakaoWork.');
     } else {
       console.error(`[KakaoWork Notify] Failed to deliver message. Status: ${result.status}, Body: ${result.body}`);
-      // 대화방 미초대 등 설정 누락 시 CI 전체가 깨지지 않도록 경고 처리
     }
   } catch (error) {
     console.error('[KakaoWork Notify] Unexpected error during execution:', error);
