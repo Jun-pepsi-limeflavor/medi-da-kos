@@ -27,6 +27,8 @@ import {
   extractBuyerNameFromBody,
   extractBrandNameFromBody,
   extractCountryFromBody,
+  extractBrandCandidates,
+  type BrandCandidate,
 } from "@/lib/name-extractor";
 import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
 import MessageBodyClean from "./MessageBodyClean";
@@ -114,6 +116,7 @@ export default function ReviewQueue({
   const [newEmail, setNewEmail] = useState("");
   const [newInflowChannel, setNewInflowChannel] = useState<(typeof INFLOW_CHANNELS)[number]>("gmail_hally");
   const [newBrandName, setNewBrandName] = useState("");
+  const [brandCandidates, setBrandCandidates] = useState<BrandCandidate[]>([]);
   const [newCountry, setNewCountry] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [autoExtractBrief, setAutoExtractBrief] = useState(true);
@@ -145,7 +148,14 @@ export default function ReviewQueue({
 
     const email = activeIdentity?.identity.kind === "email" ? activeIdentity.identity.value : "";
     const extractedName = extractBuyerNameFromBody(anchorMessage?.bodyText, anchorMessage?.fromName);
-    const extractedBrand = extractBrandNameFromBody(anchorMessage?.bodyText, email);
+    const candidates = extractBrandCandidates({
+      bodyText: anchorMessage?.bodyText,
+      fromName: anchorMessage?.fromName,
+      email,
+      messages: selectedDetail?.messages || [],
+    });
+    setBrandCandidates(candidates);
+    const extractedBrand = candidates[0]?.value || extractBrandNameFromBody(anchorMessage?.bodyText, email);
     const extractedCountry = extractCountryFromBody(anchorMessage?.bodyText);
 
     setNewName(extractedName);
@@ -154,7 +164,7 @@ export default function ReviewQueue({
     setNewBrandName(extractedBrand);
     setNewCountry(extractedCountry);
     setNewPhone("");
-  }, [activeIdentity, anchorMessage]);
+  }, [activeIdentity, anchorMessage, selectedDetail]);
 
   // Keyboard shortcut listener: 1 = Buyer, 2 = Supplier, 3 = Advertising, 4 = Internal
   useEffect(() => {
@@ -556,9 +566,16 @@ export default function ReviewQueue({
                             </div>
 
                             <div className="space-y-1">
-                              <label className="text-[11px] font-semibold text-neutral-300">
-                                브랜드명 / 회사명
-                              </label>
+                              <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-semibold text-neutral-300">
+                                  브랜드명 / 회사명
+                                </label>
+                                {newBrandName && (
+                                  <span className="text-[10px] text-neutral-500 font-mono">
+                                    {brandCandidates.find((c) => c.value.toLowerCase() === newBrandName.toLowerCase())?.label || "직접 입력"}
+                                  </span>
+                                )}
+                              </div>
                               <input
                                 type="text"
                                 value={newBrandName}
@@ -566,6 +583,29 @@ export default function ReviewQueue({
                                 placeholder="브랜드명 또는 회사명"
                                 className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-100 placeholder:text-neutral-600 outline-none focus:border-indigo-500"
                               />
+                              {brandCandidates.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  <span className="text-[10px] text-neutral-500 font-medium">추천 후보:</span>
+                                  {brandCandidates.map((c) => {
+                                    const isSelected = newBrandName.toLowerCase() === c.value.toLowerCase();
+                                    return (
+                                      <button
+                                        key={`${c.source}-${c.value}`}
+                                        type="button"
+                                        onClick={() => setNewBrandName(c.value)}
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors ${
+                                          isSelected
+                                            ? "bg-indigo-950 border-indigo-600 text-indigo-200 shadow-sm"
+                                            : "bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200"
+                                        }`}
+                                      >
+                                        <span>{c.value}</span>
+                                        <span className="text-[9px] opacity-70">({c.label})</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
 
                             <div className="space-y-1">
@@ -734,7 +774,6 @@ export default function ReviewQueue({
 
                   return selectedDetail.messages.map((m, idx) => {
                     const isInbound = m.direction === "in";
-                    const channelName = CHANNEL_NAMES[m.channel] || m.channel;
                     const sentDate = new Date(m.sentAt);
                     const isFwd = isForwardedMessage(m);
                     const isFwdExpanded = expandedForwards[m.id || String(idx)];
@@ -819,9 +858,6 @@ export default function ReviewQueue({
                             </div>
 
                             <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                              <span className="rounded-md bg-neutral-800/90 px-2 py-0.5 font-mono text-[10px] text-neutral-300 border border-neutral-700/50">
-                                {channelName}
-                              </span>
                               <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
                                 {sentDate.toLocaleString("ko-KR", {
                                   year: "numeric",

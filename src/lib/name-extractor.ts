@@ -96,26 +96,135 @@ function cleanBrandCandidate(raw: string): string {
 /**
  * 이메일 본문 또는 이메일 주소 도메인에서 브랜드명 / 회사명을 정규식 기반으로 추출한다.
  */
+export interface BrandCandidate {
+  value: string;
+  source: "outbound_history" | "from_name" | "domain" | "url" | "signature" | "body";
+  confidence: "high" | "medium" | "low";
+  label: string;
+}
+
+const genericDomains = new Set([
+  "gmail", "yahoo", "hotmail", "outlook", "icloud", "naver", "daum", "kakao",
+  "proton", "protonmail", "mail", "zoho", "yandex", "gmx", "aol", "live", "msn",
+]);
+
+const excludedBrands = new Set([
+  "korea", "south korea", "china", "usa", "united states", "medidakos", "medi da kos",
+  "instagram", "amazon", "shopify", "google", "oem", "odm", "skincare", "cosmetics",
+  "beauty", "brand", "company", "products", "serum", "cream", "moq", "quote", "inquiry",
+  "hello", "hi", "dear", "thanks", "sample", "catalog", "order", "our", "my", "your",
+  "their", "the", "a", "an", "this", "these", "that", "those", "all", "some", "each",
+  "every", "both", "few", "many", "any", "new", "current", "existing", "various", "different",
+  "here", "there", "us", "we", "team", "range", "side", "end", "line", "website", "site",
+  "page", "scratch", "overseas", "domestic", "home", "market", "office", "store", "shop",
+]);
+
+/**
+ * 이메일 본문, 발신자명, 도메인, 스레드 이력 등 다층 데이터 소스로부터
+ * 신뢰도 높은 브랜드명 후보군(BrandCandidate[])을 계층적으로 추출한다.
+ */
+export function extractBrandCandidates(options: {
+  bodyText?: string | null;
+  fromName?: string | null;
+  email?: string | null;
+  messages?: Array<{ subject?: string; bodyText?: string; direction?: string }>;
+}): BrandCandidate[] {
+  const { bodyText, fromName, email, messages = [] } = options;
+  const candidates: BrandCandidate[] = [];
+  const seen = new Set<string>();
+
+  function addCandidate(
+    value: string,
+    source: BrandCandidate["source"],
+    confidence: BrandCandidate["confidence"],
+    label: string,
+  ) {
+    const cleaned = cleanBrandCandidate(value);
+    if (!cleaned || cleaned.length < 2) return;
+    const lower = cleaned.toLowerCase();
+    if (excludedBrands.has(lower)) return;
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    candidates.push({ value: cleaned, source, confidence, label });
+  }
+
+  // 1. 아웃바운드 / 이전 발신 콜드메일 이력 분석 (신뢰도 최상위)
+  const allTexts: string[] = [];
+  if (bodyText) allTexts.push(bodyText);
+  for (const m of messages) {
+    if (m.subject) allTexts.push(`Subject: ${m.subject}`);
+    if (m.bodyText) allTexts.push(m.bodyText);
+  }
+  const combinedText = allTexts.join("\n");
+
+  // 1-1. 콜드메일 제목 패턴: "for the [Brand] team", "for [Brand] team", "A note for [Brand]"
+  const subjectBrandMatch = combinedText.match(/(?:for the|for)\s+([A-Z0-9][A-Za-z0-9&'’\s\-]{1,35}?)\s+team/i);
+  if (subjectBrandMatch && subjectBrandMatch[1]) {
+    addCandidate(subjectBrandMatch[1], "outbound_history", "high", "발신 메일 이력");
+  }
+
+  // 1-2. 콜드메일 링크 UTM 패턴: "utm_term=([a-z0-9\-]+)"
+  const utmMatch = combinedText.match(/utm_term=([a-z0-9\-]{2,40})/i);
+  if (utmMatch && utmMatch[1]) {
+    const utmBrand = utmMatch[1]
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+    addCandidate(utmBrand, "outbound_history", "high", "캠페인 UTM 태그");
+  }
+
+  // 1-3. 콜드메일 본문 서두 패턴: "[Brand] runs mushroom actives..."
+  const runsMatch = combinedText.match(/(?:^|\n)\s*([A-Z0-9][A-Za-z0-9&'’\s\-]{1,35}?)\s+runs\s+/i);
+  if (runsMatch && runsMatch[1]) {
+    addCandidate(runsMatch[1], "outbound_history", "high", "발신 본문 분석");
+  }
+
+  // 2. 발신자 표시명(fromName) 정제 (신뢰도 높음)
+  if (fromName && typeof fromName === "string") {
+    // "Kinoko Customer Care" -> "Kinoko", "BHR Skincare Team" -> "BHR Skincare"
+    const cleanedFromName = fromName
+      .replace(/\b(?:customer\s+care|customer\s+support|support\s+team|sales\s+team|support|care|team|staff|official|hq|info|inquiry)\b/gi, "")
+      .replace(/[,;:\-]+$/, "")
+      .trim();
+    if (cleanedFromName.length >= 2 && !cleanedFromName.includes("@")) {
+      addCandidate(cleanedFromName, "from_name", "high", "발신자 표시명");
+    }
+  }
+
+  // 3. 본문 내 웹사이트 패턴 & 서명 블록 접미사
+  const bodyExtracted = extractBrandNameFromBody(bodyText, email);
+  if (bodyExtracted) {
+    addCandidate(bodyExtracted, "signature", "medium", "본문/서명 추출");
+  }
+
+  // 4. 이메일 도메인 및 링크 도메인 분석 (접미사 분리 e.g. kinokolabs -> Kinoko Labs)
+  if (email && typeof email === "string" && email.includes("@")) {
+    const domainPart = email.split("@")[1]?.split(".")[0]?.toLowerCase();
+    if (domainPart && !genericDomains.has(domainPart) && domainPart.length >= 3) {
+      const domainFormatted = domainPart
+        .replace(/(labs|skincare|cosmetics|beauty|pharma|studio|brand|organics|botanicals)$/i, " $1")
+        .trim()
+        .split(" ")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+      addCandidate(domainFormatted, "domain", "medium", "이메일 도메인");
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * 이메일 본문 또는 이메일 주소 도메인에서 브랜드명 / 회사명을 정규식 기반으로 추출한다.
+ */
 export function extractBrandNameFromBody(bodyText?: string | null, email?: string | null): string {
-  const genericDomains = new Set([
-    "gmail", "yahoo", "hotmail", "outlook", "icloud", "naver", "daum", "kakao",
-    "proton", "protonmail", "mail", "zoho", "yandex", "gmx", "aol", "live", "msn",
-  ]);
-
-  const excludedBrands = new Set([
-    "korea", "south korea", "china", "usa", "united states", "medidakos", "medi da kos",
-    "instagram", "amazon", "shopify", "google", "oem", "odm", "skincare", "cosmetics",
-    "beauty", "brand", "company", "products", "serum", "cream", "moq", "quote", "inquiry",
-    "hello", "hi", "dear", "thanks", "sample", "catalog", "order",
-  ]);
-
   if (bodyText && typeof bodyText === "string") {
     const clean = bodyText.trim();
     const delimiter = "(?=\\s+(?:and|who|which|we|i|in|based|located|looking|interested|to|representing|for|shipping)|\\r?\\n|[,;]|(?:\\.\\s+[A-Z])|\\s*$)";
 
-    // 1. "Our brand is [Brand]", "Brand: [Brand]", "Company: [Brand]" (명시적 브랜드 선언 우선)
+    // 1. "Our brand is [Brand]", "Brand: [Brand]", "Company: [Brand]", "website, [Brand]"
     const explicitBrandRegex = new RegExp(
-      `\\b(?:my brand(?:'s)?(?: name)? is|our brand(?:'s)?(?: name)? is|our company(?:'s)?(?: name)? is|\\bbrand is\\b|\\bbrand name\\b:?|\\bbrand\\b\\s*:|\\bcompany name\\b:?|\\bcompany\\b\\s*:)\\s*[:\\-]?\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
+      `\\b(?:my brand(?:'s)?(?: name)? is|our brand(?:'s)?(?: name)? is|our company(?:'s)?(?: name)? is|\\bbrand is\\b|\\bbrand name\\b:?|\\bbrand\\b\\s*:|\\bcompany name\\b:?|\\bcompany\\b\\s*:|(?:our\\s+)?website[,\\s]+(?:is\\s*)?)\\s*[:\\-]?\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
       "i"
     );
     const explicitMatch = clean.match(explicitBrandRegex);
@@ -126,25 +235,26 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
       }
     }
 
-    // 2. 직책 및 소속 패턴: "founder of [Brand]", "from [Brand]", "representing [Brand]", "Head of Product at [Brand]"
-    const introBrandRegex = new RegExp(
-      `\\b(?:from|with|representing|on behalf of|founder of|co-founder of|ceo of|owner of|managing director of|head of (?:product|purchasing|sourcing|development) at|procurement manager at|director of|president of|at)\\s+([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
-      "i"
-    );
-    const introMatch = clean.match(introBrandRegex);
-    if (introMatch && introMatch[1].trim().length >= 2) {
-      const candidate = cleanBrandCandidate(introMatch[1]);
+    // 2. 서명 블록 내 회사 접미사 (단일 줄 매칭)
+    // 예: "Kinoko Labs", "Acme Cosmetics LLC", "Luxe Orient Skincare", "BHR Skincare Inc.", "Glow Lab Pty Ltd", "Kyoto Botanicals Ltd"
+    const companySuffixRegex = /(?:^|\r?\n)\s*([A-Z0-9][A-Za-z0-9&'’.\- ]{1,35}?(?:Inc\.?|LLC|Ltd\.?|Co\.,?\s*Ltd\.?|Pty\s*Ltd|Pvt\s*Ltd|Pte\s*Ltd|GmbH|S\.?A\.?|S\.?A\.?S\.?|S\.?r\.?l\.?|B\.?V\.?|Corp\.?|Corporation|Holdings|Enterprises|Labs?|Laboratories|Skincare|Cosmetics|Beauty|Pharma|Studio|Consulting|Group|Brand|Paris|London|New York|Tokyo|Seoul))\s*(?=\r?\n|[,;]|$)/i;
+    const suffixMatch = clean.match(companySuffixRegex);
+    if (suffixMatch && suffixMatch[1].trim().length >= 2) {
+      const candidate = cleanBrandCandidate(suffixMatch[1]);
       if (!excludedBrands.has(candidate.toLowerCase())) {
         return candidate;
       }
     }
 
-    // 3. 서명 블록 내 회사 접미사 (단일 줄 매칭)
-    // 예: "Acme Cosmetics LLC", "Luxe Orient Skincare", "BHR Skincare Inc.", "Glow Lab Pty Ltd", "Kyoto Botanicals Ltd"
-    const companySuffixRegex = /(?:^|\r?\n)\s*([A-Z0-9][A-Za-z0-9&'’.\- ]{1,35}?(?:Inc\.?|LLC|Ltd\.?|Co\.,?\s*Ltd\.?|Pty\s*Ltd|Pvt\s*Ltd|Pte\s*Ltd|GmbH|S\.?A\.?|S\.?A\.?S\.?|S\.?r\.?l\.?|B\.?V\.?|Corp\.?|Corporation|Holdings|Enterprises|Labs?|Laboratories|Skincare|Cosmetics|Beauty|Pharma|Studio|Consulting|Group|Brand|Paris|London|New York|Tokyo|Seoul))\s*(?=\r?\n|[,;]|$)/i;
-    const suffixMatch = clean.match(companySuffixRegex);
-    if (suffixMatch && suffixMatch[1].trim().length >= 2) {
-      const candidate = cleanBrandCandidate(suffixMatch[1]);
+    // 3. 직책 및 소속 패턴: "founder of [Brand]", "from [Brand]", "with [Brand]", "representing [Brand]", "Head of Product at [Brand]"
+    // (our, my, the 등 대명사/관사를 부정 lookahead로 제외하여 "from our range" 오탐 방지)
+    const introBrandRegex = new RegExp(
+      `\\b(?:from|with|representing|on behalf of|founder of|co-founder of|ceo of|owner of|managing director of|head of (?:product|purchasing|sourcing|development) at|procurement manager at|director of|president of|at)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
+      "i"
+    );
+    const introMatch = clean.match(introBrandRegex);
+    if (introMatch && introMatch[1].trim().length >= 2) {
+      const candidate = cleanBrandCandidate(introMatch[1]);
       if (!excludedBrands.has(candidate.toLowerCase())) {
         return candidate;
       }
@@ -176,7 +286,6 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
   if (email && typeof email === "string" && email.includes("@")) {
     const domainPart = email.split("@")[1]?.split(".")[0]?.toLowerCase();
     if (domainPart && !genericDomains.has(domainPart) && domainPart.length >= 3) {
-      // e.g. "bhrskincare" -> "BHR Skincare" or capitalized "Bhrskincare"
       return domainPart.charAt(0).toUpperCase() + domainPart.slice(1);
     }
   }

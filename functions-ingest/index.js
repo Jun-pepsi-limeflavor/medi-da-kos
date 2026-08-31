@@ -228,6 +228,7 @@ const ingestGmail = onSchedule(
     schedule: "*/5 * * * *",
     timeZone: "Asia/Seoul",
     timeoutSeconds: 540,
+    secrets: ["CHANNELTALK_ACCESS_KEY", "CHANNELTALK_ACCESS_SECRET"],
   },
   async () => {
     const gmailMailboxes = parseMailboxList(INGEST_MAILBOXES.value());
