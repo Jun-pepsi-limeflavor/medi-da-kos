@@ -31,14 +31,10 @@ export default async function AdminInboxPage({
   const mobilePanel: "queue" | "timeline" | "inspector" =
     rawPanel === "timeline" || rawPanel === "inspector" ? rawPanel : "queue";
 
-  // Parallel initial fetches
-  const [healthSummary, buyers, suppliers, rollups] = await Promise.all([
-    ingestHealthSummary(),
-    listBuyers(),
-    listSuppliers(),
-    listConversationRollups("customer-work"),
-  ]);
-
+  let healthSummary: Awaited<ReturnType<typeof ingestHealthSummary>>;
+  let buyers: Awaited<ReturnType<typeof listBuyers>> = [];
+  let suppliers: Awaited<ReturnType<typeof listSuppliers>> = [];
+  let rollups: Awaited<ReturnType<typeof listConversationRollups>> = [];
   let conversationDetail = null;
   let selectedConversationId = requestedConversationId;
 
@@ -47,35 +43,79 @@ export default async function AdminInboxPage({
   let selectedIdentityId = requestedIdentityId;
 
   if (queue === "customer-work") {
-    if (!selectedConversationId && rollups.length > 0) {
-      selectedConversationId = rollups[0].id;
-    }
-    if (selectedConversationId) {
-      conversationDetail = await getConversationDetail(selectedConversationId);
+    // If conversationId is known ahead of time, fetch detail concurrently in 1 hop
+    if (requestedConversationId) {
+      const [h, b, s, r, cd] = await Promise.all([
+        ingestHealthSummary(),
+        listBuyers(),
+        listSuppliers(),
+        listConversationRollups("customer-work"),
+        getConversationDetail(requestedConversationId),
+      ]);
+      healthSummary = h;
+      buyers = b;
+      suppliers = s;
+      rollups = r;
+      conversationDetail = cd;
+    } else {
+      const [h, b, s, r] = await Promise.all([
+        ingestHealthSummary(),
+        listBuyers(),
+        listSuppliers(),
+        listConversationRollups("customer-work"),
+      ]);
+      healthSummary = h;
+      buyers = b;
+      suppliers = s;
+      rollups = r;
+      if (rollups.length > 0) {
+        selectedConversationId = rollups[0].id;
+        conversationDetail = await getConversationDetail(selectedConversationId);
+      }
     }
   } else {
-    reviewItems = await listReviewIdentities(queue);
-    if (!selectedIdentityId && reviewItems.length > 0) {
-      selectedIdentityId = reviewItems[0].identity.id;
-    }
-    if (selectedIdentityId) {
-      reviewDetail = await getReviewIdentityDetail(selectedIdentityId);
+    // Review queue: fetch concurrently in 1 hop if identityId is known
+    if (requestedIdentityId) {
+      const [h, b, s, items, rd] = await Promise.all([
+        ingestHealthSummary(),
+        listBuyers(),
+        listSuppliers(),
+        listReviewIdentities(queue),
+        getReviewIdentityDetail(requestedIdentityId),
+      ]);
+      healthSummary = h;
+      buyers = b;
+      suppliers = s;
+      reviewItems = items;
+      reviewDetail = rd;
+    } else {
+      const [h, b, s, items] = await Promise.all([
+        ingestHealthSummary(),
+        listBuyers(),
+        listSuppliers(),
+        listReviewIdentities(queue),
+      ]);
+      healthSummary = h;
+      buyers = b;
+      suppliers = s;
+      reviewItems = items;
+      if (reviewItems.length > 0) {
+        selectedIdentityId = reviewItems[0].identity.id;
+        reviewDetail = await getReviewIdentityDetail(selectedIdentityId);
+      }
     }
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-neutral-100 flex items-center gap-2">
+          <h1 className="text-lg font-bold text-neutral-100 flex items-center gap-2">
             고객 중심 통합 받은편지함
-            <span className="text-xs bg-indigo-950 text-indigo-300 border border-indigo-800 px-2.5 py-0.5 rounded-full font-semibold">
+            <span className="text-xs bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-semibold">
               v2
             </span>
           </h1>
-          <p className="text-xs text-neutral-400 mt-1">
-            Gmail, Outlook, Channel Talk의 여러 채널 문의를 고객 단위 하나의 대화 타임라인으로 통합하여 관리합니다.
-          </p>
         </div>
       </div>
 

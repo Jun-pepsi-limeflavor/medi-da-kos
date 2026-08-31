@@ -6,6 +6,14 @@ const IDENTITIES = "conversationIdentities";
 const CONVERSATIONS = "conversations";
 const STATE = "ingestState";
 
+const INTERNAL_DOMAINS = ["techasset.co.kr", "medidakoslabs.com", "medidakos.com"];
+
+function isInternalEmail(email) {
+  if (!email || typeof email !== "string") return false;
+  const clean = email.toLowerCase().trim();
+  return INTERNAL_DOMAINS.some((d) => clean.endsWith(`@${d}`));
+}
+
 function extractCounterpartyIdentifier(m) {
   if (m.channel === "channeltalk") {
     const fromVal = typeof m.from === "string" ? m.from.trim() : "";
@@ -13,9 +21,12 @@ function extractCounterpartyIdentifier(m) {
       const email = fromVal.toLowerCase();
       return { kind: "email", value: email, identityId: `email:${email}` };
     }
-    if (m.direction === "out" && Array.isArray(m.to) && m.to[0] && m.to[0].includes("@")) {
-      const email = m.to[0].trim().toLowerCase();
-      return { kind: "email", value: email, identityId: `email:${email}` };
+    if (m.direction === "out" && Array.isArray(m.to)) {
+      const externalTo = m.to.find((addr) => addr && addr.includes("@") && !isInternalEmail(addr));
+      if (externalTo) {
+        const email = externalTo.trim().toLowerCase();
+        return { kind: "email", value: email, identityId: `email:${email}` };
+      }
     }
     const rawId = fromVal.startsWith("channel:user:") ? fromVal.slice("channel:user:".length).trim() : fromVal;
     const account = (m.sourceAccount || "channeltalk").trim();
@@ -25,9 +36,24 @@ function extractCounterpartyIdentifier(m) {
 
   let target = "";
   if (m.direction === "in") {
-    target = typeof m.from === "string" ? m.from : "";
+    const from = typeof m.from === "string" ? m.from.trim().toLowerCase() : "";
+    if (from && !isInternalEmail(from)) {
+      target = from;
+    } else if (Array.isArray(m.to)) {
+      const externalTo = m.to.find((addr) => addr && addr.includes("@") && !isInternalEmail(addr));
+      target = externalTo ? externalTo.trim().toLowerCase() : from;
+    } else {
+      target = from;
+    }
   } else {
-    target = Array.isArray(m.to) && m.to[0] ? m.to[0] : (typeof m.to === "string" ? m.to : "");
+    // Outbound: prioritize external recipient over internal forward recipient
+    const toList = Array.isArray(m.to) ? m.to : (typeof m.to === "string" ? [m.to] : []);
+    const externalTo = toList.find((addr) => addr && addr.includes("@") && !isInternalEmail(addr));
+    if (externalTo) {
+      target = externalTo.trim().toLowerCase();
+    } else {
+      target = toList[0] ? toList[0].trim().toLowerCase() : "";
+    }
   }
   const email = target.trim().toLowerCase();
   return { kind: "email", value: email, identityId: `email:${email}` };

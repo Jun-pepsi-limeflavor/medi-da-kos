@@ -49,10 +49,16 @@ export const GET = withAdmin(async (req: NextRequest) => {
     return NextResponse.json({ error: "invalid path" }, { status: 400 });
   }
 
-  const [, id, attId] = match;
+  const rawId = match[1];
+  const rawAttId = match[2];
+  const id = decodeURIComponent(rawId);
+  const attId = decodeURIComponent(rawAttId);
 
-  // Look up message
-  const message = await getMessage(id);
+  // Look up message by both decoded id and rawId
+  let message = await getMessage(id);
+  if (!message && rawId !== id) {
+    message = await getMessage(rawId);
+  }
   if (!message) {
     return NextResponse.json(
       { error: "message not found" },
@@ -60,8 +66,10 @@ export const GET = withAdmin(async (req: NextRequest) => {
     );
   }
 
-  // Find attachment metadata
-  const attachment = message.attachments.find((a) => a.attachmentId === attId);
+  // Find attachment metadata by exact ID or decoded/raw match
+  const attachment = message.attachments.find(
+    (a) => a.attachmentId === attId || a.attachmentId === rawAttId || a.attachmentId === match[2],
+  );
   if (!attachment) {
     return NextResponse.json(
       { error: "attachment not found" },
@@ -69,10 +77,10 @@ export const GET = withAdmin(async (req: NextRequest) => {
     );
   }
 
-  // Fetch attachment from Gmail
+  // Fetch attachment from Gmail using exact stored attachmentId
   const token = await getGmailToken(message.sourceAccount);
   const gmailRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.externalId}/attachments/${attId}`,
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.externalId}/attachments/${encodeURIComponent(attachment.attachmentId)}`,
     {
       headers: { authorization: `Bearer ${token}` },
     },
@@ -98,9 +106,11 @@ export const GET = withAdmin(async (req: NextRequest) => {
   // Decode base64url to bytes
   const bytes = Buffer.from(base64urlData, "base64url");
 
-  // Set Content-Disposition header with filename encoding
+  // Set Content-Disposition header with inline preview support
+  const isDownload = req.nextUrl.searchParams.get("download") === "1";
+  const dispositionType = isDownload ? "attachment" : "inline";
   const { filename, filenameExt } = encodeFilename(attachment.filename);
-  let contentDisposition = `attachment; filename="${filename}"`;
+  let contentDisposition = `${dispositionType}; filename="${filename}"`;
   if (filenameExt) {
     contentDisposition += `; filename*=${filenameExt}`;
   }
@@ -108,10 +118,10 @@ export const GET = withAdmin(async (req: NextRequest) => {
   return new NextResponse(bytes, {
     status: 200,
     headers: {
-      "content-type": attachment.mimeType,
+      "content-type": attachment.mimeType || "application/octet-stream",
       "content-length": String(bytes.length),
       "content-disposition": contentDisposition,
-      "cache-control": "max-age=3600",
+      "cache-control": "public, max-age=86400, immutable",
     },
   });
 });

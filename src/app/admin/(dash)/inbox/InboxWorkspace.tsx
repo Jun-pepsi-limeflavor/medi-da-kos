@@ -67,7 +67,7 @@ export default function InboxWorkspace({
   }
 
   return (
-    <div className="flex h-[calc(100vh-9.5rem)] flex-col rounded-2xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl">
+    <div className="flex h-[calc(100vh-7rem)] flex-col rounded-2xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-2xl">
       {/* Health Summary Alert (if degraded) */}
       {!healthSummary.healthy && healthSummary.warnings.length > 0 && (
         <div
@@ -167,10 +167,10 @@ export default function InboxWorkspace({
                   totalUnanswered={totalUnanswered}
                 />
               </div>
-              <div className="col-span-6 h-full min-h-0 overflow-hidden border-r border-neutral-800">
+              <div className="col-span-5 h-full min-h-0 overflow-hidden border-r border-neutral-800">
                 <ConversationTimeline detail={conversationDetail} />
               </div>
-              <div className="col-span-3 h-full min-h-0 overflow-hidden">
+              <div className="col-span-4 h-full min-h-0 overflow-hidden">
                 <ConversationInspector detail={conversationDetail} />
               </div>
             </div>
