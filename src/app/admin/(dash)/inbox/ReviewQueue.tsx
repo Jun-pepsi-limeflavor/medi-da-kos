@@ -32,6 +32,7 @@ import {
 } from "@/lib/name-extractor";
 import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
 import MessageBodyClean from "./MessageBodyClean";
+import { getIdentityDisplay } from "@/lib/inbox-display";
 
 const CHANNEL_NAMES: Record<string, string> = {
   gmail_thomas: "Gmail · Thomas",
@@ -127,17 +128,29 @@ export default function ReviewQueue({
     conversationId: string;
   } | null>(null);
 
+  // Inbound / Outbound-only (Cold Email) Filter State
+  const [inboundFilter, setInboundFilter] = useState<"all" | "inbound" | "outbound_only">("all");
+
+  const inboundCount = items.filter((item) => item.hasInbound).length;
+  const outboundOnlyCount = items.filter((item) => !item.hasInbound).length;
+
   const filteredItems = items.filter((item) => {
+    if (inboundFilter === "inbound" && !item.hasInbound) return false;
+    if (inboundFilter === "outbound_only" && item.hasInbound) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.trim().toLowerCase();
+    const display = getIdentityDisplay(item.identity);
     return (
       item.identity.value.toLowerCase().includes(term) ||
+      display.primary.toLowerCase().includes(term) ||
+      display.secondary?.toLowerCase().includes(term) ||
       item.latestMessageSnippet?.toLowerCase().includes(term) ||
       item.channels.join(" ").toLowerCase().includes(term)
     );
   });
 
   const activeIdentity = items.find((it) => it.identity.id === selectedIdentityId) || items[0];
+  const activeDisplay = activeIdentity ? getIdentityDisplay(activeIdentity.identity) : null;
   const anchorMessage = selectedDetail?.anchorMessage || selectedDetail?.messages?.[0] || null;
 
   const openBuyerModal = useCallback(() => {
@@ -146,7 +159,7 @@ export default function ReviewQueue({
     setReason("정상 바이어 문의 확인");
     setAutoExtractBrief(true);
 
-    const email = activeIdentity?.identity.kind === "email" ? activeIdentity.identity.value : "";
+    const email = activeIdentity ? getIdentityDisplay(activeIdentity.identity).email || "" : "";
     const extractedName = extractBuyerNameFromBody(anchorMessage?.bodyText, anchorMessage?.fromName);
     const candidates = extractBrandCandidates({
       bodyText: anchorMessage?.bodyText,
@@ -214,7 +227,7 @@ export default function ReviewQueue({
     let payload: Record<string, unknown>;
     if (modalMode === "buyer") {
       if (buyerModeTab === "new") {
-        const emailVal = newEmail.trim().toLowerCase() || activeIdentity.identity.value.toLowerCase();
+        const emailVal = newEmail.trim().toLowerCase();
         payload = {
           classification: "buyer",
           buyerMode: "new",
@@ -272,7 +285,7 @@ export default function ReviewQueue({
 
       if (modalMode === "buyer" && resData.conversationId) {
         const displayName = buyerModeTab === "new"
-          ? (newName.trim() || newBrandName.trim() || activeIdentity.identity.value)
+          ? (newName.trim() || newBrandName.trim() || getIdentityDisplay(activeIdentity.identity).primary)
           : (buyers.find((b) => b.id === selectedBuyerId)?.name || "바이어");
         setSuccessModalData({
           buyerName: displayName,
@@ -306,14 +319,60 @@ export default function ReviewQueue({
               className="w-full rounded-xl border border-neutral-800 bg-neutral-900/90 py-2 pl-9 pr-3 text-xs text-neutral-200 placeholder:text-neutral-500 outline-none transition-colors focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
           </div>
+          {/* 대기 건수 및 단축키 안내 */}
           <div className="flex items-center justify-between text-[11px] text-neutral-400">
             <span className="flex items-center gap-1.5">
               <Inbox className="h-3.5 w-3.5 text-indigo-400" />
-              대기 건수: <strong className="text-neutral-100 font-semibold">{filteredItems.length}</strong>건
+              대기 건수: <strong className="text-neutral-100 font-semibold">{filteredItems.length}</strong>
+              {items.length !== filteredItems.length && (
+                <span className="text-[10px] text-neutral-500 font-normal">/ 전체 {items.length}</span>
+              )}
+              건
             </span>
             <span className="text-[10px] text-neutral-500 flex items-center gap-1">
               <Keyboard className="h-3 w-3 text-neutral-400" /> 단축키 <kbd className="rounded bg-neutral-800 px-1 py-0.5 font-mono text-[9px] text-neutral-300">1~4</kbd>
             </span>
+          </div>
+
+          {/* 수신 이력 / 발신 전용(콜드메일) 필터 세그먼트 버튼 */}
+          <div className="flex items-center gap-1 p-1 bg-neutral-900/90 rounded-xl border border-neutral-800 text-[11px] select-none">
+            <button
+              type="button"
+              onClick={() => setInboundFilter("all")}
+              className={`flex-1 py-1 px-1.5 rounded-lg text-center font-medium transition-all ${
+                inboundFilter === "all"
+                  ? "bg-neutral-800 text-white shadow-sm font-semibold"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40"
+              }`}
+            >
+              전체 ({items.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setInboundFilter("inbound")}
+              className={`flex-1 py-1 px-1.5 rounded-lg text-center font-medium transition-all flex items-center justify-center gap-1 ${
+                inboundFilter === "inbound"
+                  ? "bg-indigo-950 text-indigo-200 border border-indigo-800/80 font-semibold shadow-sm"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40"
+              }`}
+              title="바이어의 회신/수신 이력이 있는 검토 건"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              수신 있음 ({inboundCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setInboundFilter("outbound_only")}
+              className={`flex-1 py-1 px-1.5 rounded-lg text-center font-medium transition-all flex items-center justify-center gap-1 ${
+                inboundFilter === "outbound_only"
+                  ? "bg-amber-950 text-amber-200 border border-amber-800/80 font-semibold shadow-sm"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40"
+              }`}
+              title="발신만 하고 한 번도 수신한 적 없는 콜드메일 전용 목록"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              발신 전용 ({outboundOnlyCount})
+            </button>
           </div>
         </div>
 
@@ -321,11 +380,18 @@ export default function ReviewQueue({
           {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-neutral-500">
               <Inbox className="mb-2 h-8 w-8 text-neutral-700" />
-              <p className="font-medium text-neutral-400">검토 대기 항목이 없습니다</p>
-              <p className="mt-1 text-[11px] text-neutral-600">모든 인바운드 문의가 분류 완료되었습니다.</p>
+              <p className="font-medium text-neutral-400">조건에 맞는 검토 항목이 없습니다</p>
+              <p className="mt-1 text-[11px] text-neutral-600">
+                {inboundFilter === "outbound_only"
+                  ? "발신만 발생한 미분류 콜드메일 건이 없습니다."
+                  : inboundFilter === "inbound"
+                    ? "수신 이력이 있는 미분류 건이 없습니다."
+                    : "모든 인바운드 문의가 분류 완료되었습니다."}
+              </p>
             </div>
           ) : (
             filteredItems.map((item) => {
+              const display = getIdentityDisplay(item.identity);
               const isSelected = item.identity.id === (selectedIdentityId || activeIdentity?.identity.id);
               const params = new URLSearchParams(searchParams.toString());
               params.set("queue", queue);
@@ -348,12 +414,28 @@ export default function ReviewQueue({
                   )}
 
                   <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <span className="font-mono text-xs font-semibold text-neutral-100 truncate group-hover:text-indigo-300 transition-colors">
-                      {item.identity.value}
-                    </span>
-                    <span className="shrink-0 rounded bg-neutral-800/80 px-1.5 py-0.5 text-[9px] font-mono uppercase text-neutral-400 border border-neutral-700/50">
-                      {item.identity.kind}
-                    </span>
+                    <div className="min-w-0">
+                      <span className="block font-mono text-xs font-semibold text-neutral-100 truncate group-hover:text-indigo-300 transition-colors">
+                        {display.primary}
+                      </span>
+                      {display.secondary && (
+                        <span className="block mt-0.5 text-[10px] text-neutral-500 truncate">{display.secondary}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.hasInbound ? (
+                        <span className="rounded bg-emerald-950/90 text-emerald-400 border border-emerald-800/60 px-1.5 py-0.5 text-[9px] font-medium flex items-center gap-0.5">
+                          <ArrowDownLeft className="h-2.5 w-2.5" /> 수신됨
+                        </span>
+                      ) : (
+                        <span className="rounded bg-amber-950/90 text-amber-400 border border-amber-800/60 px-1.5 py-0.5 text-[9px] font-medium flex items-center gap-0.5">
+                          <ArrowUpRight className="h-2.5 w-2.5" /> 발신전용
+                        </span>
+                      )}
+                      <span className="rounded bg-neutral-800/80 px-1.5 py-0.5 text-[9px] font-mono uppercase text-neutral-400 border border-neutral-700/50">
+                        {item.identity.kind}
+                      </span>
+                    </div>
                   </div>
 
                   {item.latestMessageSnippet && (
@@ -386,13 +468,16 @@ export default function ReviewQueue({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-neutral-100 font-mono flex items-center gap-2">
-                    {activeIdentity.identity.value}
+                    {activeDisplay?.primary}
                     {selectedDetail && (
                       <span className="rounded-full bg-indigo-950/80 border border-indigo-800/60 px-2 py-0.5 text-[10px] font-medium text-indigo-300">
                         총 {selectedDetail.messages.length}개 메시지
                       </span>
                     )}
                   </h3>
+                  {activeDisplay?.secondary && (
+                    <p className="text-[10px] text-neutral-500 mt-0.5">{activeDisplay.secondary}</p>
+                  )}
                   <p className="text-[11px] text-neutral-400 mt-0.5 flex items-center gap-2">
                     <span>분류: <strong className="font-semibold text-neutral-200">{activeIdentity.identity.classification}</strong></span>
                     <span>•</span>

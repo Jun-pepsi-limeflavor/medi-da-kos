@@ -67,7 +67,8 @@ const ROLLUP_FIELDS = [
   "oldestUnansweredAt", "unansweredThreadCount", "threadCount",
 ] as const;
 const IDENTITY_FIELDS = [
-  "kind", "value", "classification", "conversationId", "buyerId", "supplierId", "createdAt", "updatedAt",
+  "kind", "value", "displayName", "displayEmail", "channelTalkUserId", "classification", "conversationId",
+  "buyerId", "supplierId", "createdAt", "updatedAt",
 ] as const;
 const THREAD_FIELDS = [
   "channel", "sourceAccount", "providerThreadId", "readState", "triageState", "linkState", "side",
@@ -273,6 +274,7 @@ export interface ReviewIdentityItem {
   latestThread?: Thread;
   latestMessageSnippet?: string;
   channels: string[];
+  hasInbound: boolean;
 }
 
 export type ReviewQueueFilter = "unclassified" | "supplier" | "internal" | "advertising" | "all_review";
@@ -325,6 +327,7 @@ export async function listReviewIdentities(
     threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
     const latestThread = threads[0];
     const channels = Array.from(new Set(threads.map((t) => t.channel)));
+    const hasInbound = threads.some((t) => !!t.lastInboundAt || t.lastDirection === "in");
 
     return {
       identity,
@@ -332,6 +335,7 @@ export async function listReviewIdentities(
       latestThread,
       latestMessageSnippet: undefined,
       channels,
+      hasInbound,
     };
   });
 
