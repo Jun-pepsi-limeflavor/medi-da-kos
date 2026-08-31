@@ -130,17 +130,17 @@ async function listAllChatMessages(userChatId, credentials, options = {}) {
 
 function messageDirection(raw, { managerIds = [] } = {}) {
   const personType = typeof raw?.personType === "string" ? raw.personType.toLowerCase() : "";
-  if (["user", "customer", "visitor", "contact"].includes(personType)) return "in";
-  if (["manager", "operator", "bot", "automation", "admin"].includes(personType)) return "out";
+  if (["user", "customer", "visitor", "contact", "lead", "member"].includes(personType)) return "in";
+  if (["manager", "operator", "admin", "staff", "bot", "automation", "app", "system"].includes(personType)) return "out";
   if (raw?.personId && managerIds.includes(raw.personId)) return "out";
   throw new TypeError("Channel Talk message has an unsupported personType");
 }
 
 function messageAuthorRole(raw) {
   const personType = typeof raw?.personType === "string" ? raw.personType.toLowerCase() : "";
-  if (["user", "customer", "visitor", "contact"].includes(personType)) return "customer";
-  if (["manager", "operator", "admin"].includes(personType)) return "agent";
-  if (["bot", "automation"].includes(personType)) return "automation";
+  if (["user", "customer", "visitor", "contact", "lead", "member"].includes(personType)) return "customer";
+  if (["manager", "operator", "admin", "staff"].includes(personType)) return "agent";
+  if (["bot", "automation", "app", "system"].includes(personType)) return "automation";
   return null;
 }
 
@@ -183,18 +183,48 @@ function timestampToIso(value) {
 
 function userIdentity(user, fallbackId) {
   const id = user?.id || user?.userId || fallbackId;
-  const email = user?.email || user?.profile?.email;
-  if (typeof email === "string" && email.trim()) {
+  const rawEmail =
+    user?.email ||
+    user?.profile?.email ||
+    (typeof user?.memberId === "string" && user.memberId.includes("@") ? user.memberId : "");
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+
+  const name = (user?.name || user?.profile?.name || "").trim();
+  const company = (
+    user?.profile?.company ||
+    user?.profile?.companyName ||
+    user?.profile?.brand ||
+    user?.profile?.brandName ||
+    ""
+  ).trim();
+
+  let fromName = "";
+  if (name && company && !name.toLowerCase().includes(company.toLowerCase())) {
+    fromName = `${name} (${company})`;
+  } else {
+    fromName = name || company || "";
+  }
+
+  const mobileNumber = (
+    user?.mobileNumber ||
+    user?.profile?.mobileNumber ||
+    user?.profile?.phone ||
+    ""
+  ).trim();
+
+  if (email) {
     return {
-      from: email.trim().toLowerCase(),
-      fromName: user?.name || user?.profile?.name || "",
+      from: email,
+      fromName,
       userId: id || "",
+      mobileNumber,
     };
   }
   return {
     from: id ? `channel:user:${id}` : "channel:user:unknown",
-    fromName: user?.name || user?.profile?.name || "",
+    fromName,
     userId: id || "",
+    mobileNumber,
   };
 }
 

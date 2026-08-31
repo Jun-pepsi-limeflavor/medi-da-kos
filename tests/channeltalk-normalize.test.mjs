@@ -77,8 +77,37 @@ test("empty events are filtered while meaningful bot messages stay in the custom
   assert.ok(normalizeMessage({ ...raw, plainText: "", files: [{ id: "file-only" }] }, { account: "desk-main", userId: "visitor-1", userChatId: "user-chat-1" }));
 });
 
+test("enriched profile with company, phone, and memberId extracts clean fromName and email", () => {
+  const enrichedUser = {
+    id: "visitor-2",
+    profile: {
+      name: "Janavi Ramakrishnan",
+      company: "Glow Lab",
+      email: "janaviramakrishnan2000@gmail.com",
+      mobileNumber: "+821012345678",
+    },
+  };
+  const message = normalizeMessage(raw, {
+    account: "desk-main",
+    user: enrichedUser,
+    userId: "visitor-2",
+    userChatId: "user-chat-2",
+  });
+  assert.equal(message.from, "janaviramakrishnan2000@gmail.com");
+  assert.equal(message.fromName, "Janavi Ramakrishnan (Glow Lab)");
+  assert.equal(message.channelTalkUserId, "visitor-2");
+});
+
+test("expanded personTypes (lead, member, staff, app, system) map correctly", () => {
+  assert.equal(messageDirection({ personType: "lead" }), "in");
+  assert.equal(messageDirection({ personType: "member" }), "in");
+  assert.equal(messageDirection({ personType: "staff" }), "out");
+  assert.equal(messageDirection({ personType: "app" }), "out");
+  assert.equal(messageDirection({ personType: "system" }), "out");
+});
+
 test("unknown person types fail closed and nested blocks have a text fallback", () => {
-  assert.throws(() => messageDirection({ personType: "system" }), /unsupported personType/);
+  assert.throws(() => messageDirection({ personType: "unknown_person_type" }), /unsupported personType/);
   assert.equal(blocksToText([{ type: "text", value: "A" }, { type: "bullets", blocks: [{ value: "B" }] }]), "A\nB");
 });
 
