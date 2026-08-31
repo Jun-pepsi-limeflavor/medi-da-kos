@@ -117,6 +117,8 @@ const excludedBrands = new Set([
   "every", "both", "few", "many", "any", "new", "current", "existing", "various", "different",
   "here", "there", "us", "we", "team", "range", "side", "end", "line", "website", "site",
   "page", "scratch", "overseas", "domestic", "home", "market", "office", "store", "shop",
+  "based", "located", "seeking", "contacting", "planning", "ready", "hoping", "writing",
+  "reaching", "interested", "looking",
 ]);
 
 /**
@@ -220,7 +222,7 @@ export function extractBrandCandidates(options: {
 export function extractBrandNameFromBody(bodyText?: string | null, email?: string | null): string {
   if (bodyText && typeof bodyText === "string") {
     const clean = bodyText.trim();
-    const delimiter = "(?=\\s+(?:and|who|which|we|i|in|based|located|looking|interested|to|representing|for|shipping)|\\r?\\n|[,;]|(?:\\.\\s+[A-Z])|\\s*$)";
+    const delimiter = "(?=\\s+(?:and|who|which|we|i|in|based|located|looking|interested|to|representing|for|shipping)|\\r?\\n|[,;]|(?:\\.\\s+[A-Z])|\\.$)";
 
     // 1. "Our brand is [Brand]", "Brand: [Brand]", "Company: [Brand]", "website, [Brand]"
     const explicitBrandRegex = new RegExp(
@@ -237,7 +239,7 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
 
     // 2. 서명 블록 내 회사 접미사 (단일 줄 매칭)
     // 예: "Kinoko Labs", "Acme Cosmetics LLC", "Luxe Orient Skincare", "BHR Skincare Inc.", "Glow Lab Pty Ltd", "Kyoto Botanicals Ltd"
-    const companySuffixRegex = /(?:^|\r?\n)\s*([A-Z0-9][A-Za-z0-9&'’.\- ]{1,35}?(?:Inc\.?|LLC|Ltd\.?|Co\.,?\s*Ltd\.?|Pty\s*Ltd|Pvt\s*Ltd|Pte\s*Ltd|GmbH|S\.?A\.?|S\.?A\.?S\.?|S\.?r\.?l\.?|B\.?V\.?|Corp\.?|Corporation|Holdings|Enterprises|Labs?|Laboratories|Skincare|Cosmetics|Beauty|Pharma|Studio|Consulting|Group|Brand|Paris|London|New York|Tokyo|Seoul))\s*(?=\r?\n|[,;]|$)/i;
+    const companySuffixRegex = /(?:^|\r?\n)\s*(?!(?:we|i|my|this|hello|hi|dear|thanks|thank|please|could|regards|for|our)\b)([A-Z0-9][A-Za-z0-9&'’.\- ]{1,35}?(?:Inc\.?|LLC|Ltd\.?|Co\.,?\s*Ltd\.?|Pty\s*Ltd|Pvt\s*Ltd|Pte\s*Ltd|GmbH|S\.?A\.?|S\.?A\.?S\.?|S\.?r\.?l\.?|B\.?V\.?|Corp\.?|Corporation|Holdings|Enterprises|Labs?|Laboratories|Skincare|Cosmetics|Beauty|Pharma|Studio|Consulting|Group|Brand|Paris|London|New York|Tokyo|Seoul))\s*(?=\r?\n|[,;]|$)/i;
     const suffixMatch = clean.match(companySuffixRegex);
     if (suffixMatch && suffixMatch[1].trim().length >= 2) {
       const candidate = cleanBrandCandidate(suffixMatch[1]);
@@ -246,10 +248,23 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
       }
     }
 
-    // 3. 직책 및 소속 패턴: "founder of [Brand]", "from [Brand]", "with [Brand]", "representing [Brand]", "Head of Product at [Brand]"
+    // 3. "We are [Brand]" 소개 패턴
+    const weAreBrandRegex = new RegExp(
+      `\\b(?:we are|we're)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|based|located|seeking|contacting|planning|ready|hoping|writing|reaching|interested|looking)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?)` + delimiter,
+      "i"
+    );
+    const weAreMatch = clean.match(weAreBrandRegex);
+    if (weAreMatch && weAreMatch[1].trim().length >= 2) {
+      const candidate = cleanBrandCandidate(weAreMatch[1]);
+      if (!excludedBrands.has(candidate.toLowerCase())) {
+        return candidate;
+      }
+    }
+
+    // 4. 직책 및 소속 패턴: "founder of [Brand]", "from [Brand]", "with [Brand]", "representing [Brand]", "Head of Product at [Brand]"
     // (our, my, the 등 대명사/관사를 부정 lookahead로 제외하여 "from our range" 오탐 방지)
     const introBrandRegex = new RegExp(
-      `\\b(?:from|with|representing|on behalf of|founder of|co-founder of|ceo of|owner of|managing director of|head of (?:product|purchasing|sourcing|development) at|procurement manager at|director of|president of|at)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
+      `\\b(?:from|with|representing|on behalf of|founder of|co-founder of|ceo of|owner of|managing director of|head of (?:product|purchasing|sourcing|development) at|procurement manager at|director of|president of|at)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|looking|interested)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
       "i"
     );
     const introMatch = clean.match(introBrandRegex);
