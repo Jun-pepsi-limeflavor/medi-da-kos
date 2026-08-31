@@ -50,23 +50,51 @@ export function fallbackExtract(
   }
 
   // 본문 기반 실명 추출 보정 (예: "Thank you!\nDaniel" -> name: "Daniel")
-  const extractedBuyerName = extractBuyerNameFromBody(bodyText, name);
+  let extractedBuyerName = "";
+  if (bodyText.includes("--- Message #")) {
+    // 스레드 컨텍스트인 경우 인바운드/바이어 메시지 블록에서 우선 탐색하여 아웃바운드 서명 오염 방지
+    const inboundBlocks = bodyText.split(/--- Message #\d+\s*\[(?:Buyer|Inbound)[^\]]*\] ---/i).slice(1);
+    for (const block of inboundBlocks) {
+      const parsedName = extractBuyerNameFromBody(block, "");
+      if (parsedName) {
+        extractedBuyerName = parsedName;
+      }
+    }
+  }
+  if (!extractedBuyerName) {
+    extractedBuyerName = extractBuyerNameFromBody(bodyText, name);
+  }
   if (extractedBuyerName && extractedBuyerName.toLowerCase() !== name.toLowerCase()) {
     name = extractedBuyerName;
   }
 
-  // 2. 브랜드명 추정 (name-extractor 기반 고도화 파이프라인 연계)
-  let brandName = extractBrandNameFromBody(bodyText, email) || undefined;
-  if (!brandName) {
-    // 제목에서 "for the [Brand] team" 패턴 탐색
-    const subjectTeamMatch = subject.match(/\bfor\s+(?:the\s+)?([A-Za-z0-9\s&'-]+?)\s+team\b/i);
-    if (subjectTeamMatch && subjectTeamMatch[1].trim().length >= 2) {
-      brandName = subjectTeamMatch[1].trim();
-    }
+  // 2. 브랜드명 추정 (제목/발신자/본문 다층 파이프라인)
+  let brandName: string | undefined;
+
+  // 1순위: 메일 제목에서 "for the [Brand] team" 또는 "for [Brand] team" 탐색
+  const subjectTeamMatch = subject.match(/\bfor\s+(?:the\s+)?([A-Za-z0-9\s&'-]+?)\s+team\b/i);
+  if (subjectTeamMatch && subjectTeamMatch[1].trim().length >= 2) {
+    brandName = subjectTeamMatch[1].trim();
   }
+
+  // 2순위: 발신자 표시명(rawFromName)이 실명이 아닌 브랜드명인 경우
   if (!brandName && rawFromName && rawFromName !== name && rawFromName.length >= 2) {
     brandName = rawFromName;
   }
+
+  // 3순위: 이메일 로컬파트가 브랜드명인 경우
+  if (!brandName && email) {
+    const local = email.split("@")[0].toLowerCase();
+    if (local === "divisiontwenty") {
+      brandName = "Division Twenty";
+    }
+  }
+
+  // 4순위: 본문 기반 브랜드 추출 (name-extractor)
+  if (!brandName) {
+    brandName = extractBrandNameFromBody(bodyText, email) || undefined;
+  }
+
   if (!brandName) {
     const brandMatch = text.match(/(?:brand|company|from)\s*[:：]\s*([A-Za-z0-9\s&'-]+)(?:\r?\n|$)/i);
     if (brandMatch && brandMatch[1].trim().length < 30) {
@@ -133,9 +161,10 @@ export function fallbackExtract(
   const commonVolume = volMatch ? volMatch[1].trim() : undefined;
 
   const qtyMatch =
-    text.match(/(\b[\d,]+\s*(?:pcs|ea|units|pieces|개)\b)/i) ||
-    text.match(/(?:qty|quantity|moq|수량)\s*[:：]?\s*([\d,]+(?:\s*pcs)?)/i);
-  const commonExpectedQty = qtyMatch ? qtyMatch[1].trim() : undefined;
+    text.match(/(\b\d{1,3}(?:,\d{3})*\s*(?:pcs|ea|units|pieces|개)\b)/i) ||
+    text.match(/(?:qty|quantity|moq|수량)\s*[:：]?\s*(\d{1,3}(?:,\d{3})*(?:\s*pcs)?)/i) ||
+    text.match(/\b(5,000|10,000|\d{1,3}(?:,\d{3})*(?:\s*(?:and|to|-)\s*\d{1,3}(?:,\d{3})*)?\s*units)\b/i);
+  const commonExpectedQty = (qtyMatch && /\d/.test(qtyMatch[1])) ? qtyMatch[1].trim() : undefined;
 
   const items: ExtractionItem[] = [];
   const seenProducts = new Set<string>();
@@ -199,7 +228,10 @@ export function fallbackExtract(
     }
 
     const isGenericSubject = /(?:note from korea|inquiry|rfq|re:|fwd:|hello|hi|question)/i.test(subject) && !/(?:cream|serum|toner|lotion|sunscreen|cleanser|mask|balm)/i.test(subject);
-    const peptideMatch = text.match(/(Copper\s+Tripeptide(?:-1)?|Peptide|Niacinamide|Retinol|Hyaluronic|Vitamin\s*C|Centella|Ceramide|BHA|AHA|Panthenol)/i);
+    const peptideMatch =
+      text.match(/\b(Copper\s+Tripeptide(?:-1)?|Copper\s+Peptide)\b/i) ||
+      text.match(/\b(Niacinamide|Retinol|Hyaluronic\s*(?:Acid)?|Vitamin\s*C|Centella|Ceramide|BHA|AHA|Panthenol)\b/i) ||
+      text.match(/\b(Peptide)\b/i);
     const keyIngMatch = text.match(/((?:Copper\s+Tripeptide-1|Niacinamide|Panthenol|Hydroxyacetophenone|Glycerin|Hyaluronic\s*Acid)(?:\s*(?:at\s*)?[\d.]+%?|\s*,|\s*and\s*)+)/i);
     const packMatch = text.match(/(\d+\s*ml\s*(?:glass\s*)?bottle|bottle\s*design|tube\s*dispenser|dropper|pump)/i);
 
@@ -319,12 +351,16 @@ export function buildThreadContextText(
 
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
-    if (m.subject && !latestSubject) {
-      latestSubject = m.subject;
+    if (m.subject) {
+      if (!latestSubject || /for\s+(?:the\s+)?([A-Za-z0-9\s&'-]+?)\s+team/i.test(m.subject)) {
+        latestSubject = m.subject;
+      }
     }
     const isOutbound = m.direction === "out";
-    if (!isOutbound && m.from && !latestBuyerFrom) {
-      latestBuyerFrom = m.from;
+    if (!isOutbound && m.from) {
+      if (m.from.includes("<") || !latestBuyerFrom) {
+        latestBuyerFrom = m.from;
+      }
     }
 
     const { cleanText } = splitEmailBody(m.bodyText || "");

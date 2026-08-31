@@ -179,4 +179,54 @@ Daniel
     // 4. 인증
     assert.deepEqual(result.extraction.certifications?.requiredCerts, ["COA", "HPLC"]);
   });
+
+  test("runThreadExtraction: 19개 복합 스레드 메시지 통합 시 바이어 서명 우선권 및 미국 배송지 완벽 추출", async () => {
+    const threadMessages = [
+      {
+        direction: "out",
+        from: "hally@medidakoslabs.com",
+        subject: "A note from Korea, for the Division Twenty team",
+        bodyText: "Hello, we can assist with the peptide formulation. Best regards, Hally Kim",
+      },
+      {
+        direction: "in",
+        from: "Division Twenty <divisiontwenty@gmail.com>",
+        subject: "Re: A note from Korea, for the Division Twenty team",
+        bodyText: "Please find our formula: Copper Tripeptide-1 at 0.5%, Niacinamide at 0.5%. We are ready to order 5,000 units in 30ml glass bottle.\n\nThank you!\nDaniel",
+      },
+      {
+        direction: "out",
+        from: "hally@medidakoslabs.com",
+        subject: "Re: A note from Korea, for the Division Twenty team",
+        bodyText: "Thank you Daniel. We are reviewing the formulation. Regards, Hally Kim",
+      },
+      {
+        direction: "in",
+        from: "divisiontwenty@gmail.com",
+        subject: "Re: Your Samples Have Been Shipped | Medi Da Kos",
+        bodyText: "The delivery address is:\n233 Desmond Dr, Schaumburg IL, 60193 United States.\n\nThank you,\nDaniel",
+      },
+      {
+        direction: "out",
+        from: "hally@medidakoslabs.com",
+        subject: "Fwd: Your Samples Have Been Shipped | Medi Da Kos",
+        bodyText: "Forwarding tracking info. Best, Hally Kim",
+      },
+    ];
+
+    const result = await runThreadExtraction(threadMessages);
+
+    // 1. 바이어 프로필 (내부 팀원 Hally Kim 오염 없이 Daniel 및 Division Twenty 추출)
+    assert.equal(result.extraction.buyer?.name, "Daniel");
+    assert.equal(result.extraction.buyer?.brandName, "Division Twenty");
+    assert.equal(result.extraction.buyer?.email, "divisiontwenty@gmail.com");
+    assert.equal(result.extraction.buyer?.country, "미국 (USA)");
+
+    // 2. 상세 배송 정보
+    assert.equal(result.extraction.shipping?.country, "미국 (USA)");
+    assert.equal(result.extraction.shipping?.city, "Schaumburg");
+    assert.equal(result.extraction.shipping?.addressLine1, "233 Desmond Dr");
+    assert.equal(result.extraction.shipping?.postalCode, "60193");
+    assert.equal(result.extraction.shipping?.recipientName, "Daniel");
+  });
 });

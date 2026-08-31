@@ -8,7 +8,12 @@ export function extractBuyerNameFromBody(bodyText?: string | null, fallbackName?
   }
 
   const clean = bodyText.trim();
-  const lowerExcluded = new Set(["team", "support", "sales", "info", "admin", "service", "customer", "contact", "us", "help", "staff", "medi", "kos", "medidakos"]);
+  const lowerExcluded = new Set([
+    "team", "support", "sales", "info", "admin", "service", "customer", "contact", "us",
+    "help", "staff", "medi", "kos", "medidakos", "medidakoslabs", "techasset",
+    "hally", "hally kim", "hally hyeongseon kim", "thomas", "thomas kim",
+    "rheekw", "songjh", "kimhs", "parkjy", "manager", "b2b marketing manager",
+  ]);
 
   // 1. 영문 서명 패턴 (하단 Sign-off)
   // 예: "Best regards,\nJohn Doe", "Sincerely,\nTariq Al-Mansoor", "Best,\nJan de Vries", "Thank you!\nDaniel"
@@ -251,7 +256,7 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
 
     // 3. "We are [Brand]" 소개 패턴
     const weAreBrandRegex = new RegExp(
-      `\\b(?:we are|we're)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|based|located|seeking|contacting|planning|ready|hoping|writing|reaching|interested|looking|currently|selling|producing|manufacturing|ordering|shipping|launching|scaling|working|offering|providing)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?)` + delimiter,
+      `\\b(?:we are|we're)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|based|located|seeking|contacting|planning|ready|hoping|writing|reaching|interested|looking|currently|selling|producing|manufacturing|ordering|shipping|launching|scaling|working|offering|providing|set\\s*up|setting\\s*up|geared|delighted|pleased|excited|aiming|happy|open|checking|verifying|reviewing|confirming|evaluating|assessing|testing)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?)` + delimiter,
       "i"
     );
     const weAreMatch = clean.match(weAreBrandRegex);
@@ -725,7 +730,7 @@ export function extractShippingInfoFromBody(
   const info: ExtractedShippingInfo = {};
 
   // 1. 배송지 블록 패턴 탐색
-  const addressBlockRegex = /(?:(?:The\s+)?full\s+address\w*|shipping\s+address|delivery\s+address|ship\s+to|deliver\s+to|destination|address)\s*(?:is|:)?\s*[\r\n]*([0-9A-Za-z\s,.\-#'’]+?(?:United States|USA|Australia|Canada|UK|United Kingdom|Korea|India|Singapore|France|Germany|Japan|New Zealand|Malaysia|Vietnam|Thailand|South Africa|\d{5}(?:-\d{4})?|\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b))/i;
+  const addressBlockRegex = /(?:(?:The\s+)?full\s+address\w*|shipping\s+address|delivery\s+address|ship\s+to|deliver\s+to|destination|address)\s*(?:is\s*:|is|:)?\s*([0-9A-Za-z\s,.\-#'’]+?(?:United States|USA|Australia|Canada|UK|United Kingdom|Korea|India|Singapore|France|Germany|Japan|New Zealand|Malaysia|Vietnam|Thailand|South Africa|\d{5}(?:-\d{4})?|\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b))/i;
 
   const blockMatch = text.match(addressBlockRegex);
   if (blockMatch) {

@@ -79,6 +79,14 @@ export async function getThread(threadKey: string): Promise<Thread | null> {
   return doc.exists ? toThread(doc.id, doc.data()!) : null;
 }
 
+export async function listThreadsByConversation(conversationId: string): Promise<Thread[]> {
+  const snap = await getAdminDb()
+    .collection(COLLECTION)
+    .where("conversationId", "==", conversationId)
+    .get();
+  return snap.docs.map((d) => toThread(d.id, d.data()));
+}
+
 /** Marks the observed inbound work complete without changing provider records. */
 export async function markThreadHandled(threadKey: string, actor: AdminIdentity): Promise<void> {
   const db = getAdminDb();
