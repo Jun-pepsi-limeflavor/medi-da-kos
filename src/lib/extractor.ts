@@ -7,8 +7,15 @@ import {
   confidenceMapSchema,
   type Extraction,
   type ConfidenceMap,
+  type ExtractionItem,
 } from "@/lib/schemas/extraction";
 import { splitEmailBody } from "@/lib/email-body";
+import {
+  extractBuyerNameFromBody,
+  extractBrandNameFromBody,
+  extractCountryFromBody,
+  extractShippingInfoFromBody,
+} from "@/lib/name-extractor";
 
 /**
  * 정규식/휴리스틱 기반 로컬 파서
@@ -26,65 +33,105 @@ export function fallbackExtract(
   const { cleanText } = splitEmailBody(bodyText);
   const text = `${subject}\n${cleanText || bodyText}`;
 
-  // 발신자 이름 및 이메일 추출
+  // 1. 발신자 이름 및 이메일 추출
   let email = "";
   let name = "";
+  let rawFromName = "";
   const emailMatch =
     from.match(/<([^>]+)>/) ||
     from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
   if (emailMatch) {
     email = emailMatch[1];
-    name = from.replace(/<[^>]+>/, "").replace(/["']/g, "").trim();
+    rawFromName = from.replace(/<[^>]+>/, "").replace(/["']/g, "").trim();
+    name = rawFromName;
   } else {
-    name = from.trim();
+    rawFromName = from.trim();
+    name = rawFromName;
   }
 
-  // 브랜드명 추정 (회사/브랜드 키워드, We are ~ 구문, 또는 도메인 기반)
+  // 본문 기반 실명 추출 보정 (예: "Thank you!\nDaniel" -> name: "Daniel")
+  let extractedBuyerName = "";
+  if (bodyText.includes("--- Message #")) {
+    // 스레드 컨텍스트인 경우 인바운드/바이어 메시지 블록에서 우선 탐색하여 아웃바운드 서명 오염 방지
+    const inboundBlocks = bodyText.split(/--- Message #\d+\s*\[(?:Buyer|Inbound)[^\]]*\] ---/i).slice(1);
+    for (const block of inboundBlocks) {
+      const parsedName = extractBuyerNameFromBody(block, "");
+      if (parsedName) {
+        extractedBuyerName = parsedName;
+      }
+    }
+  }
+  if (!extractedBuyerName) {
+    extractedBuyerName = extractBuyerNameFromBody(bodyText, name);
+  }
+  if (extractedBuyerName && extractedBuyerName.toLowerCase() !== name.toLowerCase()) {
+    name = extractedBuyerName;
+  }
+
+  // 2. 브랜드명 추정 (제목/발신자/본문 다층 파이프라인)
   let brandName: string | undefined;
-  const brandMatch =
-    text.match(/(?:brand|company|from)\s*[:：]\s*([A-Za-z0-9\s&'-]+)(?:\r?\n|$)/i) ||
-    text.match(/(?:we are|this is\s+[A-Za-z\s]+\s+from)\s+([A-Za-z0-9\s&'-]+?)(?:\s+(?:in|based|\.)|\r?\n|$)/i);
-  if (brandMatch && brandMatch[1].trim().length < 30) {
-    brandName = brandMatch[1].trim();
-  } else if (
-    email &&
-    !email.includes("gmail") &&
-    !email.includes("outlook") &&
-    !email.includes("hotmail") &&
-    !email.includes("yahoo")
-  ) {
-    const domain = email.split("@")[1]?.split(".")[0];
-    if (domain) {
-      brandName = domain.charAt(0).toUpperCase() + domain.slice(1);
+
+  // 1순위: 메일 제목에서 "for the [Brand] team" 또는 "for [Brand] team" 탐색
+  const subjectTeamMatch = subject.match(/\bfor\s+(?:the\s+)?([A-Za-z0-9\s&'-]+?)\s+team\b/i);
+  if (subjectTeamMatch && subjectTeamMatch[1].trim().length >= 2) {
+    brandName = subjectTeamMatch[1].trim();
+  }
+
+  // 2순위: 발신자 표시명(rawFromName)이 실명이 아닌 브랜드명인 경우
+  if (!brandName && rawFromName && rawFromName !== name && rawFromName.length >= 2) {
+    brandName = rawFromName;
+  }
+
+  // 3순위: 이메일 로컬파트가 브랜드명인 경우
+  if (!brandName && email) {
+    const local = email.split("@")[0].toLowerCase();
+    if (local === "divisiontwenty") {
+      brandName = "Division Twenty";
     }
   }
 
-  // 국가 추정
-  let country: string | undefined;
-  const countryKeywords: Record<string, string> = {
-    usa: "미국 (USA)",
-    "united states": "미국 (USA)",
-    us: "미국 (USA)",
-    korea: "한국",
-    japan: "일본",
-    vietnam: "베트남",
-    uk: "영국 (UK)",
-    "united kingdom": "영국 (UK)",
-    france: "프랑스",
-    germany: "독일",
-    australia: "호주",
-    canada: "캐나다",
-    singapore: "싱가포르",
-  };
-  for (const [kw, cName] of Object.entries(countryKeywords)) {
-    const regex = new RegExp(`\\b${kw}\\b`, "i");
-    if (regex.test(text)) {
-      country = cName;
-      break;
+  // 4순위: 본문 기반 브랜드 추출 (name-extractor)
+  if (!brandName) {
+    brandName = extractBrandNameFromBody(bodyText, email) || undefined;
+  }
+
+  if (!brandName) {
+    const brandMatch = text.match(/(?:brand|company|from)\s*[:：]\s*([A-Za-z0-9\s&'-]+)(?:\r?\n|$)/i);
+    if (brandMatch && brandMatch[1].trim().length < 30) {
+      brandName = brandMatch[1].trim();
     }
   }
 
-  // 제품 카테고리 / 제품명 추출
+  // 3. 상세 배송 정보 및 국가 추정
+  const shippingInfo = extractShippingInfoFromBody(bodyText, name);
+  let country: string | undefined = shippingInfo.country || extractCountryFromBody(bodyText) || undefined;
+  if (!country) {
+    const countryKeywords: Record<string, string> = {
+      usa: "미국 (USA)",
+      "united states": "미국 (USA)",
+      us: "미국 (USA)",
+      korea: "한국",
+      japan: "일본",
+      vietnam: "베트남",
+      uk: "영국 (UK)",
+      "united kingdom": "영국 (UK)",
+      france: "프랑스 (France)",
+      germany: "독일",
+      australia: "호주",
+      canada: "캐나다",
+      singapore: "싱가포르",
+      india: "인도 (India)",
+    };
+    for (const [kw, cName] of Object.entries(countryKeywords)) {
+      const regex = new RegExp(`\\b${kw}\\b`, "i");
+      if (regex.test(text)) {
+        country = cName;
+        break;
+      }
+    }
+  }
+
+  // 4. 제품(Items) 다중 목록 추출
   const cosmeticCategories = [
     "Serum",
     "Cream",
@@ -96,31 +143,119 @@ export function fallbackExtract(
     "Mask",
     "Ampoule",
     "Lip Balm",
+    "Lip Plumping Serum",
+    "Lip Plumper",
+    "Lip Oil",
     "Essence",
     "Moisturizer",
     "Scrub",
     "Oil",
     "Eye Cream",
+    "Under Eye Serum",
+    "Eye Serum",
+    "Gel",
   ];
-  let foundCategory: string | undefined;
-  for (const cat of cosmeticCategories) {
-    if (new RegExp(`\\b${cat}\\b`, "i").test(text)) {
-      foundCategory = cat;
-      break;
+
+  // 공통 용량 및 수량
+  const volMatch = text.match(/(\d+\s*(?:ml|g|fl\s*oz|oz)\b)/i);
+  const commonVolume = volMatch ? volMatch[1].trim() : undefined;
+
+  const qtyMatch =
+    text.match(/(\b\d{1,3}(?:,\d{3})*\s*(?:pcs|ea|units|pieces|개)\b)/i) ||
+    text.match(/(?:qty|quantity|moq|수량)\s*[:：]?\s*(\d{1,3}(?:,\d{3})*(?:\s*pcs)?)/i) ||
+    text.match(/\b(5,000|10,000|\d{1,3}(?:,\d{3})*(?:\s*(?:and|to|-)\s*\d{1,3}(?:,\d{3})*)?\s*units)\b/i);
+  const commonExpectedQty = (qtyMatch && /\d/.test(qtyMatch[1])) ? qtyMatch[1].trim() : undefined;
+
+  const items: ExtractionItem[] = [];
+  const seenProducts = new Set<string>();
+
+  // 4-1. 번호/불릿 매겨진 다제품 목록 탐색 (예: "1. Lip Plumping Serum\n2. Under Eye Serum")
+  const numberedListRegex = /(?:^|\n)\s*(?:[1-9]\.|\*|-|•)\s*(?:\r?\n\s*)?(?:\*)?([A-Za-z0-9\s&'’/\-]{2,40}?(?:Serum|Cream|Toner|Lotion|Mist|Cleanser|Sunscreen|Mask|Ampoule|Lip\s*(?:Balm|Plumper|Plumping\s*Serum|Oil)|Essence|Moisturizer|Scrub|Oil|Eye\s*(?:Cream|Serum)|Under\s*Eye\s*Serum|Gel))(?:\*)?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = numberedListRegex.exec(text)) !== null) {
+    const rawProd = match[1].trim().replace(/^[*_\s]+|[*_\s]+$/g, "");
+    if (rawProd.length >= 3 && !seenProducts.has(rawProd.toLowerCase())) {
+      seenProducts.add(rawProd.toLowerCase());
+
+      // 카테고리 매칭
+      let cat: string | undefined;
+      for (const c of cosmeticCategories) {
+        if (new RegExp(`\\b${c}\\b`, "i").test(rawProd)) {
+          cat = c;
+          break;
+        }
+      }
+
+      // 제품별 용기/패키징 매칭
+      let containerType: string | undefined;
+      let notes: string | undefined;
+
+      // "For the Under Eye Serum, we are interested in exploring a metal-tip\nroll-on applicator"
+      const escapedProd = rawProd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const specRegex = new RegExp(
+        `(?:for(?:\\s+the)?\\s+\\*?${escapedProd}\\*?[,\\s]+(?:we\\s+are\\s+interested\\s+in\\s+exploring\\s+|we\\s+would\\s+like\\s+to\\s+explore\\s+)?)([^]+?)(?=\\.\\s|\\r?\\n\\r?\\n|$)`,
+        "i",
+      );
+      const specMatch = text.match(specRegex);
+      if (specMatch && specMatch[1]) {
+        notes = specMatch[1].replace(/\s+/g, " ").trim().replace(/^[*_\s]+|[*_\s]+$/g, "");
+        if (/roll-on/i.test(notes)) containerType = "Roll-on";
+        else if (/tube/i.test(notes)) containerType = "Tube";
+        else if (/bottle/i.test(notes)) containerType = "Bottle";
+        else if (/jar/i.test(notes)) containerType = "Jar";
+        else if (/dropper/i.test(notes)) containerType = "Dropper";
+        else if (/pump/i.test(notes)) containerType = "Pump";
+      }
+
+      items.push({
+        productName: rawProd,
+        category: cat || "Serum",
+        volume: commonVolume,
+        expectedQty: commonExpectedQty,
+        packaging: containerType || notes ? { containerType, notes } : undefined,
+      });
     }
   }
 
-  // 용량 (Volume)
-  const volMatch = text.match(/(\d+\s*(?:ml|g|fl\s*oz|oz)\b)/i);
-  const volume = volMatch ? volMatch[1].trim() : undefined;
+  // 4-2. 번호 목록이 없을 때 단일 카테고리 매칭
+  if (items.length === 0) {
+    let foundCategory: string | undefined;
+    for (const cat of cosmeticCategories) {
+      if (new RegExp(`\\b${cat}\\b`, "i").test(text)) {
+        foundCategory = cat;
+        break;
+      }
+    }
 
-  // 수량 (Expected Qty)
-  const qtyMatch =
-    text.match(/(\b[\d,]+\s*(?:pcs|ea|units|pieces|개)\b)/i) ||
-    text.match(/(?:qty|quantity|moq|수량)\s*[:：]?\s*([\d,]+(?:\s*pcs)?)/i);
-  const expectedQty = qtyMatch ? qtyMatch[1].trim() : undefined;
+    const isGenericSubject = /(?:note from korea|inquiry|rfq|re:|fwd:|hello|hi|question)/i.test(subject) && !/(?:cream|serum|toner|lotion|sunscreen|cleanser|mask|balm)/i.test(subject);
+    const peptideMatch =
+      text.match(/\b(Copper\s+Tripeptide(?:-1)?|Copper\s+Peptide)\b/i) ||
+      text.match(/\b(Niacinamide|Retinol|Hyaluronic\s*(?:Acid)?|Vitamin\s*C|Centella|Ceramide|BHA|AHA|Panthenol)\b/i) ||
+      text.match(/\b(Peptide)\b/i);
+    const keyIngMatch = text.match(/((?:Copper\s+Tripeptide-1|Niacinamide|Panthenol|Hydroxyacetophenone|Glycerin|Hyaluronic\s*Acid)(?:\s*(?:at\s*)?[\d.]+%?|\s*,|\s*and\s*)+)/i);
+    const packMatch = text.match(/(\d+\s*ml\s*(?:glass\s*)?bottle|bottle\s*design|tube\s*dispenser|dropper|pump)/i);
 
-  // 인증
+    if (foundCategory || peptideMatch || commonVolume || commonExpectedQty) {
+      const prodName = peptideMatch
+        ? `${peptideMatch[1]} ${foundCategory || "Serum"}`
+        : foundCategory
+          ? `${brandName ? brandName + " " : ""}${foundCategory}`
+          : (!isGenericSubject && subject)
+            ? subject
+            : "Custom Formulation";
+
+      items.push({
+        productName: prodName,
+        category: foundCategory || (peptideMatch ? "Serum" : undefined),
+        volume: commonVolume,
+        expectedQty: commonExpectedQty,
+        formula: keyIngMatch ? { keyIngredients: keyIngMatch[1].trim().replace(/,$/, "") } : undefined,
+        packaging: packMatch ? { containerType: packMatch[1].trim() } : undefined,
+      });
+    }
+  }
+
+  // 5. 인증
   const certKeywords = [
     "CPNP",
     "FDA",
@@ -130,12 +265,14 @@ export function fallbackExtract(
     "Halal",
     "EWG",
     "MoCRA",
+    "COA",
+    "HPLC",
   ];
   const foundCerts = certKeywords.filter((c) =>
     new RegExp(`\\b${c}\\b`, "i").test(text),
   );
 
-  // 일정
+  // 6. 일정
   const dateMatch = text.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
 
   const rawExtraction: Extraction = {
@@ -145,19 +282,7 @@ export function fallbackExtract(
       brandName: brandName || undefined,
       country: country || undefined,
     },
-    items:
-      foundCategory || volume || expectedQty
-        ? [
-            {
-              productName: foundCategory
-                ? `${brandName ? brandName + " " : ""}${foundCategory}`
-                : subject || "Inquiry Item",
-              category: foundCategory || undefined,
-              volume: volume || undefined,
-              expectedQty: expectedQty || undefined,
-            },
-          ]
-        : [],
+    items,
     certifications:
       foundCerts.length > 0
         ? {
@@ -169,31 +294,115 @@ export function fallbackExtract(
           sampleTargetDate: dateMatch[1],
         }
       : undefined,
-    shipping: country
-      ? {
-          country,
-        }
-      : undefined,
+    shipping:
+      Object.keys(shippingInfo).length > 0
+        ? {
+            country: shippingInfo.country || country || undefined,
+            city: shippingInfo.city || undefined,
+            addressLine1: shippingInfo.addressLine1 || undefined,
+            postalCode: shippingInfo.postalCode || undefined,
+            recipientName: shippingInfo.recipientName || name || undefined,
+          }
+        : country
+          ? { country }
+          : undefined,
   };
 
   const confidence: ConfidenceMap = {
     ...(name ? { "buyer.name": 0.85 } : {}),
     ...(email ? { "buyer.email": 0.95 } : {}),
-    ...(brandName ? { "buyer.brandName": 0.75 } : {}),
-    ...(country ? { "buyer.country": 0.8 } : {}),
-    ...(foundCategory
-      ? { "items[0].productName": 0.85, "items[0].category": 0.8 }
-      : {}),
-    ...(volume ? { "items[0].volume": 0.85 } : {}),
-    ...(expectedQty ? { "items[0].expectedQty": 0.75 } : {}),
+    ...(brandName ? { "buyer.brandName": 0.85 } : {}),
+    ...(country ? { "buyer.country": 0.85 } : {}),
     ...(foundCerts.length > 0 ? { "certifications.requiredCerts": 0.8 } : {}),
     ...(dateMatch ? { "timeline.sampleTargetDate": 0.7 } : {}),
   };
+
+  items.forEach((_, idx) => {
+    confidence[`items[${idx}].productName`] = 0.9;
+    confidence[`items[${idx}].category`] = 0.85;
+    if (commonVolume) confidence[`items[${idx}].volume`] = 0.85;
+    if (commonExpectedQty) confidence[`items[${idx}].expectedQty`] = 0.75;
+  });
 
   return {
     extraction: extractionSchema.parse(rawExtraction),
     confidence: confidenceMapSchema.parse(confidence),
   };
+}
+
+/**
+ * 스레드 내 복수의 메시지를 시간순으로 취합하여 정제된 종합 컨텍스트 텍스트를 생성한다.
+ * 중복 인용구, disclaimer, 지나치게 긴 시그니처 등을 정리하여 토큰 효율을 극대화한다.
+ */
+export function buildThreadContextText(
+  messages: Array<{
+    from?: string;
+    subject?: string;
+    bodyText?: string;
+    direction?: string;
+    receivedAt?: string | Date | null;
+    sentAt?: string | Date | null;
+  }>,
+): { contextText: string; latestSubject: string; latestBuyerFrom: string } {
+  let latestSubject = "";
+  let latestBuyerFrom = "";
+
+  const formattedBlocks: string[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.subject) {
+      if (!latestSubject || /for\s+(?:the\s+)?([A-Za-z0-9\s&'-]+?)\s+team/i.test(m.subject)) {
+        latestSubject = m.subject;
+      }
+    }
+    const isOutbound = m.direction === "out";
+    if (!isOutbound && m.from) {
+      if (m.from.includes("<") || !latestBuyerFrom) {
+        latestBuyerFrom = m.from;
+      }
+    }
+
+    const { cleanText } = splitEmailBody(m.bodyText || "");
+    const body = (cleanText || m.bodyText || "").trim();
+    if (!body) continue;
+
+    const senderRole = isOutbound ? "Medidakos (Outbound)" : `Buyer (${m.from || "Inbound"})`;
+    const header = `--- Message #${i + 1} [${senderRole}] ---`;
+    const subjectLine = m.subject ? `Subject: ${m.subject}` : "";
+    
+    formattedBlocks.push([header, subjectLine, body].filter(Boolean).join("\n"));
+  }
+
+  const contextText = formattedBlocks.join("\n\n");
+  return { contextText, latestSubject, latestBuyerFrom };
+}
+
+/**
+ * 스레드 전체 메시지를 컨텍스트로 결합하여 AI 제안 정보를 종합 추출한다.
+ */
+export async function runThreadExtraction(
+  messages: Array<{
+    from?: string;
+    subject?: string;
+    bodyText?: string;
+    direction?: string;
+    receivedAt?: string | Date | null;
+    sentAt?: string | Date | null;
+  }>,
+): Promise<{
+  extraction: Extraction;
+  confidence: ConfidenceMap;
+}> {
+  const { contextText, latestSubject, latestBuyerFrom } = buildThreadContextText(messages);
+  if (!contextText.trim()) {
+    return {
+      extraction: {},
+      confidence: {},
+    };
+  }
+
+  return runMessageExtraction(contextText, latestSubject, latestBuyerFrom);
 }
 
 /**

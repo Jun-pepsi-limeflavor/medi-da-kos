@@ -1,100 +1,212 @@
 /**
- * 이메일 본문에서 답장/회신 인용구(Quotes, Quoted History)를 분리하는 유틸리티
- * 
- * 원문 데이터는 보존하되, UI 및 파서에서 새 본문과 이전 답장 내역을 깔끔하게 분리합니다.
+ * 이메일 본문에서 답장/회신 인용구(Quotes, Quoted History)를 분리하고
+ * 미디어 및 구글 드라이브 링크를 안전하게 추출하는 공통 유틸리티
  */
 
-export interface ParsedEmailBody {
-  /** 인용구가 제거된 순수 새 본문 */
-  cleanText: string;
-  /** 접을 수 있는 인용구/회신 이력 (없으면 null) */
-  quotedText: string | null;
+export interface ExtractedMediaItem {
+  type: "gdrive" | "direct_image" | "attachment";
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl: string;
+  previewUrl?: string;
+  size?: number;
 }
 
-// 이메일 인용 헤더 패턴들
-const QUOTE_HEADER_PATTERNS = [
-  // On Mon, 24 Aug 2026 at 5:58 pm, Hally Kim <hally@...> wrote:
-  // On Aug 24, 2026, at 5:58 PM, Hally Kim wrote:
-  /\n\s*On\s+[^\n]+(?:wrote|작성|보냄)\s*:?/i,
-  // 2026년 8월 24일 (월) 오후 5:58, Hally Kim <...>님이 작성:
-  /\n\s*\d{4}년\s+\d{1,2}월\s+\d{1,2}일\s+[^\n]+(?:작성|보냄)\s*:?/i,
-  // -----Original Message----- or ----- Original Message -----
-  /\n\s*-+\s*Original Message\s*-+/i,
-  // ---------- Forwarded message ---------
-  /\n\s*-+\s*Forwarded message\s*-+/i,
-  // Outlook / Apple Mail 헤더 블록: From: ... Sent: ... To: ...
-  /\n\s*From:\s+[^\n]+\n\s*(?:Sent|Date):\s+[^\n]+\n\s*To:\s+[^\n]+/i,
-  // ________________________________ (언더스코어 구분선)
-  /\n\s*_{20,}\s*\n/i,
-];
+export function isAttributionLine(line: string, nextLine?: string): { isMatch: boolean; linesConsumed: number } {
+  const trimmed = line.trim().replace(/\u202F|\u00A0/g, " ");
+  const trimmedNext = (nextLine || "").trim().replace(/\u202F|\u00A0/g, " ");
 
-/**
- * 이메일 원문에서 순수 본문과 인용구(답장 이력)를 분리합니다.
- */
-export function splitEmailBody(rawText: string): ParsedEmailBody {
-  if (!rawText || typeof rawText !== "string") {
-    return { cleanText: "", quotedText: null };
+  // Case 1: Single line "On <Date/Name> ... wrote:"
+  if (/^On\s+[A-Za-z0-9,\s.:\u202F\u00A0-]{4,}\b(?:wrote|작성|보냄)\s*:?$/i.test(trimmed)) {
+    return { isMatch: true, linesConsumed: 1 };
   }
 
-  const normalized = rawText.replace(/\r\n/g, "\n");
-
-  // 1. 인용 헤더 구분자 기반 분리 시도
-  let earliestSplitIndex = -1;
-
-  for (const pattern of QUOTE_HEADER_PATTERNS) {
-    const match = normalized.match(pattern);
-    if (match && match.index !== undefined) {
-      if (earliestSplitIndex === -1 || match.index < earliestSplitIndex) {
-        earliestSplitIndex = match.index;
-      }
-    }
+  // Case 2: Two-line "On <Date/Name> ... <email>" followed by "wrote:"
+  if (/^On\s+[A-Za-z0-9,\s.:\u202F\u00A0-]{4,}<.+@.+>$/i.test(trimmed) && /^(?:wrote|작성|보냄)\s*:?$/i.test(trimmedNext)) {
+    return { isMatch: true, linesConsumed: 2 };
   }
 
-  if (earliestSplitIndex !== -1) {
-    const clean = normalized.slice(0, earliestSplitIndex).trim();
-    const quoted = normalized.slice(earliestSplitIndex).trim();
-    return {
-      cleanText: clean || normalized.trim(),
-      quotedText: quoted || null,
-    };
+  // Case 3: "On <Date> at <Time>, <Name/Email> wrote:"
+  if (/^On\s+.+at\s+\d+:\d+.*(?:wrote|작성|보냄)\s*:?$/i.test(trimmed)) {
+    return { isMatch: true, linesConsumed: 1 };
+  }
+  if (/^On\s+.+at\s+\d+:\d+.*$/i.test(trimmed) && /^(?:wrote|작성|보냄)\s*:?$/i.test(trimmedNext)) {
+    return { isMatch: true, linesConsumed: 2 };
   }
 
-  // 2. 헤더 없이 연속된 `>` 라인 블록으로 시작하는 인용구 감지
+  // Case 4: Korean attribution: "2026년 ... 님이 작성:" or "2026년 ...\n님이 작성:"
+  if (/^\d{4}년\s+\d{1,2}월\s+\d{1,2}일.*(?:님이\s+작성:?|작성:\s*|보냄:\s*)$/i.test(trimmed)) {
+    return { isMatch: true, linesConsumed: 1 };
+  }
+  if (/^\d{4}년\s+\d{1,2}월\s+\d{1,2}일.*/i.test(trimmed) && /^(?:님이\s+작성:?|작성:\s*|보냄:\s*)$/i.test(trimmedNext)) {
+    return { isMatch: true, linesConsumed: 2 };
+  }
+
+  // Case 5: Forwarded / Original message separator
+  if (/^(?:-{2,}\s*(?:전달된 메일|forwarded message|original message|원본 메일)\s*-{2,}|-----\s*(?:original message|원본 메일)\s*-----)/i.test(trimmed)) {
+    return { isMatch: true, linesConsumed: 1 };
+  }
+
+  // Case 6: Outlook / Mail Client header block: "From: ... \n Sent: ..." or "보낸사람: ... \n 받는사람/날짜: ..."
+  if (
+    /^(?:From:\s+.+|<From:\s*.+>|보낸사람:\s*.+)/i.test(trimmed) &&
+    /^(?:Sent|Date|To|Subject|받는사람|날짜|제목):\s+/i.test(trimmedNext)
+  ) {
+    return { isMatch: true, linesConsumed: 1 };
+  }
+
+  return { isMatch: false, linesConsumed: 0 };
+}
+
+export function splitEmailQuotes(raw: string): { clean: string; quoted: string | null; quoteLineCount: number } {
+  if (!raw || typeof raw !== "string") return { clean: "", quoted: null, quoteLineCount: 0 };
+
+  const normalized = raw.replace(/\r\n/g, "\n");
   const lines = normalized.split("\n");
-  let firstQuoteLineIndex = -1;
+  let tailQuoteIndex = -1;
 
+  // 1. Search for genuine tail attribution / forwarding separator
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith(">")) {
-      firstQuoteLineIndex = i;
+    const line = lines[i];
+    const nextLine = i + 1 < lines.length ? lines[i + 1] : "";
+    const attr = isAttributionLine(line, nextLine);
+    if (attr.isMatch) {
+      tailQuoteIndex = i;
       break;
     }
   }
 
-  if (firstQuoteLineIndex !== -1) {
-    // 인용구 시작 전까지의 텍스트가 있으면 분리
-    const clean = lines.slice(0, firstQuoteLineIndex).join("\n").trim();
-    const quoted = lines.slice(firstQuoteLineIndex).join("\n").trim();
-
-    if (clean.length > 0) {
-      return {
-        cleanText: clean,
-        quotedText: quoted || null,
-      };
+  // 2. If no attribution header found, check if trailing lines at the end of the email are purely '>' quote lines (with no following customer reply)
+  if (tailQuoteIndex === -1) {
+    let pureTrailingQuoteStart = -1;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const trimmed = lines[i].trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith(">") && trimmed.length > 1) {
+        pureTrailingQuoteStart = i;
+      } else {
+        break;
+      }
+    }
+    if (pureTrailingQuoteStart > 0) {
+      tailQuoteIndex = pureTrailingQuoteStart;
     }
   }
 
-  // 인용구가 없는 단일 메시지
+  let rawCleanLines: string[] = [];
+  let rawQuotedLines: string[] = [];
+
+  if (tailQuoteIndex !== -1) {
+    rawCleanLines = lines.slice(0, tailQuoteIndex);
+    rawQuotedLines = lines.slice(tailQuoteIndex);
+  } else {
+    rawCleanLines = [...lines];
+  }
+
+  // 3. Clean stray single/empty '>' lines from clean text (drafting artifacts)
+  const sanitizedCleanLines: string[] = [];
+  for (const line of rawCleanLines) {
+    const trimmed = line.trim();
+    if (trimmed === ">" || trimmed === "> ") {
+      continue;
+    }
+    sanitizedCleanLines.push(line);
+  }
+
+  const clean = sanitizedCleanLines.join("\n").trim();
+  const quoted = rawQuotedLines.join("\n").trim();
+
   return {
-    cleanText: normalized.trim(),
-    quotedText: null,
+    clean,
+    quoted: quoted.length > 0 ? quoted : null,
+    quoteLineCount: rawQuotedLines.length,
   };
 }
 
-/**
- * 목록 및 카드 미리보기를 위한 정제된 텍스트 요약 생성
- */
-export function getCleanSnippet(rawText: string, maxLength = 100): string {
+export function extractMediaFromText(raw: string): { cleanText: string; media: ExtractedMediaItem[] } {
+  if (!raw) return { cleanText: "", media: [] };
+
+  const lines = raw.split("\n");
+  const cleanLines: string[] = [];
+  const media: ExtractedMediaItem[] = [];
+
+  const driveRegex = /https:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|(?:open|uc)\?(?:[a-zA-Z0-9_=&-]*\b)?id=([a-zA-Z0-9_-]+))/i;
+  const imageExtRegex = /\.(png|jpe?g|gif|webp|svg|bmp|pdf|ai|psd)$/i;
+
+  let pendingFilename: string | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Check if line is purely a filename like "back-blue-final.png"
+    if (imageExtRegex.test(trimmed) && !trimmed.includes("http") && !trimmed.includes(" ")) {
+      pendingFilename = trimmed;
+      continue;
+    }
+
+    const driveMatch = trimmed.match(driveRegex);
+    if (driveMatch) {
+      const fileId = driveMatch[1] || driveMatch[2];
+      const rawUrlMatch = trimmed.match(/https?:\/\/[^\s<>]+/);
+      const rawUrl = rawUrlMatch ? rawUrlMatch[0] : trimmed;
+
+      let name = pendingFilename;
+      if (!name) {
+        const lineWithoutUrl = trimmed.replace(rawUrl, "").replace(/[<>]/g, "").trim();
+        if (lineWithoutUrl && imageExtRegex.test(lineWithoutUrl)) {
+          name = lineWithoutUrl;
+        } else if (lineWithoutUrl) {
+          name = lineWithoutUrl;
+        } else {
+          name = "Google Drive 파일";
+        }
+      }
+
+      media.push({
+        type: "gdrive",
+        id: fileId,
+        name: name,
+        url: rawUrl,
+        thumbnailUrl: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
+        previewUrl: `https://lh3.googleusercontent.com/d/${fileId}`,
+      });
+
+      pendingFilename = null;
+      continue;
+    }
+
+    if (pendingFilename) {
+      cleanLines.push(pendingFilename);
+      pendingFilename = null;
+    }
+    cleanLines.push(line);
+  }
+
+  if (pendingFilename) {
+    cleanLines.push(pendingFilename);
+  }
+
+  return {
+    cleanText: cleanLines.join("\n").trim(),
+    media,
+  };
+}
+
+export function splitEmailBody(rawText: string): { cleanText: string; quotedText: string | null } {
+  const res = splitEmailQuotes(rawText);
+  return {
+    cleanText: res.clean,
+    quotedText: res.quoted,
+  };
+}
+
+export function getCleanSnippet(rawText: string, maxLength: number = 100): string {
   const { cleanText } = splitEmailBody(rawText);
-  return cleanText.replace(/\s+/g, " ").trim().slice(0, maxLength);
+  const singleLine = cleanText.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= maxLength) {
+    return singleLine;
+  }
+  return singleLine.slice(0, maxLength).trim() + "…";
 }

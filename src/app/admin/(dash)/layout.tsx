@@ -16,7 +16,7 @@ export default async function AdminLayout({
     <AdminMotionShell>
       <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans antialiased">
         <header className="border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div className="flex items-center gap-6">
               <Link href="/admin" className="flex items-center gap-2">
                 <span className="font-bold text-lg text-white tracking-tight">Medidakos</span>
@@ -56,7 +56,7 @@ export default async function AdminLayout({
           </div>
         </header>
 
-        <main data-admin-content className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main data-admin-content className="flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {children}
         </main>
       </div>

@@ -96,9 +96,6 @@ export interface CMBrief {
   step4?: CMBriefStep4;
   step5?: CMBriefStep5;
   step6?: CMBriefStep6;
-  sampleProductId?: string;
-  sampleProductName?: string;
-  sampleQuantity?: number;
   shippingAddress?: ShippingAddress;
   status: "draft" | "submitted";
   updatedAt: string;
@@ -112,28 +109,6 @@ export interface TrackingEntry {
   description: string;
   status: "in-transit" | "delivered" | "pending";
   updatedAt: string;
-}
-
-export interface TopProduct {
-  id: string;
-  rank: number;
-  nameEn: string;
-  nameKo: string;
-  volume: string;
-  image: string;
-  category: ProductCategory;
-}
-
-export interface SampleRequest {
-  id: string;
-  uid: string;
-  sampleProductId: string;
-  sampleProductName: string;
-  sampleQuantity: number;
-  shippingAddress: ShippingAddress;
-  isTest?: boolean;
-  status: "submitted";
-  createdAt: string;
 }
 
 export interface Order {

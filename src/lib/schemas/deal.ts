@@ -55,9 +55,6 @@ export const SUPPLIER_ENGAGEMENT_ROLES = [
 
 export const supplierEngagementRoleSchema = z.enum(SUPPLIER_ENGAGEMENT_ROLES);
 
-export const SUPPLY_MODES = ["turnkey", "buyer_supplied", "kta_supplied"] as const;
-export const supplyModeSchema = z.enum(SUPPLY_MODES);
-
 export const CONTACT_STATUSES = ["ing", "fix", "drop"] as const;
 export const contactStatusSchema = z.enum(CONTACT_STATUSES);
 
@@ -79,7 +76,6 @@ export const ipTermsSchema = z
 export const supplierEngagementInputSchema = z.object({
   supplierId: z.string().trim().min(1, { message: "공급자 ID는 필수입니다" }),
   roles: z.array(supplierEngagementRoleSchema).min(1, { message: "역할은 최소 1개 이상이어야 합니다" }),
-  supplyMode: supplyModeSchema,
   contactStatus: contactStatusSchema.default("ing"),
   stageFactory: z.number().int().min(1).max(9).default(1),
   contactPersonSnapshot: contactPersonSnapshotSchema,
@@ -418,6 +414,7 @@ export const dealInputSchema = z.object({
   sourceRefs: z.array(z.string()).default([]),
   buyerInfo: dealBuyerInfoSchema,
   shippingInfo: dealShippingInfoSchema,
+  items: z.array(dealItemInputSchema).default([]),
   certifications: z.array(z.string().trim()).default([]),
   timeline: dealTimelineSchema,
   additionalRequests: z.string().trim().default(""),

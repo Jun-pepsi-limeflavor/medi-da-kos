@@ -221,8 +221,9 @@ export async function createDeal(
       threadExists = threadSnap.exists;
     }
 
+    const { items = [], ...dealWithoutItems } = parsed;
     const dealData = stripUndefined({
-      ...parsed,
+      ...dealWithoutItems,
       stageBrand: 1,
       supplierIds: [],
       createdAt: now,
@@ -232,6 +233,23 @@ export async function createDeal(
     });
 
     tx.set(newDealRef, dealData);
+
+    // Save initial items if provided
+    if (items.length > 0) {
+      for (const item of items) {
+        const itemRef = newDealRef.collection("items").doc();
+        tx.set(
+          itemRef,
+          stripUndefined({
+            ...item,
+            id: itemRef.id,
+            createdAt: now,
+            updatedAt: now,
+          })
+        );
+      }
+    }
+
     tx.update(intakeReviewRef, { dealId: newDealRef.id });
 
     if (threadRef && threadExists) {
@@ -313,7 +331,7 @@ export async function updateDeal(
 }
 
 /**
- * 인박스에서 제안 확정 시 연결된 딜에 제품, 바이어, 배송, 일정 정보를 동기화한다.
+ * 인박스에서 제안 확정 시 연결된 딜에 제품, 바이어, 배송, 일정 정보를 동기화.
  */
 export async function syncDealFromAcceptedExtraction(
   dealId: string,
@@ -388,7 +406,7 @@ export async function syncDealFromAcceptedExtraction(
       const pType = extItem.productName || extItem.category || "화장품";
       const vName = extItem.variantName || extItem.category || "";
       const vol = extItem.volume || "";
-      
+
       let parsedQty = 1000;
       if (typeof extItem.expectedQty === "number") {
         parsedQty = extItem.expectedQty > 0 ? Math.floor(extItem.expectedQty) : 1000;

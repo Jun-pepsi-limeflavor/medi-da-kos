@@ -20,6 +20,7 @@ const {
 const {
   listAllChatMessages,
   listAllUserChats,
+  getChannelTalkUser,
   normalizeMessage: normalizeChannelTalkMessage,
 } = require("./channeltalk");
 const { saveMessage, getIngestState, setIngestState } = require("./store");
@@ -31,7 +32,6 @@ const INGEST_MAILBOXES = defineString("INGEST_MAILBOXES");
 const INGEST_INITIAL_AFTER = defineString("INGEST_INITIAL_AFTER", { default: "" });
 
 const INITIAL_BACKFILL_DAYS = 30;
-const POLL_OVERLAP_SECONDS = 5 * 60;
 
 function initialEpochSeconds(value, now = Date.now()) {
   if (!value || !value.trim()) return Math.floor(now / 1000) - INITIAL_BACKFILL_DAYS * 24 * 60 * 60;
@@ -146,42 +146,60 @@ async function ingestOutlookAccount(db, config, options = {}) {
   return processedCount;
 }
 
-function channelTalkSince(state, now = Date.now()) {
-  const last = Date.parse(state.lastPollCursor || "");
-  if (Number.isNaN(last)) return new Date(now - INITIAL_BACKFILL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  return new Date(Math.max(0, last - POLL_OVERLAP_SECONDS * 1000)).toISOString();
-}
-
 async function ingestChannelTalkAccount(db, config, options = {}) {
   const stateKey = `channeltalk:${config.account}`;
-  const state = await getIngestState(db, stateKey);
   const nowMs = options.now ?? Date.now();
-  const since = channelTalkSince(state, nowMs);
-  const chats = await listAllUserChats(config.credentials, { since });
+  const deps = {
+    listAllChatMessages,
+    listAllUserChats,
+    getChannelTalkUser,
+    normalizeChannelTalkMessage,
+    saveMessage,
+    setIngestState,
+    ...options.deps,
+  };
+  const chats = await deps.listAllUserChats(config.credentials, { state: "opened" });
+  const userCache = new Map();
   let processedCount = 0;
+  let filteredCount = 0;
 
   for (const chat of chats.userChats) {
     if (!chat || typeof chat.id !== "string" || !chat.id) {
       throw new Error("Channel Talk user-chat is missing an id");
     }
-    const messages = await listAllChatMessages(chat.id, config.credentials, { since });
+    const userId = chat.userId || chat.user?.id || chat.customer?.id || chat.contact?.id || "";
+    let user = chat.user || chat.customer || chat.contact;
+    if (userId) {
+      if (!userCache.has(userId)) {
+        userCache.set(userId, deps.getChannelTalkUser(userId, config.credentials).catch(() => user));
+      }
+      user = await userCache.get(userId);
+    }
+    const messages = await deps.listAllChatMessages(chat.id, config.credentials);
     for (const raw of messages.messages) {
-      await saveMessage(db, normalizeChannelTalkMessage(raw, {
+      const normalized = deps.normalizeChannelTalkMessage(raw, {
         account: config.account,
-        user: chat.user || chat.customer || chat.contact,
+        user,
+        userId,
         userChatId: chat.id,
-      }));
+      });
+      if (!normalized) {
+        filteredCount += 1;
+        continue;
+      }
+      await deps.saveMessage(db, normalized);
       processedCount += 1;
     }
   }
 
   const now = new Date(nowMs).toISOString();
-  await setIngestState(db, stateKey, {
-    lastPollCursor: now,
+  await deps.setIngestState(db, stateKey, {
+    lastPollAt: now,
     lastAttemptAt: now,
     lastSuccessAt: now,
     lastError: null,
     processedCount,
+    filteredCount,
   });
   return processedCount;
 }
@@ -237,17 +255,29 @@ const ingestGmail = onSchedule(
     schedule: "*/5 * * * *",
     timeZone: "Asia/Seoul",
     timeoutSeconds: 540,
+    secrets: ["CHANNELTALK_ACCESS_KEY", "CHANNELTALK_ACCESS_SECRET"],
   },
   async () => {
     const gmailMailboxes = parseMailboxList(INGEST_MAILBOXES.value());
+    const channelTalkKey = process.env.CHANNELTALK_ACCESS_KEY || "";
+    const channelTalkSecret = process.env.CHANNELTALK_ACCESS_SECRET || "";
+    const channelTalkConfig =
+      channelTalkKey && channelTalkSecret
+        ? {
+            account: "main",
+            credentials: {
+              accessKey: channelTalkKey,
+              accessSecret: channelTalkSecret,
+              channelVersion: process.env.CHANNELTALK_CHANNEL_VERSION || "5",
+            },
+          }
+        : null;
+
     await runAllIngestions({
       db: getFirestore(),
       gmailMailboxes,
-      // Provider adapters remain unit-tested but are deliberately not bound
-      // to this production function until their real Secret Manager entries
-      // and read-only canaries are approved (Plan 8).
       outlook: null,
-      channelTalk: null,
+      channelTalk: channelTalkConfig,
       initialAfter: INGEST_INITIAL_AFTER.value(),
     });
   },
@@ -255,7 +285,6 @@ const ingestGmail = onSchedule(
 
 module.exports = {
   DEFAULT_GMAIL_MAILBOXES,
-  channelTalkSince,
   gmailContext,
   ingestChannelTalkAccount,
   ingestGmailAccount,

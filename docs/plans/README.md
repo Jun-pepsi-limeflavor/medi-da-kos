@@ -24,6 +24,7 @@
 | 6 | [파서와 평가](2026-08-26-parser.md) | 3, 5 | 구조 | **구현 완료** (`feat/inbox`) |
 | 7 | [수집기 확장과 통합 집계](2026-08-28-aggregation.md) | 3, 4 | 전체 | **소스 구현 + Gmail/웹 트리거 배포 완료**; 제공자 실연동은 8 |
 | 8 | [운영 제공자 연결 및 검증](2026-08-28-plan8-live-provider-rollout.md) | 7 + 승인 | 전체 | **대기** — provider credential·canary 필요 |
+| 별도 | [PST 첨부 아카이브](2026-08-31-pst-attachment-archive.md) | 첨부 계약 승인 | 전체 | **계획 수립** — PST에만 Storage 원본 보관 예외 |
 
 **2026-08-28 기준:** 계획 1부터 6은 `dev`에 구현되어 있다. 계획 7의 웹 폼 메시지화와 Gmail 수집기는 Firebase에 배포됐지만, Outlook·Channel Talk 실제 credential/fixture/canary, Techasset Gmail 위임, Gmail 외부 발송 canary는 계획 8 범위다. 따라서 백오피스 v1을 완료로 표시하지 않는다.
 

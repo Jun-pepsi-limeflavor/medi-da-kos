@@ -16,8 +16,6 @@ import type {
   CMBrief,
   ContactSubmission,
   Order,
-  SampleRequest,
-  ShippingAddress,
   TrackingEntry,
   UserProfile,
 } from "./types";
@@ -30,7 +28,6 @@ import {
   mockSaveBrief,
   mockGetTracking,
   mockSaveTracking,
-  mockAddSampleRequest,
   mockGetOrders,
   mockAddOrder,
 } from "./mock-store";
@@ -227,51 +224,6 @@ export async function loadOrders(uid: string): Promise<Order[]> {
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
-}
-
-export async function saveSampleRequest(
-  uid: string,
-  data: {
-    sampleProductId: string;
-    sampleProductName: string;
-    sampleQuantity: number;
-    shippingAddress: ShippingAddress;
-  },
-): Promise<SampleRequest> {
-  const now = new Date().toISOString();
-  const payload = {
-    uid,
-    ...data,
-    isTest: isNonProductionEnv(),
-    status: "submitted" as const,
-    createdAt: now,
-  };
-
-  let sampleRequest: SampleRequest;
-
-  if (useMockAuth()) {
-    sampleRequest = mockAddSampleRequest(payload);
-  } else {
-    const ref = await addDoc(
-      collection(getFirebaseDb(), "sampleRequests"),
-      stripUndefined({
-        ...payload,
-        serverCreatedAt: serverTimestamp(),
-      }),
-    );
-    sampleRequest = { id: ref.id, ...payload };
-  }
-
-  await createOrder({
-    uid,
-    type: "sample",
-    status: "submitted",
-    title: data.sampleProductName,
-    summary: `Sample qty: ${data.sampleQuantity}`,
-    referenceId: sampleRequest.id,
-  });
-
-  return sampleRequest;
 }
 
 export async function submitCustomBrief(brief: CMBrief): Promise<Order> {

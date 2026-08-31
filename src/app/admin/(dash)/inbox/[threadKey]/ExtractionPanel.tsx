@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -113,12 +113,6 @@ export default function ExtractionPanel({
   const [intakeReview, setIntakeReview] = useState<IntakeReview | null>(
     initialIntakeReview,
   );
-  const [_parseStatus, setParseStatus] = useState<string>(
-    anchorMessage.parseStatus ?? "completed",
-  );
-  const [_isAccepted, setIsAccepted] = useState<boolean>(
-    Boolean(anchorMessage.accepted),
-  );
 
   // 작업 상태
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -137,15 +131,15 @@ export default function ExtractionPanel({
   const [expandedItemIndex, setExpandedItemIndex] = useState<number | null>(0);
 
   // 정상 리드로 승인 모달 상태
-  const [mounted, setMounted] = useState<boolean>(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [showApproveModal, setShowApproveModal] = useState<boolean>(false);
   const [approveReason, setApproveReason] = useState<string>(
     "메시지 분석 결과 정상적인 바이어 문의로 확인됨",
   );
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // 판정 상태 (qualified && !isTest)
   const isQualified = Boolean(
@@ -186,8 +180,6 @@ export default function ExtractionPanel({
         throw new Error(data.error || "제안 확정 저장에 실패했습니다.");
       }
 
-      setIsAccepted(true);
-      setParseStatus("completed");
       const successMsg = data.syncedDealId
         ? `제안이 확정되었으며, 연결된 딜(${data.syncedDealReference || "원장"})에 제품·바이어·일정 정보가 동기화되었습니다.`
         : "제안 데이터가 확정 저장되었습니다.";
@@ -217,9 +209,53 @@ export default function ExtractionPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleAccept]);
 
-  // 2. [다시 추출] Action
-  async function handleReExtract() {
-    setLoadingAction("extract");
+  // 재추출 드롭다운 메뉴 상태
+  const [extractMenuOpen, setExtractMenuOpen] = useState<boolean>(false);
+
+  // 2-1. [스레드 전체 대화 종합 분석] Action
+  async function handleExtractThread() {
+    setLoadingAction("extract_thread");
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch(
+        `/api/admin/threads/${encodeURIComponent(threadKey)}/extract`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "스레드 종합 추출에 실패했습니다.");
+      }
+
+      if (data.extraction) {
+        setFormData(data.extraction);
+        if (data.extraction.certifications?.requiredCerts) {
+          setSelectedCerts(data.extraction.certifications.requiredCerts);
+        }
+      }
+      if (data.confidence) {
+        setConfidence(data.confidence);
+      }
+      setStatusMessage({
+        type: "success",
+        text: `전체 대화 맥락(${data.messageCount || "전체"}개 메시지)을 종합 분석하여 딜 제안을 갱신했습니다.`,
+      });
+      router.refresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatusMessage({ type: "error", text: msg });
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  // 2-2. [현재 메시지만 분석] Action
+  async function handleExtractSingleMessage() {
+    setLoadingAction("extract_single");
     setStatusMessage(null);
 
     try {
@@ -233,7 +269,7 @@ export default function ExtractionPanel({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "AI 재추출에 실패했습니다.");
+        throw new Error(data.error || "단일 메시지 AI 재추출에 실패했습니다.");
       }
 
       if (data.extraction) {
@@ -245,10 +281,9 @@ export default function ExtractionPanel({
       if (data.confidence) {
         setConfidence(data.confidence);
       }
-      setParseStatus("completed");
       setStatusMessage({
         type: "success",
-        text: "AI가 메시지에서 딜 제안 정보를 새로 추출했습니다.",
+        text: "현재 메시지 본문에서 딜 제안 정보를 새로 추출했습니다.",
       });
       router.refresh();
     } catch (err: unknown) {
@@ -257,6 +292,17 @@ export default function ExtractionPanel({
     } finally {
       setLoadingAction(null);
     }
+  }
+
+  // 2-3. [초기값 리셋] Action
+  function handleResetToOriginal() {
+    setFormData(initialSource);
+    setSelectedCerts(initialSource.certifications?.requiredCerts ?? []);
+    setConfidence((anchorMessage.confidence as ConfidenceMap) ?? {});
+    setStatusMessage({
+      type: "success",
+      text: "저장되지 않은 변경사항을 취소하고 초기 제안값으로 리셋했습니다.",
+    });
   }
 
   // 3. [정상 리드로 승인] Action
@@ -343,7 +389,6 @@ export default function ExtractionPanel({
         throw new Error("메시지 파싱 상태 갱신에 실패했습니다.");
       }
 
-      setParseStatus("skipped");
       setStatusMessage({
         type: "success",
         text: "스레드가 무시 처리되었으며 메시지 파싱이 건너뛰어졌습니다.",
@@ -460,19 +505,84 @@ export default function ExtractionPanel({
               </span>
             </div>
 
-            {/* 다시 추출 */}
-            <button
-              type="button"
-              onClick={handleReExtract}
-              disabled={loadingAction !== null}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700/80 bg-neutral-800/60 px-2.5 py-1 text-xs font-medium text-neutral-300 hover:bg-neutral-800 hover:text-white transition disabled:opacity-50"
-              title="최신 본문으로 AI 재추출 실행"
-            >
-              <RefreshCw
-                className={`h-3 w-3 ${loadingAction === "extract" ? "animate-spin text-indigo-400" : "text-neutral-400"}`}
-              />
-              다시 추출
-            </button>
+            {/* 스마트 재추출 스플릿 드롭다운 버튼 */}
+            <div className="relative inline-flex items-stretch rounded-lg shadow-sm">
+              <button
+                type="button"
+                onClick={handleExtractThread}
+                disabled={loadingAction !== null}
+                className="inline-flex items-center gap-1.5 rounded-l-lg border border-neutral-700/80 bg-neutral-800/90 px-2.5 py-1 text-xs font-semibold text-indigo-200 hover:bg-neutral-800 hover:text-white transition disabled:opacity-50"
+                title="스레드 전체 대화 맥락을 종합 분석하여 딜 사양을 추출합니다"
+              >
+                {loadingAction === "extract_thread" ? (
+                  <RefreshCw className="h-3 w-3 animate-spin text-indigo-400" />
+                ) : (
+                  <Sparkles className="h-3 w-3 text-indigo-400" />
+                )}
+                <span>전체 대화 종합 분석</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExtractMenuOpen((prev) => !prev)}
+                disabled={loadingAction !== null}
+                className="inline-flex items-center justify-center rounded-r-lg border-y border-r border-neutral-700/80 bg-neutral-800/90 px-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white transition disabled:opacity-50"
+                title="추출 옵션 더보기"
+              >
+                <ChevronDown className="h-3 w-3" />
+              </button>
+
+              {/* 드롭다운 메뉴 레이어 */}
+              {extractMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setExtractMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 z-50 w-60 rounded-xl border border-neutral-800 bg-neutral-900/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExtractMenuOpen(false);
+                        handleExtractThread();
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg p-2 text-left text-xs text-neutral-200 hover:bg-indigo-950/60 hover:text-indigo-200 transition"
+                    >
+                      <Sparkles className="h-4 w-4 text-indigo-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-white">전체 대화 종합 분석 (권장)</div>
+                        <div className="text-[11px] text-neutral-400">모든 메시지 누적 맥락 취합</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExtractMenuOpen(false);
+                        handleExtractSingleMessage();
+                      }}
+                      className="flex w-full items-start gap-2.5 rounded-lg p-2 text-left text-xs text-neutral-200 hover:bg-neutral-800/80 hover:text-white transition"
+                    >
+                      <RefreshCw className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="font-medium">현재 메시지만 분석</div>
+                        <div className="text-[11px] text-neutral-400">선택된 단일 메일 본문만 대상</div>
+                      </div>
+                    </button>
+                    <div className="my-1 border-t border-neutral-800" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExtractMenuOpen(false);
+                        handleResetToOriginal();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200 transition"
+                    >
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      <span>초기 제안값으로 리셋</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* 무시 (Skip) */}
             <button
@@ -913,7 +1023,7 @@ export default function ExtractionPanel({
                         shipping: { ...p.shipping, country: e.target.value },
                       }))
                     }
-                    placeholder="예: Australia"
+                    placeholder="예: 미국 (USA)"
                     className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
                   />
                 </div>
@@ -930,7 +1040,43 @@ export default function ExtractionPanel({
                         shipping: { ...p.shipping, city: e.target.value },
                       }))
                     }
-                    placeholder="예: Sydney"
+                    placeholder="예: Schaumburg"
+                    className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-400 mb-1">
+                    상세 주소 (Address Line)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.shipping?.addressLine1 ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        shipping: { ...p.shipping, addressLine1: e.target.value },
+                      }))
+                    }
+                    placeholder="예: 233 Desmond Dr"
+                    className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-400 mb-1">
+                    우편번호 (Postal Code)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.shipping?.postalCode ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        shipping: { ...p.shipping, postalCode: e.target.value },
+                      }))
+                    }
+                    placeholder="예: 60193"
                     className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
                   />
                 </div>

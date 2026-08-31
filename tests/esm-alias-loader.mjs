@@ -46,5 +46,22 @@ export async function load(url, context, nextLoad) {
   if (url === SERVER_ONLY_STUB) {
     return { format: "module", source: "export {};", shortCircuit: true };
   }
+  // Node 26의 strip-only TypeScript는 parameter property를 처리하지 못한다.
+  // Firestore Emulator 환경에서 Admin SDK transaction을 실행할 때만
+  // TypeScript의 변환기를 쓴다; 일반 단위 테스트의 런타임은 바꾸지 않는다.
+  if (process.env.FIRESTORE_EMULATOR_HOST && url.startsWith("file:") && url.endsWith(".ts")) {
+    const [{ readFile }, ts] = await Promise.all([
+      import("node:fs/promises"),
+      import("typescript"),
+    ]);
+    const source = await readFile(new URL(url), "utf8");
+    return {
+      format: "module",
+      source: ts.transpileModule(source, {
+        compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+      }).outputText,
+      shortCircuit: true,
+    };
+  }
   return nextLoad(url, context);
 }

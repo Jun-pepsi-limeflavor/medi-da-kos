@@ -12,12 +12,14 @@ export const sideSourceSchema = z.enum(["account_rule", "address_match", "manual
 export const directionSchema = z.enum(["in", "out"]);
 export const parseStatusSchema = z.enum(["pending", "processing", "completed", "failed", "skipped"]);
 
-const attachmentSchema = z.object({
+export const attachmentSchema = z.object({
   filename: z.string(),
   mimeType: z.string(),
   size: z.number(),
   attachmentId: z.string(),
 });
+
+export type Attachment = z.infer<typeof attachmentSchema>;
 
 export const messageSchema = z.object({
   channel: channelSchema,

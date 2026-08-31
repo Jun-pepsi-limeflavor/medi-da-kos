@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_GMAIL_MAILBOXES,
+  ingestChannelTalkAccount,
   ingestGmailAccount,
   initialEpochSeconds,
   parseMailboxList,
@@ -92,4 +93,45 @@ test("a failed mailbox records an error while the next mailbox still runs", asyn
   });
   assert.deepEqual(calls, ["thomas@medidakoslabs.com", "hally@medidakoslabs.com"]);
   assert.deepEqual(failures, [{ stateKey: "thomas@medidakoslabs.com", message: "delegation denied" }]);
+});
+
+test("Channel Talk ingestion keeps same-chatKey user chats in separate threads and caches profiles", async () => {
+  const saved = [];
+  const stateWrites = [];
+  const userFetches = [];
+  const chats = [
+    { id: "chat-1", userId: "visitor-1" },
+    { id: "chat-2", userId: "visitor-1" },
+  ];
+  const deps = {
+    listAllUserChats: async () => ({ userChats: chats }),
+    getChannelTalkUser: async (userId) => {
+      userFetches.push(userId);
+      return { id: userId, name: "Buyer", profile: { email: "buyer@example.test" } };
+    },
+    listAllChatMessages: async (chatId) => ({ messages: [
+      { id: `message-${chatId}`, chatKey: "main", personType: "user", personId: "visitor-1", createdAt: 1656032152433, plainText: `hello ${chatId}` },
+      { id: `empty-${chatId}`, chatKey: "main", personType: "user", personId: "visitor-1", createdAt: 1656032152433, plainText: "" },
+      { id: `bot-${chatId}`, chatKey: "main", personType: "bot", personId: "bot-1", createdAt: 1656032152433, plainText: "bot" },
+    ] }),
+    normalizeChannelTalkMessage: (raw, options) => {
+      if (raw.personType === "bot" || !raw.plainText) return null;
+      return { threadKey: `channeltalk:main:${options.userChatId}`, channelTalkUserId: options.userId, docId: raw.id };
+    },
+    saveMessage: async (_db, message) => saved.push(message),
+    setIngestState: async (_db, key, value) => stateWrites.push({ key, value }),
+  };
+
+  const count = await ingestChannelTalkAccount({}, {
+    account: "main",
+    credentials: { accessKey: "key", accessSecret: "secret", channelVersion: "2024-01-01" },
+  }, { deps, now: Date.parse("2026-08-31T00:00:00.000Z") });
+
+  assert.equal(count, 2);
+  assert.deepEqual(saved.map((message) => message.threadKey), [
+    "channeltalk:main:chat-1",
+    "channeltalk:main:chat-2",
+  ]);
+  assert.deepEqual(userFetches, ["visitor-1"]);
+  assert.equal(stateWrites[0].value.filteredCount, 4);
 });

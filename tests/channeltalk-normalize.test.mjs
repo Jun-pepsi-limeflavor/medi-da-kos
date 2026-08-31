@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   blocksToText,
   messageDirection,
+  messageDisposition,
   normalizeMessage,
 } from "../functions-ingest/channeltalk.js";
 
@@ -25,13 +26,15 @@ const raw = {
   files: [{ id: "file-1", name: "brief.pdf", type: "application/pdf", size: 12 }],
 };
 
-test("Channel Talk inbound message uses user identity and deterministic conversation ID", () => {
-  const message = normalizeMessage(raw, { account: "desk-main", user });
+test("Channel Talk inbound message uses user identity and UserChat ID for its thread", () => {
+  const message = normalizeMessage(raw, { account: "desk-main", user, userChatId: "user-chat-1" });
   assert.equal(message.docId, "channeltalk:desk-main:ct-message-1");
-  assert.equal(message.threadKey, "channeltalk:desk-main:chat-key-1");
+  assert.equal(message.threadKey, "channeltalk:desk-main:user-chat-1");
+  assert.equal(message.providerThreadId, "user-chat-1");
   assert.equal(message.direction, "in");
   assert.equal(message.from, "buyer@example.test");
   assert.equal(message.fromName, "Buyer");
+  assert.equal(message.channelTalkUserId, "visitor-1");
   assert.deepEqual(message.to, ["desk-main"]);
   assert.equal(message.side, "unknown");
   assert.equal(message.bodyText, "안녕하세요");
@@ -45,6 +48,7 @@ test("Channel Talk manager message is outbound and does not assume visitor email
   const message = normalizeMessage({ ...raw, id: "ct-message-2", personType: "manager", personId: "manager-1" }, {
     account: "desk-main",
     user: { id: "visitor-1", name: "Buyer" },
+    userChatId: "user-chat-1",
   });
   assert.equal(message.direction, "out");
   assert.equal(message.from, "desk-main");
@@ -52,9 +56,17 @@ test("Channel Talk manager message is outbound and does not assume visitor email
 });
 
 test("visitor ID remains namespaced when the optional user enrichment is absent", () => {
-  const message = normalizeMessage(raw, { account: "desk-main" });
+  const message = normalizeMessage(raw, { account: "desk-main", userChatId: "user-chat-1" });
   assert.equal(message.from, "channel:user:visitor-1");
   assert.deepEqual(message.to, ["desk-main"]);
+});
+
+test("empty and bot/system messages are filtered without aborting the poll", () => {
+  assert.equal(messageDisposition({ ...raw, plainText: "", files: [] }), "skip_empty");
+  assert.equal(normalizeMessage({ ...raw, plainText: "", files: [] }, { account: "desk-main", userChatId: "user-chat-1" }), null);
+  assert.equal(messageDisposition({ ...raw, personType: "bot" }), "skip_bot");
+  assert.equal(normalizeMessage({ ...raw, personType: "bot" }, { account: "desk-main", userChatId: "user-chat-1" }), null);
+  assert.ok(normalizeMessage({ ...raw, plainText: "", files: [{ id: "file-only" }] }, { account: "desk-main", userChatId: "user-chat-1" }));
 });
 
 test("unknown person types fail closed and nested blocks have a text fallback", () => {
@@ -73,7 +85,7 @@ test("Channel Talk credentials are required and are only used as request headers
       return { ok: true, status: 200, json: async () => ({ userChats: [], next: null }) };
     },
   });
-  assert.doesNotMatch(seen.url, /state=/);
+  assert.match(seen.url, /state=opened/);
   assert.equal(seen.options.headers["x-access-key"], "access-key");
   assert.equal(seen.options.headers["x-access-secret"], "access-secret");
   assert.equal(seen.options.headers["Channel-Version"], "2024-01-01");

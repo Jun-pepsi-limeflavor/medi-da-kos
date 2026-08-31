@@ -76,11 +76,15 @@ function attachmentSize(size: number): string {
 
 export default async function ThreadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ threadKey: string }>;
+  searchParams: Promise<{ returnUrl?: string }>;
 }) {
   const { threadKey } = await params;
+  const { returnUrl } = await searchParams;
   const decodedKey = decodeURIComponent(threadKey);
+  const backHref = returnUrl ? decodeURIComponent(returnUrl) : "/admin/inbox";
 
   const actor = await requireAdminPage();
 
@@ -88,7 +92,7 @@ export default async function ThreadDetailPage({
   if (!rawThread) {
     return (
       <div className="space-y-6">
-        <Link href="/admin/inbox" className="text-xs text-neutral-400 hover:text-neutral-200">
+        <Link href={backHref} className="text-xs text-neutral-400 hover:text-neutral-200">
           ← 돌아가기
         </Link>
         <p className="text-sm text-neutral-500">스레드를 찾을 수 없습니다.</p>
@@ -157,7 +161,7 @@ export default async function ThreadDetailPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
         <Link
-          href="/admin/inbox"
+          href={backHref}
           className="inline-flex items-center gap-1.5 text-xs text-neutral-400 transition-colors hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> 받은편지함
@@ -261,34 +265,13 @@ export default async function ThreadDetailPage({
                       </div>
                       <div className={`rounded-2xl border px-3.5 py-3 text-sm leading-6 text-neutral-200 ${isInbound ? "rounded-tl-sm border-neutral-800 bg-neutral-900" : "rounded-tr-sm border-indigo-900/70 bg-indigo-950/35"}`}>
                         {msg.subject && <p className="mb-2 text-xs font-semibold text-neutral-400">{msg.subject}</p>}
-                        <MessageBody text={msg.bodyText} />
+                        <MessageBody
+                          text={msg.bodyText}
+                          attachments={msg.attachments}
+                          messageId={msg.id}
+                          isGmail={thread.channel.startsWith("gmail_")}
+                        />
                       </div>
-                      {msg.attachments.length > 0 && (
-                        <div className={`mt-2 grid gap-1.5 ${isInbound ? "" : "justify-items-end"}`}>
-                          {msg.attachments.map((att) => {
-                            const attachmentLabel = <>
-                              <Paperclip className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
-                              <span className="truncate">{att.filename}</span>
-                              <span className="shrink-0 text-[10px] text-neutral-600">{attachmentSize(att.size)}</span>
-                            </>;
-                            const attachmentClass = "inline-flex max-w-full items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 text-xs text-neutral-300";
-                            return thread.channel.startsWith("gmail_") ? (
-                              <a
-                                key={att.attachmentId}
-                                href={`/api/admin/messages/${encodeURIComponent(msg.id)}/attachments/${encodeURIComponent(att.attachmentId)}`}
-                                download={att.filename}
-                                className={`${attachmentClass} transition-colors hover:border-indigo-700 hover:bg-neutral-800 hover:text-white`}
-                              >
-                                {attachmentLabel}<Download className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
-                              </a>
-                            ) : (
-                              <span key={att.attachmentId} className={`${attachmentClass} text-neutral-500`} title="이 제공자의 첨부 다운로드는 아직 지원하지 않습니다.">
-                                {attachmentLabel}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   </article>
                 );

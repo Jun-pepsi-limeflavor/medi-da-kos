@@ -16,15 +16,9 @@ flowchart TB
     SubmitBrief[Step 6 Submit]
   end
 
-  subgraph sampleFlow [샘플 요청]
-    Top10[Top 10 Products]
-    SampleModal[SampleRequestModal]
-  end
-
   subgraph firestore [Firestore]
     Users["users/{uid}"]
     CmBriefs["cmBriefs/{uid}"]
-    SampleReq["sampleRequests/{autoId}"]
     Orders["orders/{autoId}"]
     Mail["mail/{deterministicId}"]
   end
@@ -46,15 +40,12 @@ flowchart TB
   SubmitBrief --> Orders
   SubmitBrief -->|브리프 초기화| CmBriefs
 
-  Top10 --> SampleModal --> SampleReq
-  SampleModal --> Orders
-
   Orders -->|document.created| OnOrder --> Mail
   Mail --> SMTP
 ```
 
 **핵심:** 메일 트리거는 **`users` 생성**과 **`orders` 생성** 두 곳뿐입니다.  
-`cmBriefs`, `sampleRequests`는 직접 메일을 보내지 않습니다.
+`cmBriefs`는 직접 메일을 보내지 않습니다.
 
 ---
 
@@ -104,25 +95,10 @@ flowchart TB
 
 ---
 
-### `sampleRequests/{requestId}` — Top 10 샘플 요청 상세
+### `sampleRequests/{requestId}` — (레거시) Top 10 샘플 요청
 
-| 항목 | 내용 |
-|------|------|
-| **문서 ID** | Firestore auto ID |
-| **저장 시점** | Top 10 제품에서 "Submit sample request" 클릭 |
-| **호출 코드** | `src/components/dashboard/SampleRequestModal.tsx` → `saveSampleRequest()` |
-| **메일 트리거** | **직접 없음** (이후 `orders` 생성 시 간접 트리거) |
-
-**저장 순서** (`src/lib/firestore-service.ts`):
-
-1. `sampleRequests`에 `addDoc` (배송지·수량 등 상세)
-2. 바로 이어서 `orders`에 `type: "sample"` 주문 생성 → **여기서 메일**
-
-**주요 필드:**
-
-- `uid`, `sampleProductId`, `sampleProductName`, `sampleQuantity`
-- `shippingAddress` (recipientName, addressLine1, city, ...)
-- `status`: `"submitted"`, `createdAt`
+대시보드 Top 10 샘플 오더 UI는 제거되었습니다. 앱은 더 이상 이 컬렉션에 쓰지 않습니다.  
+기존 문서는 어드민 인입 목록·라이프사이클 스캔에서 읽기만 합니다.
 
 ---
 
@@ -131,25 +107,10 @@ flowchart TB
 | 항목 | 내용 |
 |------|------|
 | **문서 ID** | Firestore auto ID |
-| **저장 시점** | (A) 샘플 요청 제출, (B) CM Wizard Step 6 제출 |
+| **저장 시점** | CM Wizard Step 6 제출 |
 | **메일 트리거** | **`onOrderCreated`** → `mail` 2종 (관리자 + 고객) |
 
-#### (A) 샘플 주문 — `saveSampleRequest()`
-
-```
-sampleRequests 추가 → orders 추가
-```
-
-| 필드 | 값 예시 |
-|------|---------|
-| `type` | `"sample"` |
-| `title` | `sampleProductName` (예: 제품 영문명) |
-| `summary` | `"Sample qty: 3"` |
-| `referenceId` | `sampleRequests` 문서 ID |
-| `status` | `"submitted"` |
-| `uid` | 주문자 uid |
-
-#### (B) 커스텀 ODM 주문 — `submitCustomBrief()` (`CMWizard.tsx`)
+#### 커스텀 ODM 주문 — `submitCustomBrief()` (`CMWizard.tsx`)
 
 ```
 orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
@@ -164,10 +125,7 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 | `briefSnapshot` | 제출 시점 브리프 전체 (step3 logo binary 제외) |
 | `status` | `"submitted"` |
 
-**메일에서의 구분** (`functions/index.js`):
-
-- `type === "sample"` → 제목 `[샘플 주문]`
-- `type === "custom"` → 제목 `[일반 주문]`
+**메일에서의 구분** (`functions/index.js`): 기존 `type === "sample"` 주문은 제목 `[샘플 주문]`, 신규 커스텀 주문은 `[일반 주문]`.
 
 ---
 
@@ -191,15 +149,13 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 
 ---
 
-## 2. cmBrief vs sampleRequests vs orders — 언제 무엇을 쓰는가
+## 2. cmBrief vs orders — 언제 무엇을 쓰는가
 
 | 컬렉션 | 목적 | 생성 시점 | 메일 |
 |--------|------|-----------|------|
 | **cmBriefs** | 6단계 ODM 위저드 **작업 중 초안** | 스텝마다 자동 저장 | X |
-| **sampleRequests** | Top 10 **샘플 배송 상세** (주소·수량) | 샘플 모달 제출 | X (간접) |
-| **orders** | 대시보드 **주문 목록** + **메일 트리거** | 샘플/커스텀 **최종 제출** | O |
+| **orders** | 대시보드 **주문 목록** + **메일 트리거** | 커스텀 브리프 **최종 제출** | O |
 
-**샘플 요청 1건 = `sampleRequests` 1건 + `orders` 1건** (orders가 메일을 트리거)  
 **커스텀 브리프 1건 = `orders` 1건만** (브리프 내용은 `orders.briefSnapshot`에 보관, `cmBriefs`는 리셋)
 
 ---
@@ -320,7 +276,6 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 | Functions IAM | 로그: `PERMISSION_DENIED` on `mail` write |
 | `mail` 문서 없음 | Firestore `mail` 컬렉션 확인 |
 | 확장 실패 | `mail.delivery.state !== SUCCESS` |
-| `sampleRequests`만 있고 `orders` 없음 | `createOrder` 실패 시 메일 없음 |
 
 **Functions 로그 확인:**
 
@@ -347,7 +302,6 @@ gcloud projects add-iam-policy-binding medidakos \
 | `orders` created | `order_admin_{orderId}` | 관리자 2명 | KO |
 | `orders` created | `order_customer_{orderId}` | 고객 | KO |
 | `cmBriefs` 저장/제출 | — | — | — |
-| `sampleRequests` 생성 | — | — | — (orders 경유) |
 
 ---
 
@@ -355,7 +309,7 @@ gcloud projects add-iam-policy-binding medidakos \
 
 | 파일 | 역할 |
 |------|------|
-| `src/lib/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders, sampleRequests) |
+| `src/lib/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders) |
 | `src/lib/auth-context.tsx` | 회원가입/로그인 → `users` 저장 |
 | `functions/index.js` | `onUserSignup`, `onOrderCreated` → `mail` 큐잉 |
 | `functions/.env` | `ADMIN_EMAILS` |

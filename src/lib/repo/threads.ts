@@ -15,6 +15,7 @@ import {
 } from "@/lib/schemas/thread";
 import { findBuyerByEmail } from "@/lib/repo/buyers";
 import { findSupplierByEmail } from "@/lib/repo/suppliers";
+import { ConversationNotFoundError } from "@/lib/repo/conversations";
 import type { Buyer } from "@/lib/schemas/buyer";
 import type { Supplier } from "@/lib/schemas/supplier";
 
@@ -35,6 +36,13 @@ const DEFAULT_LIMIT = 300;
 export class ThreadNotFoundError extends Error {
   constructor(threadKey: string) {
     super(`thread not found: ${threadKey}`);
+  }
+}
+
+export class ThreadNotConnectedError extends Error {
+  constructor() {
+    super("thread is not connected to a conversation");
+    this.name = "ThreadNotConnectedError";
   }
 }
 
@@ -69,6 +77,40 @@ export async function listThreads(filters: ThreadFilters = {}, limit = DEFAULT_L
 export async function getThread(threadKey: string): Promise<Thread | null> {
   const doc = await getAdminDb().collection(COLLECTION).doc(threadKey).get();
   return doc.exists ? toThread(doc.id, doc.data()!) : null;
+}
+
+export async function listThreadsByConversation(conversationId: string): Promise<Thread[]> {
+  const snap = await getAdminDb()
+    .collection(COLLECTION)
+    .where("conversationId", "==", conversationId)
+    .get();
+  return snap.docs.map((d) => toThread(d.id, d.data()));
+}
+
+/** Marks the observed inbound work complete without changing provider records. */
+export async function markThreadHandled(threadKey: string, actor: AdminIdentity): Promise<void> {
+  const db = getAdminDb();
+  const threadRef = db.collection(COLLECTION).doc(threadKey);
+  const now = new Date().toISOString();
+
+  await db.runTransaction(async (tx) => {
+    const threadDoc = await tx.get(threadRef);
+    if (!threadDoc.exists) throw new ThreadNotFoundError(threadKey);
+    const thread = toThread(threadDoc.id, threadDoc.data()!);
+    if (!thread.conversationId) throw new ThreadNotConnectedError();
+    const conversationRef = db.collection("conversations").doc(thread.conversationId);
+    const conversation = await tx.get(conversationRef);
+    if (!conversation.exists) throw new ConversationNotFoundError();
+
+    tx.update(threadRef, { handledThroughAt: now });
+    tx.set(conversationRef.collection("events").doc(), {
+      action: "thread_handled",
+      actorEmail: actor.email,
+      at: now,
+      threadKey,
+      handledThroughAt: now,
+    });
+  });
 }
 
 export async function setThreadState(
@@ -130,11 +172,41 @@ export async function linkThread(
 }
 
 export async function getThreadsByDealId(dealId: string): Promise<Thread[]> {
-  const snap = await getAdminDb()
+  const db = getAdminDb();
+  const snap = await db
     .collection(COLLECTION)
     .where("dealId", "==", dealId)
     .get();
-  return snap.docs.map((d) => toThread(d.id, d.data()));
+  const directThreads = snap.docs.map((d) => toThread(d.id, d.data()));
+
+  // 딜에 직접 연결된 스레드들이 속한 conversationId들 조회
+  const conversationIds = Array.from(
+    new Set(directThreads.map((t) => t.conversationId).filter((c): c is string => Boolean(c))),
+  );
+
+  if (conversationIds.length === 0) {
+    return directThreads;
+  }
+
+  // 동일한 고객 대화(Conversation)에 속한 모든 형제 스레드들도 함께 조회하여 취합
+  const threadMap = new Map<string, Thread>();
+  for (const t of directThreads) {
+    threadMap.set(t.threadKey, t);
+  }
+
+  for (const convId of conversationIds) {
+    const convThreadsSnap = await db
+      .collection(COLLECTION)
+      .where("conversationId", "==", convId)
+      .get();
+    for (const d of convThreadsSnap.docs) {
+      if (!threadMap.has(d.id)) {
+        threadMap.set(d.id, toThread(d.id, d.data()));
+      }
+    }
+  }
+
+  return Array.from(threadMap.values());
 }
 
 export type AddressMatchResult = {

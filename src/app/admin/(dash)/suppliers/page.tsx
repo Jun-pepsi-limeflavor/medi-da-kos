@@ -73,14 +73,23 @@ export default async function SuppliersPage({
                                 확정 {fixedDeals.length}
                               </span>
                               {fixedDeals.map((x) => (
-                                <Link
-                                  key={x.deal.id}
-                                  href={`/admin/deals/${x.deal.id}`}
-                                  className="text-neutral-200 hover:text-white underline text-[11px] truncate max-w-[130px]"
-                                  title={x.deal.reference}
-                                >
-                                  {x.deal.reference}
-                                </Link>
+                                <span key={x.deal.id} className="inline-flex items-center gap-0.5">
+                                  <Link
+                                    href={`/admin/deals/${x.deal.id}`}
+                                    className="text-neutral-200 hover:text-white underline text-[11px] truncate max-w-[130px]"
+                                    title={`${x.deal.reference}${x.engagement.notes ? `\n[메모] ${x.engagement.notes}` : ""}`}
+                                  >
+                                    {x.deal.reference}
+                                  </Link>
+                                  {x.engagement.notes && (
+                                    <span
+                                      className="text-[9px] px-1 py-0.2 rounded bg-neutral-800 text-indigo-300 border border-neutral-700 cursor-help"
+                                      title={`[메모] ${x.engagement.notes}`}
+                                    >
+                                      메모
+                                    </span>
+                                  )}
+                                </span>
                               ))}
                             </div>
                           )}
@@ -91,14 +100,23 @@ export default async function SuppliersPage({
                                 진행중 {activeDeals.length}
                               </span>
                               {activeDeals.map((x) => (
-                                <Link
-                                  key={x.deal.id}
-                                  href={`/admin/deals/${x.deal.id}`}
-                                  className="text-neutral-300 hover:text-white underline text-[11px] truncate max-w-[130px]"
-                                  title={x.deal.reference}
-                                >
-                                  {x.deal.reference}
-                                </Link>
+                                <span key={x.deal.id} className="inline-flex items-center gap-0.5">
+                                  <Link
+                                    href={`/admin/deals/${x.deal.id}`}
+                                    className="text-neutral-300 hover:text-white underline text-[11px] truncate max-w-[130px]"
+                                    title={`${x.deal.reference}${x.engagement.notes ? `\n[메모] ${x.engagement.notes}` : ""}`}
+                                  >
+                                    {x.deal.reference}
+                                  </Link>
+                                  {x.engagement.notes && (
+                                    <span
+                                      className="text-[9px] px-1 py-0.2 rounded bg-neutral-800 text-indigo-300 border border-neutral-700 cursor-help"
+                                      title={`[메모] ${x.engagement.notes}`}
+                                    >
+                                      메모
+                                    </span>
+                                  )}
+                                </span>
                               ))}
                             </div>
                           )}
@@ -109,14 +127,23 @@ export default async function SuppliersPage({
                                 기각 {droppedDeals.length}
                               </span>
                               {droppedDeals.map((x) => (
-                                <Link
-                                  key={x.deal.id}
-                                  href={`/admin/deals/${x.deal.id}`}
-                                  className="text-neutral-500 hover:text-neutral-300 underline text-[11px] truncate max-w-[130px]"
-                                  title={x.deal.reference}
-                                >
-                                  {x.deal.reference}
-                                </Link>
+                                <span key={x.deal.id} className="inline-flex items-center gap-0.5">
+                                  <Link
+                                    href={`/admin/deals/${x.deal.id}`}
+                                    className="text-neutral-500 hover:text-neutral-300 underline text-[11px] truncate max-w-[130px]"
+                                    title={`${x.deal.reference}${x.engagement.notes ? `\n[메모] ${x.engagement.notes}` : ""}`}
+                                  >
+                                    {x.deal.reference}
+                                  </Link>
+                                  {x.engagement.notes && (
+                                    <span
+                                      className="text-[9px] px-1 py-0.2 rounded bg-neutral-800 text-indigo-300 border border-neutral-700 cursor-help"
+                                      title={`[메모] ${x.engagement.notes}`}
+                                    >
+                                      메모
+                                    </span>
+                                  )}
+                                </span>
                               ))}
                             </div>
                           )}

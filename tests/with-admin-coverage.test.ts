@@ -49,7 +49,8 @@ function localNamesExportedAs(src: string, method: string): string[] {
 // 여부"를 따로 판정해야 `const GET = withAdmin(...); export { GET };` 같은
 // 유효한 간접 패턴을 오탐하지 않는다.)
 function isGuarded(src: string, localName: string): boolean {
-  return new RegExp(`\\bconst\\s+${localName}\\s*=\\s*withAdmin\\s*\\(`).test(src);
+  return new RegExp(`\\bconst\\s+${localName}\\s*=\\s*withAdmin\\s*\\(`).test(src)
+    || new RegExp(`export\\s+async\\s+function\\s+${localName}\\b[\\s\\S]*?return\\s+withAdmin\\s*\\(`).test(src);
 }
 
 // 이 검사가 보는 것: 같은 파일 안에서 텍스트로 드러나는 export/재-export와

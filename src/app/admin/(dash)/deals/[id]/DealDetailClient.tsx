@@ -35,6 +35,8 @@ import {
   Check,
   Building2,
   Send,
+  FileText,
+  Pencil,
 } from "lucide-react";
 
 interface Props {
@@ -607,80 +609,14 @@ export default function DealDetailClient({ initialDeal, allSuppliers, conversati
                 {dealData.supplierEngagements.map((eng: SupplierEngagement) => {
                   const supp = allSuppliers.find((s) => s.id === eng.supplierId);
                   return (
-                    <div
+                    <SupplierEngagementCard
                       key={eng.id}
-                      className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl space-y-3"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-800 pb-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <span className="font-bold text-sm text-neutral-100">
-                            {supp?.companyName || eng.supplierId}
-                          </span>
-                          <span className="text-[11px] font-mono text-neutral-400">
-                            (ID: {eng.supplierId})
-                          </span>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded font-medium border ${
-                              eng.contactStatus === "fix"
-                                ? "bg-emerald-950 text-emerald-400 border-emerald-800"
-                                : eng.contactStatus === "drop"
-                                ? "bg-neutral-800 text-neutral-400 border-neutral-700"
-                                : "bg-blue-950 text-blue-400 border-blue-800"
-                            }`}
-                          >
-                            상태: {eng.contactStatus}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {eng.contactStatus !== "drop" && (
-                            <button
-                              onClick={() => setReplacementEngagement(eng)}
-                              className="rounded border border-amber-800/70 bg-amber-950/30 px-2 py-1 text-[10px] text-amber-300 transition hover:bg-amber-950/60"
-                            >
-                              제조사 교체
-                            </button>
-                          )}
-                          <span className="text-xs text-neutral-400">
-                            공장 단계:{" "}
-                            <strong className="text-neutral-200">
-                              {eng.stageFactory}단계 (
-                              {FACTORY_STAGES.find((s) => s.id === eng.stageFactory)?.label})
-                            </strong>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                        <div>
-                          <span className="text-neutral-500 text-[11px] block">역할 (Roles)</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {eng.roles.map((r: string) => (
-                              <span
-                                key={r}
-                                className="bg-neutral-800 text-neutral-300 px-1.5 py-0.5 rounded text-[10px]"
-                              >
-                                {r}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <span className="text-neutral-500 text-[11px] block">공급 방식</span>
-                          <span className="text-neutral-300 font-mono mt-1 block">
-                            {eng.supplyMode}
-                          </span>
-                        </div>
-
-                        <div>
-                          <span className="text-neutral-500 text-[11px] block">담당자 정보</span>
-                          <span className="text-neutral-300 block mt-1">
-                            {eng.contactPersonSnapshot.name} ({eng.contactPersonSnapshot.email})
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      dealId={dealId}
+                      eng={eng}
+                      supp={supp}
+                      onReplace={(targetEng) => setReplacementEngagement(targetEng)}
+                      onReload={reloadDeal}
+                    />
                   );
                 })}
               </div>
@@ -1267,6 +1203,196 @@ function AddItemModal({
   );
 }
 
+function SupplierEngagementCard({
+  dealId,
+  eng,
+  supp,
+  onReplace,
+  onReload,
+}: {
+  dealId: string;
+  eng: SupplierEngagement;
+  supp?: Supplier;
+  onReplace: (eng: SupplierEngagement) => void;
+  onReload: () => Promise<void>;
+}) {
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteText, setNoteText] = useState(eng.notes || "");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+
+  const handleSaveNote = async () => {
+    setSavingNote(true);
+    setNoteError(null);
+    try {
+      const res = await fetch(`/api/admin/deals/${dealId}/engagements`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          engagementId: eng.id,
+          notes: noteText.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "메모 저장에 실패했습니다.");
+      }
+      setIsEditingNote(false);
+      await onReload();
+    } catch (err: unknown) {
+      setNoteError(err instanceof Error ? err.message : "메모 저장 중 오류가 발생했습니다.");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-800 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="font-bold text-sm text-neutral-100">
+            {supp?.companyName || eng.supplierId}
+          </span>
+          <span className="text-[11px] font-mono text-neutral-400">
+            (ID: {eng.supplierId})
+          </span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded font-medium border ${
+              eng.contactStatus === "fix"
+                ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                : eng.contactStatus === "drop"
+                ? "bg-neutral-800 text-neutral-400 border-neutral-700"
+                : "bg-blue-950 text-blue-400 border-blue-800"
+            }`}
+          >
+            상태: {eng.contactStatus}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {eng.contactStatus !== "drop" && (
+            <button
+              onClick={() => onReplace(eng)}
+              className="rounded border border-amber-800/70 bg-amber-950/30 px-2 py-1 text-[10px] text-amber-300 transition hover:bg-amber-950/60"
+            >
+              제조사 교체
+            </button>
+          )}
+          <span className="text-xs text-neutral-400">
+            공장 단계:{" "}
+            <strong className="text-neutral-200">
+              {eng.stageFactory}단계 (
+              {FACTORY_STAGES.find((s) => s.id === eng.stageFactory)?.label})
+            </strong>
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div>
+          <span className="text-neutral-500 text-[11px] block">역할 (Roles)</span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {eng.roles.map((r: string) => (
+              <span
+                key={r}
+                className="bg-neutral-800 text-neutral-300 px-1.5 py-0.5 rounded text-[10px]"
+              >
+                {r}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <span className="text-neutral-500 text-[11px] block">담당자 정보</span>
+          <span className="text-neutral-300 block mt-1">
+            {eng.contactPersonSnapshot.name}
+            {eng.contactPersonSnapshot.title ? ` (${eng.contactPersonSnapshot.title})` : ""} —{" "}
+            <span className="font-mono text-neutral-400">{eng.contactPersonSnapshot.email}</span>
+            {eng.contactPersonSnapshot.phone ? ` (${eng.contactPersonSnapshot.phone})` : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* 제조사별 딜 진행 메모 영역 */}
+      <div className="pt-2.5 border-t border-neutral-800/80">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium text-neutral-400 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-neutral-400" />
+            제조사 딜 진행 메모
+          </span>
+          {!isEditingNote && (
+            <button
+              type="button"
+              onClick={() => {
+                setNoteText(eng.notes || "");
+                setIsEditingNote(true);
+              }}
+              className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
+            >
+              <Pencil className="w-3 h-3" />
+              {eng.notes ? "메모 수정" : "메모 추가"}
+            </button>
+          )}
+        </div>
+
+        {!isEditingNote ? (
+          eng.notes ? (
+            <div className="mt-2 p-2.5 rounded-lg bg-neutral-950/70 border border-neutral-800 text-neutral-200 text-xs whitespace-pre-wrap leading-relaxed">
+              {eng.notes}
+            </div>
+          ) : (
+            <div
+              onClick={() => {
+                setNoteText("");
+                setIsEditingNote(true);
+              }}
+              className="mt-1.5 p-2.5 rounded-lg bg-neutral-950/40 border border-dashed border-neutral-800 text-neutral-500 text-xs cursor-pointer hover:border-neutral-700 hover:text-neutral-400 transition"
+            >
+              작성된 딜 진행 메모가 없습니다. 클릭하여 메모를 작성하세요.
+            </div>
+          )
+        ) : (
+          <div className="mt-2 space-y-2">
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="해당 제조사와 이 딜에 대해 논의된 내용, 견적/샘플 관련 주의사항, 특이사항을 기록하세요..."
+              rows={3}
+              className="w-full rounded-lg bg-neutral-950 border border-neutral-700 p-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 leading-relaxed"
+            />
+            {noteError && (
+              <p className="text-[11px] text-rose-400">{noteError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingNote(false);
+                  setNoteText(eng.notes || "");
+                  setNoteError(null);
+                }}
+                disabled={savingNote}
+                className="px-2.5 py-1 text-xs text-neutral-400 hover:text-neutral-200 rounded transition"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNote}
+                disabled={savingNote}
+                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition disabled:opacity-50"
+              >
+                {savingNote ? "저장 중…" : "메모 저장"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AddEngagementModal({
   dealId,
   allSuppliers,
@@ -1281,15 +1407,54 @@ function AddEngagementModal({
   onSuccess: () => void;
 }) {
   const availableSuppliers = allSuppliers.filter((supplier) => supplier.id !== replacementEngagement?.supplierId);
-  const [supplierId, setSupplierId] = useState(availableSuppliers[0]?.id || "");
-  const [supplyMode, setSupplyMode] = useState<"turnkey" | "buyer_supplied" | "kta_supplied">("turnkey");
+  const initialSupplier = availableSuppliers[0];
+  const initialContact = initialSupplier?.contacts?.[0];
+
+  const [supplierId, setSupplierId] = useState(initialSupplier?.id || "");
   const [roles, setRoles] = useState<string[]>(["formulation"]);
-  const [contactName, setContactName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
+  const [contactIndex, setContactIndex] = useState<string>(initialContact ? "0" : "custom");
+  const [contactName, setContactName] = useState(initialContact?.name || "");
+  const [contactEmail, setContactEmail] = useState(initialContact?.email || "");
+  const [contactTitle, setContactTitle] = useState(initialContact?.title || "");
+  const [contactPhone, setContactPhone] = useState(initialContact?.phone || "");
   const [replacementReason, setReplacementReason] = useState("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
   const selectedSupplier = allSuppliers.find((s) => s.id === supplierId);
+  const supplierContacts = selectedSupplier?.contacts || [];
+
+  const handleSupplierChange = (newSupplierId: string) => {
+    setSupplierId(newSupplierId);
+    const found = allSuppliers.find((s) => s.id === newSupplierId);
+    const first = found?.contacts?.[0];
+    if (first) {
+      setContactIndex("0");
+      setContactName(first.name);
+      setContactEmail(first.email);
+      setContactTitle(first.title || "");
+      setContactPhone(first.phone || "");
+    } else {
+      setContactIndex("custom");
+      setContactName("");
+      setContactEmail("");
+      setContactTitle("");
+      setContactPhone("");
+    }
+  };
+
+  const handleContactSelect = (val: string) => {
+    setContactIndex(val);
+    if (val === "custom") return;
+    const idx = parseInt(val, 10);
+    const c = supplierContacts[idx];
+    if (c) {
+      setContactName(c.name);
+      setContactEmail(c.email);
+      setContactTitle(c.title || "");
+      setContactPhone(c.phone || "");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1298,13 +1463,15 @@ function AddEngagementModal({
       const replacement = {
         supplierId,
         roles,
-        supplyMode,
-        contactStatus: "ing",
+        contactStatus: "ing" as const,
         stageFactory: 1,
         contactPersonSnapshot: {
-          name: contactName || selectedSupplier?.contacts[0]?.name || "담당자",
-          email: contactEmail || selectedSupplier?.contacts[0]?.email || "supplier@example.com",
+          name: contactName || "담당자",
+          title: contactTitle || undefined,
+          email: contactEmail || "supplier@example.com",
+          phone: contactPhone || undefined,
         },
+        notes: notes.trim() || undefined,
       };
       const res = await fetch(
         replacementEngagement
@@ -1334,7 +1501,7 @@ function AddEngagementModal({
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
-        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-xl text-xs"
+        className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-xl text-xs"
       >
         <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
           <h3 className="font-bold text-sm text-neutral-100">{replacementEngagement ? "제조사 교체" : "제조사 배정 (Engagement)"}</h3>
@@ -1344,14 +1511,7 @@ function AddEngagementModal({
           <label className="block text-neutral-400 mb-1">제조사 선택 *</label>
           <select
             value={supplierId}
-            onChange={(e) => {
-              setSupplierId(e.target.value);
-              const found = allSuppliers.find((s) => s.id === e.target.value);
-              if (found?.contacts[0]) {
-                setContactName(found.contacts[0].name);
-                setContactEmail(found.contacts[0].email);
-              }
-            }}
+            onChange={(e) => handleSupplierChange(e.target.value)}
             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
             required
           >
@@ -1374,22 +1534,10 @@ function AddEngagementModal({
           </div>
         )}
         <div>
-          <label className="block text-neutral-400 mb-1">공급 방식 (Supply Mode)</label>
-          <select
-            value={supplyMode}
-            onChange={(e) => setSupplyMode(e.target.value as "turnkey" | "buyer_supplied" | "kta_supplied")}
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
-          >
-            <option value="turnkey">turnkey (완제품 턴키)</option>
-            <option value="buyer_supplied">buyer_supplied (바이어 원부자재 사급)</option>
-            <option value="kta_supplied">kta_supplied (HQ 사급)</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-neutral-400 mb-1">역할 (Roles)</label>
+          <label className="block text-neutral-400 mb-1">역할 (Roles) *</label>
           <div className="flex flex-wrap gap-2 mt-1">
             {["formulation", "packaging", "filling", "testing", "logistics"].map((role) => (
-              <label key={role} className="flex items-center gap-1 text-neutral-300">
+              <label key={role} className="flex items-center gap-1 text-neutral-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={roles.includes(role)}
@@ -1403,25 +1551,100 @@ function AddEngagementModal({
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-neutral-400 mb-1">담당자 이름</label>
-            <input
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="예: 양우덕 PM"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
-            />
+
+        {/* 담당자 선택 및 자동입력 */}
+        <div className="p-3.5 bg-neutral-950/60 border border-neutral-800/80 rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-neutral-200">담당자 정보</span>
+            {supplierContacts.length > 0 && (
+              <span className="text-[11px] text-neutral-500">
+                등록된 담당자 {supplierContacts.length}명
+              </span>
+            )}
           </div>
-          <div>
-            <label className="block text-neutral-400 mb-1">담당자 이메일</label>
-            <input
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              placeholder="supplier@example.com"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200"
-            />
+
+          {supplierContacts.length > 0 && (
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">등록된 담당자 선택</label>
+              <select
+                value={contactIndex}
+                onChange={(e) => handleContactSelect(e.target.value)}
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-neutral-200"
+              >
+                {supplierContacts.map((c, idx) => (
+                  <option key={idx} value={String(idx)}>
+                    {c.name} {c.title ? `(${c.title})` : ""} — {c.email} {c.phone ? `/ ${c.phone}` : ""}
+                  </option>
+                ))}
+                <option value="custom">직접 입력 / 기타</option>
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">이름 *</label>
+              <input
+                value={contactName}
+                onChange={(e) => {
+                  setContactName(e.target.value);
+                  setContactIndex("custom");
+                }}
+                placeholder="예: 홍길동 팀장"
+                required
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-200"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">이메일 *</label>
+              <input
+                type="email"
+                value={contactEmail}
+                onChange={(e) => {
+                  setContactEmail(e.target.value);
+                  setContactIndex("custom");
+                }}
+                placeholder="supplier@example.com"
+                required
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-200 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">직책 / 부서</label>
+              <input
+                value={contactTitle}
+                onChange={(e) => {
+                  setContactTitle(e.target.value);
+                  setContactIndex("custom");
+                }}
+                placeholder="예: 해외영업팀"
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-200"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-neutral-400 mb-1">연락처</label>
+              <input
+                value={contactPhone}
+                onChange={(e) => {
+                  setContactPhone(e.target.value);
+                  setContactIndex("custom");
+                }}
+                placeholder="예: 010-0000-0000"
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-200"
+              />
+            </div>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-neutral-400 mb-1">제조사 딜 진행 메모 (선택사항)</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="해당 제조사와 이 딜에 대해 논의된 내용, 주의사항 등을 기록하세요..."
+            rows={2}
+            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg p-2 text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-indigo-500"
+          />
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-neutral-800">
           <button type="button" onClick={onClose} className="px-3 py-1.5 bg-neutral-800 rounded-lg text-neutral-300">취소</button>

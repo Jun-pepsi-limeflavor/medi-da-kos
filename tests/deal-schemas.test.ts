@@ -4,6 +4,7 @@ import {
   dealItemInputSchema,
   dealItemSchema,
   supplierEngagementInputSchema,
+  supplierEngagementPatchSchema,
   supplierEngagementSchema,
   sampleRoundInputSchema,
   sampleRoundPatchSchema,
@@ -102,7 +103,6 @@ test("supplierEngagementInputSchema: 정상적인 공급자 배정 입력을 검
   const input = {
     supplierId: "sup_greencos",
     roles: ["formulation", "filling"] as const,
-    supplyMode: "turnkey" as const,
     contactStatus: "ing" as const,
     stageFactory: 2,
     contactPersonSnapshot: {
@@ -135,7 +135,6 @@ test("supplierEngagementInputSchema: roles가 비어있으면 거부한다", () 
     supplierEngagementInputSchema.parse({
       supplierId: "sup_1",
       roles: [],
-      supplyMode: "turnkey",
       contactPersonSnapshot: { name: "홍길동", email: "h@a.com" },
     })
   );
@@ -145,7 +144,6 @@ test("supplierEngagementInputSchema: stageFactory는 1~9 사이 정수여야 한
   const base = {
     supplierId: "sup_1",
     roles: ["formulation"] as const,
-    supplyMode: "turnkey" as const,
     contactPersonSnapshot: { name: "홍길동", email: "h@a.com" },
   };
 
@@ -154,6 +152,28 @@ test("supplierEngagementInputSchema: stageFactory는 1~9 사이 정수여야 한
   assert.throws(() => supplierEngagementInputSchema.parse({ ...base, stageFactory: 0 }));
   assert.throws(() => supplierEngagementInputSchema.parse({ ...base, stageFactory: 10 }));
   assert.throws(() => supplierEngagementInputSchema.parse({ ...base, stageFactory: 2.5 }));
+});
+
+test("supplierEngagementPatchSchema: 메모(notes) 단독 수정을 정상 파싱한다", () => {
+  const patch = {
+    notes: "2026-08-28: 1차 샘플 제조 착수, 배송 예정일 9/5",
+  };
+
+  const parsed = supplierEngagementPatchSchema.parse(patch);
+  assert.equal(parsed.notes, "2026-08-28: 1차 샘플 제조 착수, 배송 예정일 9/5");
+});
+
+test("supplierEngagementPatchSchema: supplierId와 stageFactory는 패치에서 제외된다", () => {
+  const patch = {
+    supplierId: "sup_new",
+    stageFactory: 5,
+    notes: "메모 변경",
+  };
+
+  const parsed = supplierEngagementPatchSchema.parse(patch);
+  assert.equal(parsed.notes, "메모 변경");
+  assert.equal((parsed as Record<string, unknown>).supplierId, undefined);
+  assert.equal((parsed as Record<string, unknown>).stageFactory, undefined);
 });
 
 // ============================================================================
@@ -471,6 +491,98 @@ test("dealSchema: 서버 생성 필드를 포함한 딜 원장을 검증한다",
 
   const parsed = dealSchema.parse(deal);
   assert.equal(parsed.id, "deal_789");
+  assert.deepEqual(parsed.items, []);
+});
+
+test("dealInputSchema: items가 포함된 신규 딜 개설 입력을 정상 검증한다", () => {
+  const input = {
+    reference: "House of Seoul Hydrating Cream 50ml PO",
+    intakeReviewId: "review_intake_01",
+    buyerId: "deem@example.com",
+    stageBrand: 1,
+    buyerInfo: {
+      companyName: "House of Seoul",
+      contactName: "Deem Alsaif",
+      email: "deem@example.com",
+      country: "미국 (USA)",
+    },
+    shippingInfo: {
+      recipientName: "Deem Alsaif",
+      addressLine1: "123 Ocean Ave",
+      city: "San Francisco",
+      country: "미국 (USA)",
+      postalCode: "94105",
+    },
+    items: [
+      {
+        productType: "수분 진정 크림",
+        variantName: "Hydro Calming",
+        volume: "50ml",
+        quantity: 3000,
+        formulaSpec: {
+          targetTexture: "촉촉한 젤 크림",
+          keyIngredients: "병풀추출물, 히알루론산",
+          scent: "무향 (Unscented)",
+          color: "#E0F2FE",
+        },
+        packagingSpec: {
+          containerType: "유리 자 (Glass Jar)",
+          closure: "단상자 포함",
+        },
+      },
+    ],
+    certifications: ["CPNP", "FDA"],
+    timeline: {
+      targetSampleDate: "2026-09-15",
+      targetDeliveryDate: "2026-11-30",
+    },
+    additionalRequests: "비건 인증 라벨 표기 필요",
+    payment: {
+      samplePayment: { status: "unpaid" as const },
+      mainPayment: { status: "unpaid" as const },
+    },
+  };
+
+  const parsed = dealInputSchema.parse(input);
+  assert.equal(parsed.reference, "House of Seoul Hydrating Cream 50ml PO");
+  assert.equal(parsed.items.length, 1);
+  assert.equal(parsed.items[0].productType, "수분 진정 크림");
+  assert.equal(parsed.items[0].quantity, 3000);
+  assert.equal(parsed.items[0].formulaSpec.targetTexture, "촉촉한 젤 크림");
+  assert.equal(parsed.items[0].packagingSpec.containerType, "유리 자 (Glass Jar)");
+});
+
+test("dealInputSchema: items 내 수량이 0 이하면 거부한다", () => {
+  const invalid = {
+    reference: "Test Ref",
+    intakeReviewId: "review_01",
+    buyerId: "test@example.com",
+    buyerInfo: {
+      companyName: "Test Co",
+      contactName: "Tester",
+      email: "test@example.com",
+      country: "USA",
+    },
+    shippingInfo: {
+      recipientName: "Tester",
+      addressLine1: "123 St",
+      country: "USA",
+    },
+    items: [
+      {
+        productType: "크림",
+        quantity: 0,
+        formulaSpec: {},
+        packagingSpec: {},
+      },
+    ],
+    payment: {
+      samplePayment: { status: "unpaid" as const },
+      mainPayment: { status: "unpaid" as const },
+    },
+  };
+
+  assert.throws(() => dealInputSchema.parse(invalid));
 });
 
 // ============================================================================

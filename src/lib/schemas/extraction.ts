@@ -51,6 +51,9 @@ export const extractionTimelineSchema = z.object({
 export const extractionShippingSchema = z.object({
   country: z.string().optional(),
   city: z.string().optional(),
+  addressLine1: z.string().optional(),
+  postalCode: z.string().optional(),
+  recipientName: z.string().optional(),
 });
 
 export const extractionSchema = z.object({
