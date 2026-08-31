@@ -23,7 +23,7 @@ export default function OrdersPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-800">My Orders</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Custom briefs and sample requests appear here after submission.
+        Custom briefs appear here after submission.
       </p>
 
       {loading ? (
@@ -33,8 +33,7 @@ export default function OrdersPage() {
           <Package className="h-12 w-12 text-slate-300" />
           <p className="mt-4 font-medium text-slate-600">No orders yet</p>
           <p className="mt-2 max-w-sm text-center text-sm text-slate-400">
-            Submit your CM brief (Step 6) or request a Top 10 sample from the
-            dashboard.
+            Submit your CM brief (Step 6) from the dashboard.
           </p>
           <Link
             href="/dashboard"

@@ -8,5 +8,5 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  return <CMWizard uid={user.uid} />;
+  return <CMWizard />;
 }
