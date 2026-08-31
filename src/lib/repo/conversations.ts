@@ -330,7 +330,7 @@ export async function listReviewIdentities(
     const latestThread = threads[0];
     const channels = Array.from(new Set(threads.map((t) => t.channel)));
     const hasInbound = threads.some((t) => identity.kind === "channeltalk"
-      ? Boolean(t.hasCustomerInbound || t.lastInboundAt || t.lastDirection === "in")
+      ? Boolean(t.hasCustomerInbound || (t.lastInboundAt && t.lastDirection === "in"))
       : Boolean(t.lastInboundAt || t.lastDirection === "in"));
 
     return {
@@ -341,7 +341,14 @@ export async function listReviewIdentities(
       channels,
       hasInbound,
     };
-  }).filter((item) => item.identity.kind !== "channeltalk" || item.hasInbound);
+  }).filter((item) => {
+    if (item.threadCount === 0) return false;
+    if (item.identity.kind === "channeltalk") {
+      const hasEmail = Boolean(item.identity.displayEmail || item.identity.value.includes("@"));
+      return (hasEmail || item.hasInbound) && Boolean(item.latestThread?.lastMessageAt);
+    }
+    return true;
+  });
 
   items.sort((a, b) => {
     const timeA = a.latestThread?.lastMessageAt || a.identity.updatedAt || "";

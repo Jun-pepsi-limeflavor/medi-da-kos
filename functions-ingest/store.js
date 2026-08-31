@@ -185,9 +185,7 @@ async function saveMessage(db, m) {
     const prevThread = threadSnap.exists ? threadSnap.data() : null;
     const prevInbound = prevThread?.lastInboundAt;
     const prevOutbound = prevThread?.lastOutboundAt;
-    const customerInbound = m.channel === "channeltalk" && (
-      m.authorRole === "customer" || m.direction === "in"
-    );
+    const customerInbound = m.channel === "channeltalk" && m.direction === "in" && m.authorRole === "customer";
     const hasCustomerInbound = Boolean(prevThread?.hasCustomerInbound || customerInbound);
 
     let nextInbound = prevInbound;
