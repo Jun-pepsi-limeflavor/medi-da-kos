@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { listThreadMessages } from "@/lib/repo/messages";
 import { getThreadsByDealId } from "@/lib/repo/threads";
-import MessageBody from "../../inbox/[threadKey]/MessageBody";
+import MessageBodyClean from "../../inbox/MessageBodyClean";
 import type { Message } from "@/lib/schemas/message";
 import type { Thread } from "@/lib/schemas/thread";
 
@@ -131,7 +131,7 @@ export default async function DealConversationTimeline({ dealId }: { dealId: str
                     </div>
                     <div className={`rounded-2xl border px-3.5 py-3 ${inbound ? "rounded-tl-sm border-neutral-800 bg-neutral-950/60" : "rounded-tr-sm border-indigo-900/70 bg-indigo-950/30"}`}>
                       {message.subject && <p className="text-xs font-medium text-neutral-400 mb-2">{message.subject}</p>}
-                      <MessageBody text={message.bodyText} />
+                      <MessageBodyClean bodyText={message.bodyText} />
                     </div>
                     {message.attachments.length > 0 && (
                       <div className={`mt-2 flex flex-wrap gap-1.5 ${inbound ? "" : "justify-end"}`}>

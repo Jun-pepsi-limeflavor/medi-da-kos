@@ -14,6 +14,7 @@ import {
   extractBuyerNameFromBody,
   extractBrandNameFromBody,
   extractCountryFromBody,
+  extractShippingInfoFromBody,
 } from "@/lib/name-extractor";
 
 /**
@@ -35,24 +36,37 @@ export function fallbackExtract(
   // 1. 발신자 이름 및 이메일 추출
   let email = "";
   let name = "";
+  let rawFromName = "";
   const emailMatch =
     from.match(/<([^>]+)>/) ||
     from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
   if (emailMatch) {
     email = emailMatch[1];
-    name = from.replace(/<[^>]+>/, "").replace(/["']/g, "").trim();
+    rawFromName = from.replace(/<[^>]+>/, "").replace(/["']/g, "").trim();
+    name = rawFromName;
   } else {
-    name = from.trim();
+    rawFromName = from.trim();
+    name = rawFromName;
   }
 
-  // 본문 기반 실명 추출 보정
+  // 본문 기반 실명 추출 보정 (예: "Thank you!\nDaniel" -> name: "Daniel")
   const extractedBuyerName = extractBuyerNameFromBody(bodyText, name);
-  if (extractedBuyerName) {
+  if (extractedBuyerName && extractedBuyerName.toLowerCase() !== name.toLowerCase()) {
     name = extractedBuyerName;
   }
 
   // 2. 브랜드명 추정 (name-extractor 기반 고도화 파이프라인 연계)
   let brandName = extractBrandNameFromBody(bodyText, email) || undefined;
+  if (!brandName) {
+    // 제목에서 "for the [Brand] team" 패턴 탐색
+    const subjectTeamMatch = subject.match(/\bfor\s+(?:the\s+)?([A-Za-z0-9\s&'-]+?)\s+team\b/i);
+    if (subjectTeamMatch && subjectTeamMatch[1].trim().length >= 2) {
+      brandName = subjectTeamMatch[1].trim();
+    }
+  }
+  if (!brandName && rawFromName && rawFromName !== name && rawFromName.length >= 2) {
+    brandName = rawFromName;
+  }
   if (!brandName) {
     const brandMatch = text.match(/(?:brand|company|from)\s*[:：]\s*([A-Za-z0-9\s&'-]+)(?:\r?\n|$)/i);
     if (brandMatch && brandMatch[1].trim().length < 30) {
@@ -60,8 +74,9 @@ export function fallbackExtract(
     }
   }
 
-  // 3. 국가 추정 (name-extractor + 확장 키워드)
-  let country: string | undefined = extractCountryFromBody(bodyText) || undefined;
+  // 3. 상세 배송 정보 및 국가 추정
+  const shippingInfo = extractShippingInfoFromBody(bodyText, name);
+  let country: string | undefined = shippingInfo.country || extractCountryFromBody(bodyText) || undefined;
   if (!country) {
     const countryKeywords: Record<string, string> = {
       usa: "미국 (USA)",
@@ -72,7 +87,7 @@ export function fallbackExtract(
       vietnam: "베트남",
       uk: "영국 (UK)",
       "united kingdom": "영국 (UK)",
-      france: "프랑스",
+      france: "프랑스 (France)",
       germany: "독일",
       australia: "호주",
       canada: "캐나다",
@@ -183,14 +198,27 @@ export function fallbackExtract(
       }
     }
 
-    if (foundCategory || commonVolume || commonExpectedQty) {
-      items.push({
-        productName: foundCategory
+    const isGenericSubject = /(?:note from korea|inquiry|rfq|re:|fwd:|hello|hi|question)/i.test(subject) && !/(?:cream|serum|toner|lotion|sunscreen|cleanser|mask|balm)/i.test(subject);
+    const peptideMatch = text.match(/(Copper\s+Tripeptide(?:-1)?|Peptide|Niacinamide|Retinol|Hyaluronic|Vitamin\s*C|Centella|Ceramide|BHA|AHA|Panthenol)/i);
+    const keyIngMatch = text.match(/((?:Copper\s+Tripeptide-1|Niacinamide|Panthenol|Hydroxyacetophenone|Glycerin|Hyaluronic\s*Acid)(?:\s*(?:at\s*)?[\d.]+%?|\s*,|\s*and\s*)+)/i);
+    const packMatch = text.match(/(\d+\s*ml\s*(?:glass\s*)?bottle|bottle\s*design|tube\s*dispenser|dropper|pump)/i);
+
+    if (foundCategory || peptideMatch || commonVolume || commonExpectedQty) {
+      const prodName = peptideMatch
+        ? `${peptideMatch[1]} ${foundCategory || "Serum"}`
+        : foundCategory
           ? `${brandName ? brandName + " " : ""}${foundCategory}`
-          : subject || "Inquiry Item",
-        category: foundCategory || undefined,
+          : (!isGenericSubject && subject)
+            ? subject
+            : "Custom Formulation";
+
+      items.push({
+        productName: prodName,
+        category: foundCategory || (peptideMatch ? "Serum" : undefined),
         volume: commonVolume,
         expectedQty: commonExpectedQty,
+        formula: keyIngMatch ? { keyIngredients: keyIngMatch[1].trim().replace(/,$/, "") } : undefined,
+        packaging: packMatch ? { containerType: packMatch[1].trim() } : undefined,
       });
     }
   }
@@ -205,6 +233,8 @@ export function fallbackExtract(
     "Halal",
     "EWG",
     "MoCRA",
+    "COA",
+    "HPLC",
   ];
   const foundCerts = certKeywords.filter((c) =>
     new RegExp(`\\b${c}\\b`, "i").test(text),
@@ -232,11 +262,18 @@ export function fallbackExtract(
           sampleTargetDate: dateMatch[1],
         }
       : undefined,
-    shipping: country
-      ? {
-          country,
-        }
-      : undefined,
+    shipping:
+      Object.keys(shippingInfo).length > 0
+        ? {
+            country: shippingInfo.country || country || undefined,
+            city: shippingInfo.city || undefined,
+            addressLine1: shippingInfo.addressLine1 || undefined,
+            postalCode: shippingInfo.postalCode || undefined,
+            recipientName: shippingInfo.recipientName || name || undefined,
+          }
+        : country
+          ? { country }
+          : undefined,
   };
 
   const confidence: ConfidenceMap = {

@@ -1023,7 +1023,7 @@ export default function ExtractionPanel({
                         shipping: { ...p.shipping, country: e.target.value },
                       }))
                     }
-                    placeholder="예: Australia"
+                    placeholder="예: 미국 (USA)"
                     className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
                   />
                 </div>
@@ -1040,7 +1040,43 @@ export default function ExtractionPanel({
                         shipping: { ...p.shipping, city: e.target.value },
                       }))
                     }
-                    placeholder="예: Sydney"
+                    placeholder="예: Schaumburg"
+                    className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-400 mb-1">
+                    상세 주소 (Address Line)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.shipping?.addressLine1 ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        shipping: { ...p.shipping, addressLine1: e.target.value },
+                      }))
+                    }
+                    placeholder="예: 233 Desmond Dr"
+                    className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-400 mb-1">
+                    우편번호 (Postal Code)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.shipping?.postalCode ?? ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        shipping: { ...p.shipping, postalCode: e.target.value },
+                      }))
+                    }
+                    placeholder="예: 60193"
                     className="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none"
                   />
                 </div>

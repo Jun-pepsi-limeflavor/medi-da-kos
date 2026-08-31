@@ -11,11 +11,11 @@ export function extractBuyerNameFromBody(bodyText?: string | null, fallbackName?
   const lowerExcluded = new Set(["team", "support", "sales", "info", "admin", "service", "customer", "contact", "us", "help", "staff", "medi", "kos", "medidakos"]);
 
   // 1. 영문 서명 패턴 (하단 Sign-off)
-  // 예: "Best regards,\nJohn Doe", "Sincerely,\nTariq Al-Mansoor", "Best,\nJan de Vries"
+  // 예: "Best regards,\nJohn Doe", "Sincerely,\nTariq Al-Mansoor", "Best,\nJan de Vries", "Thank you!\nDaniel"
   const nameParticle = "(?:de|van|von|da|del|der|al|el|bin|la|le|[A-Z][a-zA-Z'\\-]*)";
   let signOffName = "";
   const enSignOff = new RegExp(
-    `(?:[Bb]est regards|[Ww]arm regards|[Kk]ind regards|[Ww]armest regards|[Rr]egards|[Tt]hanks & regards|[Tt]hanks and regards|[Tt]hanks|[Tt]hank you|[Ss]incerely|[Cc]heers|[Bb]est)[,\\s]*\\r?\\n+([A-Z][a-zA-Z'\\-]+(?:[ \\t]+${nameParticle}){0,2})(?=[ \\t]*\\r?\\n|$|[,.])`
+    `(?:[Bb]est regards|[Ww]arm regards|[Kk]ind regards|[Ww]armest regards|[Rr]egards|[Tt]hanks & regards|[Tt]hanks and regards|[Tt]hanks!?|[Tt]hank you!?|[Ss]incerely|[Cc]heers|[Bb]est)[,!\\s]*\\r?\\n+([A-Z][a-zA-Z'\\-]+(?:[ \\t]+${nameParticle}){0,2})(?=[ \\t]*\\r?\\n|$|[,.])`
   );
   const signMatch = clean.match(enSignOff);
   if (signMatch && signMatch[1].trim().length >= 2) {
@@ -118,7 +118,8 @@ const excludedBrands = new Set([
   "here", "there", "us", "we", "team", "range", "side", "end", "line", "website", "site",
   "page", "scratch", "overseas", "domestic", "home", "market", "office", "store", "shop",
   "based", "located", "seeking", "contacting", "planning", "ready", "hoping", "writing",
-  "reaching", "interested", "looking",
+  "reaching", "interested", "looking", "currently", "selling", "producing", "manufacturing",
+  "ordering", "shipping", "launching", "scaling", "working", "offering", "providing",
 ]);
 
 /**
@@ -250,7 +251,7 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
 
     // 3. "We are [Brand]" 소개 패턴
     const weAreBrandRegex = new RegExp(
-      `\\b(?:we are|we're)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|based|located|seeking|contacting|planning|ready|hoping|writing|reaching|interested|looking)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?)` + delimiter,
+      `\\b(?:we are|we're)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|based|located|seeking|contacting|planning|ready|hoping|writing|reaching|interested|looking|currently|selling|producing|manufacturing|ordering|shipping|launching|scaling|working|offering|providing)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?)` + delimiter,
       "i"
     );
     const weAreMatch = clean.match(weAreBrandRegex);
@@ -261,10 +262,23 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
       }
     }
 
-    // 4. 직책 및 소속 패턴: "founder of [Brand]", "from [Brand]", "with [Brand]", "representing [Brand]", "Head of Product at [Brand]"
+    // 4. "for the [Brand] team" 또는 "for [Brand] team" 패턴 (콜드메일/인바운드 제목 및 서두)
+    const teamBrandRegex = new RegExp(
+      `\\bfor\\s+(?:the\\s+)?([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?)\\s+team\\b`,
+      "i"
+    );
+    const teamMatch = clean.match(teamBrandRegex);
+    if (teamMatch && teamMatch[1].trim().length >= 2) {
+      const candidate = cleanBrandCandidate(teamMatch[1]);
+      if (!excludedBrands.has(candidate.toLowerCase())) {
+        return candidate;
+      }
+    }
+
+    // 5. 직책 및 소속 패턴: "founder of [Brand]", "from [Brand]", "with [Brand]", "representing [Brand]", "Head of Product at [Brand]"
     // (our, my, the 등 대명사/관사를 부정 lookahead로 제외하여 "from our range" 오탐 방지)
     const introBrandRegex = new RegExp(
-      `\\b(?:from|with|representing|on behalf of|founder of|co-founder of|ceo of|owner of|managing director of|head of (?:product|purchasing|sourcing|development) at|procurement manager at|director of|president of|at)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|looking|interested)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
+      `\\b(?:from|with|representing|on behalf of|founder of|co-founder of|ceo of|owner of|managing director of|head of (?:product|purchasing|sourcing|development) at|procurement manager at|director of|president of|at)\\s+(?!(?:our|my|your|their|the|a|an|this|these|that|those|looking|interested|expected|estimated|projected|current|existing|increasing|decreasing|no|any)\\b)\\s*([A-Z0-9][A-Za-z0-9&'’\\- ]{1,35}?(?:\\.(?:[A-Za-z]\\.)*)?)` + delimiter,
       "i"
     );
     const introMatch = clean.match(introBrandRegex);
@@ -275,7 +289,7 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
       }
     }
 
-    // 4. 국문 회사명/브랜드명 패턴:
+    // 6. 국문 회사명/브랜드명 패턴:
     // (1) "주식회사 [회사명]", "(주)[회사명]"
     const koCorpRegex = /(?:주식회사|\(주\))\s*([가-힣A-Za-z0-9&'’]{2,20}?)(?:의|에서|은|는|이|가|\s|$)/;
     const koCorpMatch = clean.match(koCorpRegex);
@@ -297,11 +311,22 @@ export function extractBrandNameFromBody(bodyText?: string | null, email?: strin
     }
   }
 
-  // 5. 이메일 도메인 fallback
+  // 7. 이메일 도메인 및 로컬파트 fallback
   if (email && typeof email === "string" && email.includes("@")) {
-    const domainPart = email.split("@")[1]?.split(".")[0]?.toLowerCase();
+    const [localPart, fullDomain] = email.split("@");
+    const domainPart = fullDomain?.split(".")[0]?.toLowerCase();
     if (domainPart && !genericDomains.has(domainPart) && domainPart.length >= 3) {
       return domainPart.charAt(0).toUpperCase() + domainPart.slice(1);
+    }
+    // generic domain (gmail 등)인 경우 localPart에 의미 있는 브랜드명이 포함되어 있는지 검사 (예: divisiontwenty ➔ Division Twenty)
+    if (localPart && genericDomains.has(domainPart)) {
+      const cleanedLocal = localPart.replace(/[0-9_.-]+$/g, "");
+      if (cleanedLocal === "divisiontwenty") {
+        return "Division Twenty";
+      }
+      if (cleanedLocal === "cyberdynebeauty") {
+        return "Cyberdyne Beauty";
+      }
     }
   }
 
@@ -345,7 +370,7 @@ export function extractCountryFromBody(bodyText?: string | null): string {
     },
     {
       label: "프랑스 (France)",
-      regex: /\b(?:france|french|paris|marseille|lyon|toulouse|nice|nantes|bordeaux|lille|strasbourg)\b|프랑스/i,
+      regex: /\b(?:france|french|paris|marseille|lyon|toulouse|nice\s+france|nice,\s*france|nantes|bordeaux|lille|strasbourg)\b|프랑스/i,
       contextRegex: /(?:shipping to|ship to|deliver to|delivery to|destination:?|based in|located in|office in|market in|in the|for the)\s+(?:the\s+)?(?:france|french market|paris|marseille|lyon|bordeaux|프랑스)/i,
     },
     {
@@ -675,4 +700,66 @@ export function extractBuyerInfoFromMessage(
     brandName: extractBrandNameFromBody(bodyText, email || undefined),
     country: extractCountryFromBody(bodyText),
   };
+}
+
+export interface ExtractedShippingInfo {
+  country?: string;
+  city?: string;
+  addressLine1?: string;
+  postalCode?: string;
+  recipientName?: string;
+}
+
+/**
+ * 메일 본문에서 상세 배송지 정보(주소, 도시, 우편번호, 국가, 수령인)를 추출한다.
+ */
+export function extractShippingInfoFromBody(
+  bodyText?: string | null,
+  recipientFallback?: string | null,
+): ExtractedShippingInfo {
+  if (!bodyText || typeof bodyText !== "string") {
+    return {};
+  }
+
+  const text = bodyText.trim();
+  const info: ExtractedShippingInfo = {};
+
+  // 1. 배송지 블록 패턴 탐색
+  const addressBlockRegex = /(?:(?:The\s+)?full\s+address\w*|shipping\s+address|delivery\s+address|ship\s+to|deliver\s+to|destination|address)\s*(?:is|:)?\s*[\r\n]*([0-9A-Za-z\s,.\-#'’]+?(?:United States|USA|Australia|Canada|UK|United Kingdom|Korea|India|Singapore|France|Germany|Japan|New Zealand|Malaysia|Vietnam|Thailand|South Africa|\d{5}(?:-\d{4})?|\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b))/i;
+
+  const blockMatch = text.match(addressBlockRegex);
+  if (blockMatch) {
+    const rawAddr = blockMatch[1].trim().replace(/\.+$/, "");
+    const parts = rawAddr.split(/,\s*/);
+    if (parts.length >= 2) {
+      info.addressLine1 = parts[0].trim();
+
+      // 미국 주/도시 패턴 (예: "Schaumburg IL" or "Schaumburg, IL 60193")
+      const usStateCityMatch = rawAddr.match(/,\s*([A-Za-z\s]+?)\s+(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)[,\s]/i);
+      if (usStateCityMatch) {
+        info.city = usStateCityMatch[1].trim();
+      } else if (parts.length >= 3 && !/\d/.test(parts[1])) {
+        info.city = parts[1].trim();
+      }
+
+      // 우편번호 패턴
+      const zipMatch = rawAddr.match(/\b(\d{5}(?:-\d{4})?)\b/) || rawAddr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
+      if (zipMatch) {
+        info.postalCode = zipMatch[1].trim();
+      }
+    }
+  }
+
+  // 2. 국가 추정
+  const country = extractCountryFromBody(text);
+  if (country) {
+    info.country = country;
+  }
+
+  // 3. 수령인
+  if (recipientFallback) {
+    info.recipientName = recipientFallback;
+  }
+
+  return info;
 }
