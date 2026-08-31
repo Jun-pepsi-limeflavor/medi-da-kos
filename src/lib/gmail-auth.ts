@@ -25,6 +25,7 @@ const tokenCache = new Map<string, CachedToken>();
 const APPROVED_GMAIL_MAILBOXES = new Map([
   ["thomas@medidakoslabs.com", true],
   ["hally@medidakoslabs.com", true],
+  ["support@medidakos.com", true],
   ["rheekw@techasset.co.kr", false],
   ["songjh@techasset.co.kr", false],
   ["kimhs@techasset.co.kr", false],

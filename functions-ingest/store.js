@@ -27,6 +27,20 @@ function extractCounterpartyIdentifier(m) {
         const email = externalTo.trim().toLowerCase();
         return { kind: "email", value: email, identityId: `email:${email}` };
       }
+      const channelUser = m.to.find((addr) => typeof addr === "string" && addr.startsWith("channel:user:"));
+      if (channelUser) {
+        const userId = channelUser.slice("channel:user:".length).trim();
+        if (userId) {
+          const account = (m.sourceAccount || "channeltalk").trim();
+          const normalized = `${account}:${userId}`;
+          return { kind: "channeltalk", value: normalized, identityId: `channeltalk:${normalized}` };
+        }
+      }
+      if (typeof m.channelTalkUserId === "string" && m.channelTalkUserId.trim()) {
+        const account = (m.sourceAccount || "channeltalk").trim();
+        const normalized = `${account}:${m.channelTalkUserId.trim()}`;
+        return { kind: "channeltalk", value: normalized, identityId: `channeltalk:${normalized}` };
+      }
     }
     const rawId = fromVal.startsWith("channel:user:") ? fromVal.slice("channel:user:".length).trim() : fromVal;
     const account = (m.sourceAccount || "channeltalk").trim();
@@ -171,6 +185,8 @@ async function saveMessage(db, m) {
     const prevThread = threadSnap.exists ? threadSnap.data() : null;
     const prevInbound = prevThread?.lastInboundAt;
     const prevOutbound = prevThread?.lastOutboundAt;
+    const customerInbound = m.channel === "channeltalk" && m.direction === "in" && m.authorRole === "customer";
+    const hasCustomerInbound = Boolean(prevThread?.hasCustomerInbound || customerInbound);
 
     let nextInbound = prevInbound;
     let nextOutbound = prevOutbound;
@@ -188,6 +204,8 @@ async function saveMessage(db, m) {
         channel: m.channel,
         sourceAccount: m.sourceAccount,
         providerThreadId: m.providerThreadId,
+        ...(m.channelTalkUserId ? { channelTalkUserId: m.channelTalkUserId } : {}),
+        ...(m.channel === "channeltalk" ? { hasCustomerInbound } : {}),
         readState: m.direction === "in" ? "unread" : "read",
         triageState: "open",
         linkState: "unlinked",
@@ -208,15 +226,33 @@ async function saveMessage(db, m) {
     } else {
       const threadUpdate = {
         updatedAt: now,
-        identityId: identityInfo.identityId,
-        classification,
-        ...(conversationId ? { conversationId } : {}),
         ...(nextInbound ? { lastInboundAt: nextInbound } : {}),
         ...(nextOutbound ? { lastOutboundAt: nextOutbound } : {}),
+        ...(m.channelTalkUserId ? { channelTalkUserId: m.channelTalkUserId } : {}),
+        ...(m.channel === "channeltalk" ? { hasCustomerInbound } : {}),
       };
       if (latest) {
         threadUpdate.lastMessageAt = m.sentAt;
         threadUpdate.lastDirection = m.direction;
+        threadUpdate.identityId = identityInfo.identityId;
+        threadUpdate.classification = classification;
+        if (conversationId) {
+          threadUpdate.conversationId = conversationId;
+          if (buyerId) threadUpdate.buyerId = buyerId;
+          if (supplierId) threadUpdate.supplierId = supplierId;
+        } else if (classification === "unclassified" || classification === "internal" || classification === "advertising") {
+          if (prevThread?.conversationId) threadUpdate.conversationId = FieldValue.delete();
+          if (prevThread?.buyerId) threadUpdate.buyerId = FieldValue.delete();
+          if (prevThread?.supplierId) threadUpdate.supplierId = FieldValue.delete();
+        }
+      } else if (!prevThread?.identityId) {
+        threadUpdate.identityId = identityInfo.identityId;
+        threadUpdate.classification = classification;
+        if (conversationId) {
+          threadUpdate.conversationId = conversationId;
+          if (buyerId) threadUpdate.buyerId = buyerId;
+          if (supplierId) threadUpdate.supplierId = supplierId;
+        }
       }
       if (isNewMessage && m.direction === "in") {
         threadUpdate.readState = "unread";
@@ -230,6 +266,11 @@ async function saveMessage(db, m) {
       }
       tx.update(threadRef, threadUpdate);
       updatedThreadData = { ...prevThread, ...threadUpdate };
+      if (!conversationId && (classification === "unclassified" || classification === "internal" || classification === "advertising")) {
+        delete updatedThreadData.conversationId;
+        delete updatedThreadData.buyerId;
+        delete updatedThreadData.supplierId;
+      }
     }
 
     // 4. Conversation write

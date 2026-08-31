@@ -130,22 +130,30 @@ async function listAllChatMessages(userChatId, credentials, options = {}) {
 
 function messageDirection(raw, { managerIds = [] } = {}) {
   const personType = typeof raw?.personType === "string" ? raw.personType.toLowerCase() : "";
-  if (["user", "customer", "visitor", "contact"].includes(personType)) return "in";
-  if (["manager", "operator", "bot", "admin"].includes(personType)) return "out";
+  if (["user", "customer", "visitor", "contact", "lead", "member"].includes(personType)) return "in";
+  if (["manager", "operator", "admin", "staff", "bot", "automation", "app", "system"].includes(personType)) return "out";
   if (raw?.personId && managerIds.includes(raw.personId)) return "out";
   throw new TypeError("Channel Talk message has an unsupported personType");
 }
 
-function messageDisposition(raw, { bodyText, attachments } = {}) {
+function messageAuthorRole(raw) {
   const personType = typeof raw?.personType === "string" ? raw.personType.toLowerCase() : "";
-  if (["bot", "system", "event", "webhook", "workflow", "ai"].includes(personType)) {
+  if (["user", "customer", "visitor", "contact", "lead", "member"].includes(personType)) return "customer";
+  if (["manager", "operator", "admin", "staff"].includes(personType)) return "agent";
+  if (["bot", "automation", "app", "system"].includes(personType)) return "automation";
+  return null;
+}
+
+function messageDisposition(raw, { bodyText, attachments } = {}) {
+  const authorRole = messageAuthorRole(raw);
+  if (!authorRole) {
+    const personType = typeof raw?.personType === "string" ? raw.personType.toLowerCase() : "unknown";
     return `skip_${personType}`;
   }
-  if (!["user", "customer", "visitor", "contact", "manager", "operator", "admin"].includes(personType)) {
-    return "skip_unsupported_person_type";
-  }
-  const text = typeof bodyText === "string" ? bodyText.trim() : "";
-  const files = Array.isArray(attachments) ? attachments : [];
+  const text = typeof bodyText === "string"
+    ? bodyText.trim()
+    : (typeof raw?.plainText === "string" ? raw.plainText.trim() : blocksToText(raw?.blocks));
+  const files = Array.isArray(attachments) ? attachments : (Array.isArray(raw?.files) ? raw.files : []);
   return text || files.length > 0 ? "accepted" : "skip_empty";
 }
 
@@ -175,18 +183,48 @@ function timestampToIso(value) {
 
 function userIdentity(user, fallbackId) {
   const id = user?.id || user?.userId || fallbackId;
-  const email = user?.email || user?.profile?.email;
-  if (typeof email === "string" && email.trim()) {
+  const rawEmail =
+    user?.email ||
+    user?.profile?.email ||
+    (typeof user?.memberId === "string" && user.memberId.includes("@") ? user.memberId : "");
+  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+
+  const name = (user?.name || user?.profile?.name || "").trim();
+  const company = (
+    user?.profile?.company ||
+    user?.profile?.companyName ||
+    user?.profile?.brand ||
+    user?.profile?.brandName ||
+    ""
+  ).trim();
+
+  let fromName = "";
+  if (name && company && !name.toLowerCase().includes(company.toLowerCase())) {
+    fromName = `${name} (${company})`;
+  } else {
+    fromName = name || company || "";
+  }
+
+  const mobileNumber = (
+    user?.mobileNumber ||
+    user?.profile?.mobileNumber ||
+    user?.profile?.phone ||
+    ""
+  ).trim();
+
+  if (email) {
     return {
-      from: email.trim().toLowerCase(),
-      fromName: user?.name || user?.profile?.name || "",
+      from: email,
+      fromName,
       userId: id || "",
+      mobileNumber,
     };
   }
   return {
     from: id ? `channel:user:${id}` : "channel:user:unknown",
-    fromName: user?.name || user?.profile?.name || "",
+    fromName,
     userId: id || "",
+    mobileNumber,
   };
 }
 
@@ -204,8 +242,11 @@ function normalizeMessage(raw, {
   if (typeof account !== "string" || !account.trim()) {
     throw new TypeError("Channel Talk source account is required");
   }
+  if (typeof userId !== "string" || !userId.trim()) {
+    throw new TypeError("Channel Talk customer userId is required");
+  }
   const sourceAccount = account.trim().toLowerCase();
-  const identity = userIdentity(user, userId || raw.personId);
+  const identity = userIdentity(user, userId);
   const attachments = (Array.isArray(raw.files) ? raw.files : []).filter((file) => file && file.id).map((file) => ({
     filename: file.name || file.filename || file.id,
     mimeType: file.type || file.mimeType || "application/octet-stream",
@@ -217,6 +258,7 @@ function normalizeMessage(raw, {
   const disposition = messageDisposition(raw, { bodyText, attachments });
   if (disposition !== "accepted") return null;
   const direction = messageDirection(raw, { managerIds });
+  const authorRole = messageAuthorRole(raw);
   const providerThreadId = userChatId;
   if (typeof providerThreadId !== "string" || !providerThreadId) {
     throw new TypeError("Channel Talk user-chat id is required");
@@ -236,9 +278,10 @@ function normalizeMessage(raw, {
     threadKey: `${channel}:${sourceAccount}:${providerThreadId}`,
     historyId: String(raw.version ?? raw.updatedAt ?? raw.id),
     direction,
+    authorRole,
     from,
     fromName,
-    ...(direction === "in" && (userId || identity.userId) ? { channelTalkUserId: userId || identity.userId } : {}),
+    ...(userId || identity.userId ? { channelTalkUserId: userId || identity.userId } : {}),
     to,
     // UserChat messages have no documented subject property.
     subject: "",
@@ -294,6 +337,7 @@ module.exports = {
   listAllChatMessages,
   collectPages,
   messageDirection,
+  messageAuthorRole,
   messageDisposition,
   blocksToText,
   normalizeMessage,

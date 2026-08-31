@@ -35,19 +35,21 @@ import MessageBodyClean from "./MessageBodyClean";
 import { getIdentityDisplay } from "@/lib/inbox-display";
 
 const CHANNEL_NAMES: Record<string, string> = {
-  gmail_thomas: "Gmail · Thomas",
-  gmail_hally: "Gmail · Hally",
-  gmail_rheekw: "Gmail · Rheekw",
-  gmail_songjh: "Gmail · Songjh",
-  gmail_kimhs: "Gmail · Kimhs",
-  gmail_parkjy: "Gmail · Parkjy",
-  outlook_support: "Outlook · Support",
-  channeltalk: "Channel Talk",
+  gmail_thomas: "Thomas",
+  gmail_hally: "Hally",
+  gmail_support: "Support",
+  gmail_rheekw: "Rheekw",
+  gmail_songjh: "Songjh",
+  gmail_kimhs: "Kimhs",
+  gmail_parkjy: "Parkjy",
+  outlook_support: "Support",
+  channeltalk: "채널톡",
   web: "웹 문의",
 };
 
 function mapChannelToInflow(channel?: string): (typeof INFLOW_CHANNELS)[number] {
   if (!channel) return "manual";
+  if (channel === "gmail_support" || channel === "outlook_support") return "support";
   if (channel.startsWith("gmail_hally")) return "gmail_hally";
   if (channel.startsWith("gmail_thomas")) return "gmail_thomas";
   if (channel.startsWith("gmail_")) return "gmail_hally";
@@ -432,9 +434,28 @@ export default function ReviewQueue({
                           <ArrowUpRight className="h-2.5 w-2.5" /> 발신전용
                         </span>
                       )}
-                      <span className="rounded bg-neutral-800/80 px-1.5 py-0.5 text-[9px] font-mono uppercase text-neutral-400 border border-neutral-700/50">
-                        {item.identity.kind}
-                      </span>
+                      {item.channels && item.channels.length > 0 ? (
+                        item.channels.map((ch) => (
+                          <span
+                            key={ch}
+                            className={`rounded px-1.5 py-0.5 text-[9px] font-medium border font-mono ${
+                              ch === "channeltalk"
+                                ? "bg-purple-950/80 text-purple-300 border-purple-800/60"
+                                : ch.startsWith("gmail")
+                                  ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
+                                  : ch.startsWith("outlook")
+                                    ? "bg-sky-950/80 text-sky-300 border-sky-800/60"
+                                    : "bg-neutral-800/80 text-neutral-400 border-neutral-700/50"
+                            }`}
+                          >
+                            {CHANNEL_NAMES[ch] || ch}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded bg-neutral-800/80 px-1.5 py-0.5 text-[9px] font-mono uppercase text-neutral-400 border border-neutral-700/50">
+                          {item.identity.kind}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -449,7 +470,6 @@ export default function ReviewQueue({
                       <span className="rounded-md bg-neutral-800/90 px-1.5 py-0.5 font-medium text-neutral-300 border border-neutral-700/40">
                         스레드 {item.threadCount}개
                       </span>
-                      <span className="truncate max-w-[140px]">{item.channels.join(", ")}</span>
                     </div>
                   </div>
                 </Link>
@@ -481,7 +501,7 @@ export default function ReviewQueue({
                   <p className="text-[11px] text-neutral-400 mt-0.5 flex items-center gap-2">
                     <span>분류: <strong className="font-semibold text-neutral-200">{activeIdentity.identity.classification}</strong></span>
                     <span>•</span>
-                    <span>{activeIdentity.channels.join(", ")}</span>
+                    <span>{activeIdentity.channels.map((ch) => CHANNEL_NAMES[ch] || ch).join(", ")}</span>
                   </p>
                 </div>
 
@@ -938,7 +958,7 @@ export default function ReviewQueue({
                               </span>
 
                               <span className="text-xs font-semibold text-neutral-100 truncate max-w-[200px]">
-                                {m.fromName ? `${m.fromName} (${m.from})` : m.from}
+                                {m.authorRole === "automation" ? "자동 안내" : m.fromName ? `${m.fromName} (${m.from})` : m.from}
                               </span>
                             </div>
 
@@ -958,7 +978,7 @@ export default function ReviewQueue({
                           {/* Subject & Single View Link */}
                           <div className="flex items-center justify-between gap-2">
                             <h4 className="text-xs font-bold text-neutral-100 truncate">
-                              {m.subject || "(제목 없음)"}
+                              {m.subject ? m.subject : m.channel === "channeltalk" ? "채널톡 메시지" : "(제목 없음)"}
                             </h4>
                             <Link
                               href={`/admin/inbox/${encodeURIComponent(m.threadKey)}?returnUrl=${returnUrlParam}`}

@@ -4,12 +4,14 @@ import { z } from "zod";
 // 지어내지 않는다 — 여기 없는 채널·필드가 필요해지면 수집기부터 먼저 바뀐다.
 export const channelSchema = z.enum([
   "gmail_thomas", "gmail_hally", "gmail_rheekw", "gmail_songjh", "gmail_kimhs", "gmail_parkjy",
+  "gmail_support",
   "outlook_support", "channeltalk", "web",
 ]);
 
 export const sideSchema = z.enum(["brand", "factory", "unknown"]);
 export const sideSourceSchema = z.enum(["account_rule", "address_match", "manual"]);
 export const directionSchema = z.enum(["in", "out"]);
+export const authorRoleSchema = z.enum(["customer", "agent", "automation"]);
 export const parseStatusSchema = z.enum(["pending", "processing", "completed", "failed", "skipped"]);
 
 export const attachmentSchema = z.object({
@@ -31,6 +33,8 @@ export const messageSchema = z.object({
   threadKey: z.string(),
   historyId: z.string(),
   direction: directionSchema,
+  authorRole: authorRoleSchema.optional(),
+  channelTalkUserId: z.string().trim().min(1).optional(),
   from: z.string(),
   fromName: z.string(),
   to: z.array(z.string()),

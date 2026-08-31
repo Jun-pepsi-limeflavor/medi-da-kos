@@ -27,9 +27,18 @@ function parseAddressList(value) {
 }
 
 function parseAddress(value) {
-  const m = value.match(/^\s*(?:"?([^"<]*)"?\s*)?<?([^\s<>]+@[^\s<>]+)>?\s*$/);
-  if (!m) return { name: "", email: value.trim().toLowerCase() };
-  return { name: (m[1] || "").trim(), email: m[2].trim().toLowerCase() };
+  // The angle-bracket form is matched first and on its own. A single optional
+  // name group in front of a bare address backtracks: it eats every character
+  // it can, leaving the address a one-character local part ("support@x" became
+  // "t@x"), which then keys the wrong conversation identity.
+  const angled = value.match(/^\s*(.*?)\s*<\s*([^\s<>]+@[^\s<>]+)\s*>\s*$/);
+  if (angled) {
+    return {
+      name: angled[1].trim().replace(/^"(.*)"$/, "$1").trim(),
+      email: angled[2].trim().toLowerCase(),
+    };
+  }
+  return { name: "", email: value.trim().toLowerCase() };
 }
 
 function decode(data) {

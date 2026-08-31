@@ -11,6 +11,7 @@ const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 const DEFAULT_GMAIL_MAILBOXES = Object.freeze([
   { account: "thomas@medidakoslabs.com", channel: "gmail_thomas", enabled: true },
   { account: "hally@medidakoslabs.com", channel: "gmail_hally", enabled: true },
+  { account: "support@medidakos.com", channel: "gmail_support", enabled: true },
   { account: "rheekw@techasset.co.kr", channel: "gmail_rheekw", enabled: false },
   { account: "songjh@techasset.co.kr", channel: "gmail_songjh", enabled: false },
   { account: "kimhs@techasset.co.kr", channel: "gmail_kimhs", enabled: false },

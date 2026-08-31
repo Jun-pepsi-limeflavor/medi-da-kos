@@ -74,7 +74,7 @@ const THREAD_FIELDS = [
   "channel", "sourceAccount", "providerThreadId", "readState", "triageState", "linkState", "side",
   "sideSource", "sideHistory", "lastMessageAt", "lastDirection", "createdAt", "updatedAt", "buyerId",
   "supplierId", "dealId", "linkedBy", "linkedAt", "identityId", "classification", "conversationId",
-  "lastInboundAt", "lastOutboundAt", "handledThroughAt",
+  "lastInboundAt", "lastOutboundAt", "handledThroughAt", "channelTalkUserId", "hasCustomerInbound",
 ] as const;
 export const conversationMessageSchema = messageSchema.pick({
   channel: true,
@@ -82,6 +82,8 @@ export const conversationMessageSchema = messageSchema.pick({
   providerThreadId: true,
   threadKey: true,
   direction: true,
+  authorRole: true,
+  channelTalkUserId: true,
   from: true,
   fromName: true,
   to: true,
@@ -153,6 +155,14 @@ export function projectConversationThread(id: string, data: FirebaseFirestore.Do
   }
   if (!fields.updatedAt) {
     fields.updatedAt = fields.createdAt || now;
+  }
+  const isReview = fields.classification === "unclassified"
+    || fields.classification === "internal"
+    || fields.classification === "advertising";
+  if (isReview && fields.conversationId) {
+    delete fields.conversationId;
+    delete fields.buyerId;
+    delete fields.supplierId;
   }
   return { threadKey: id, ...threadSchema.parse(fields) };
 }
@@ -327,7 +337,9 @@ export async function listReviewIdentities(
     threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
     const latestThread = threads[0];
     const channels = Array.from(new Set(threads.map((t) => t.channel)));
-    const hasInbound = threads.some((t) => !!t.lastInboundAt || t.lastDirection === "in");
+    const hasInbound = threads.some((t) => identity.kind === "channeltalk"
+      ? Boolean(t.hasCustomerInbound || (t.lastInboundAt && t.lastDirection === "in"))
+      : Boolean(t.lastInboundAt || t.lastDirection === "in"));
 
     return {
       identity,
@@ -337,6 +349,13 @@ export async function listReviewIdentities(
       channels,
       hasInbound,
     };
+  }).filter((item) => {
+    if (item.threadCount === 0) return false;
+    if (item.identity.kind === "channeltalk") {
+      const hasEmail = Boolean(item.identity.displayEmail || item.identity.value.includes("@"));
+      return (hasEmail || item.hasInbound) && Boolean(item.latestThread?.lastMessageAt);
+    }
+    return true;
   });
 
   items.sort((a, b) => {

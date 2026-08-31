@@ -1,4 +1,6 @@
 node_modules/
-.env
 .env.*
 !.env.example
+
+# .env 은 배포 파라미터이며 비밀이 아니다. 클론만으로 배포가 재현되어야 하므로
+# 추적한다. 비밀값은 Secret Manager 에 둔다.

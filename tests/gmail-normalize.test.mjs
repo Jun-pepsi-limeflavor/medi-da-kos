@@ -114,6 +114,18 @@ test("회신에 필요한 RFC 메타데이터를 원문에서만 보존한다", 
   assert.equal(m.references, "<root@example.com> <parent@example.com>");
 });
 
+test("support 계정 컨텍스트로 정규화하면 docId/threadKey 가 gmail_support 로 시작한다", () => {
+  const supportCtx = {
+    channel: "gmail_support",
+    side: "brand",
+    sideSource: "account_rule",
+    account: "support@medidakos.com",
+  };
+  const m = normalizeMessage(raw, supportCtx);
+  assert.equal(m.docId, "gmail_support:18f0abc");
+  assert.equal(m.threadKey, "gmail_support:support@medidakos.com:18f0aaa");
+});
+
 import { listAllMessageIds } from "../functions-ingest/gmail.js";
 
 test("두 페이지 조회에서 모든 메시지 ID 를 모은다", async () => {
@@ -157,4 +169,23 @@ test("두 페이지 조회에서 모든 메시지 ID 를 모은다", async () =>
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+import { parseAddress, parseAddressList } from "../functions-ingest/gmail.js";
+
+test("괄호 없는 맨 주소를 앞글자까지 이름으로 먹지 않는다", () => {
+  // 회귀: 탐욕적 이름 그룹이 "support@x" 를 "t@x" 로 잘라 잘못된 대화 신원을 만들었다.
+  assert.deepEqual(parseAddress("support@medidakos.com"), {
+    name: "",
+    email: "support@medidakos.com",
+  });
+  assert.deepEqual(parseAddress("Support <support@medidakos.com>"), {
+    name: "Support",
+    email: "support@medidakos.com",
+  });
+  assert.deepEqual(parseAddress('"Medidakos, Inc." <Support@Medidakos.com>'), {
+    name: "Medidakos, Inc.",
+    email: "support@medidakos.com",
+  });
+  assert.deepEqual(parseAddressList("a@b.com, Kim <c@d.com>"), ["a@b.com", "c@d.com"]);
 });
