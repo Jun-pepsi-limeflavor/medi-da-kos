@@ -618,41 +618,41 @@ export default function ExtractionPanel({
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("buyer")}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-              activeTab === "buyer"
-                ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
-            }`}
-          >
-            <User className="h-3.5 w-3.5 text-sky-400" />
-            <span>바이어 & 배송지</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("buyer")}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "buyer"
+                  ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
+              }`}
+            >
+              <User className="h-3.5 w-3.5 text-sky-400" />
+              <span>바이어 & 배송지</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("timeline")}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-              activeTab === "timeline"
-                ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
-            }`}
-          >
-            <Calendar className="h-3.5 w-3.5 text-emerald-400" />
-            <span>일정 & 필수 인증</span>
-            {selectedCerts.length > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-950 px-1 text-[10px] font-bold text-emerald-300 border border-emerald-800/60">
-                {selectedCerts.length}
-              </span>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("timeline")}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                activeTab === "timeline"
+                  ? "bg-neutral-800 text-white shadow-sm border border-neutral-700"
+                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+              <span>일정 & 필수 인증</span>
+              {selectedCerts.length > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-950 px-1 text-[10px] font-bold text-emerald-300 border border-emerald-800/60">
+                  {selectedCerts.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* 상태 피드백 알림 배너 */}
-      {statusMessage && (
+        {/* 상태 피드백 알림 배너 */}
+        {statusMessage && (
         <div
           className={`mx-5 mt-4 rounded-xl border p-3 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
             statusMessage.type === "success"

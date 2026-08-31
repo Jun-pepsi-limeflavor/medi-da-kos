@@ -81,7 +81,8 @@ async function backfillAccount(db, account, afterEpoch) {
 
 async function main() {
   const db = getDb();
-  const accounts = ["hally@medidakoslabs.com", "thomas@medidakoslabs.com"];
+  const accounts = process.argv.slice(2).filter((a) => a.includes("@"));
+  if (accounts.length === 0) throw new Error("백필할 계정을 인자로 지정하세요");
 
   console.log(`Gmail 백필 시작 (대상: ${accounts.join(", ")})`);
   console.log(`수집 기준일: 2026-08-01 00:00:00 KST (epoch: ${AUGUST_1_EPOCH})`);

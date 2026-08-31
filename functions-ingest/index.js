@@ -162,20 +162,27 @@ async function ingestChannelTalkAccount(db, config, options = {}) {
   const userCache = new Map();
   let processedCount = 0;
   let filteredCount = 0;
+  let unresolvedUserChatCount = 0;
+  let unresolvedMessageCount = 0;
 
   for (const chat of chats.userChats) {
     if (!chat || typeof chat.id !== "string" || !chat.id) {
       throw new Error("Channel Talk user-chat is missing an id");
     }
-    const userId = chat.userId || chat.user?.id || chat.customer?.id || chat.contact?.id || "";
-    let user = chat.user || chat.customer || chat.contact;
-    if (userId) {
-      if (!userCache.has(userId)) {
-        userCache.set(userId, deps.getChannelTalkUser(userId, config.credentials).catch(() => user));
-      }
-      user = await userCache.get(userId);
-    }
     const messages = await deps.listAllChatMessages(chat.id, config.credentials);
+    const userId = typeof chat.userId === "string" ? chat.userId.trim() : "";
+    if (!userId) {
+      unresolvedUserChatCount += 1;
+      unresolvedMessageCount += messages.messages.length;
+      continue;
+    }
+
+    let user;
+    if (!userCache.has(userId)) {
+      userCache.set(userId, deps.getChannelTalkUser(userId, config.credentials).catch(() => null));
+    }
+    user = await userCache.get(userId) || {};
+    user = { ...user, id: userId };
     for (const raw of messages.messages) {
       const normalized = deps.normalizeChannelTalkMessage(raw, {
         account: config.account,
@@ -200,6 +207,8 @@ async function ingestChannelTalkAccount(db, config, options = {}) {
     lastError: null,
     processedCount,
     filteredCount,
+    unresolvedUserChatCount,
+    unresolvedMessageCount,
   });
   return processedCount;
 }

@@ -36,6 +36,10 @@ yarn-error.log*
 .env*
 !.env.example
 !**/.env.example
+# Functions params are deploy configuration, not secrets — they must be
+# reproducible from a fresh clone. Secrets stay in Secret Manager.
+!functions/.env
+!functions-ingest/.env
 
 # vercel
 .vercel

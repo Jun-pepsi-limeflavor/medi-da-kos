@@ -27,6 +27,20 @@ function extractCounterpartyIdentifier(m) {
         const email = externalTo.trim().toLowerCase();
         return { kind: "email", value: email, identityId: `email:${email}` };
       }
+      const channelUser = m.to.find((addr) => typeof addr === "string" && addr.startsWith("channel:user:"));
+      if (channelUser) {
+        const userId = channelUser.slice("channel:user:".length).trim();
+        if (userId) {
+          const account = (m.sourceAccount || "channeltalk").trim();
+          const normalized = `${account}:${userId}`;
+          return { kind: "channeltalk", value: normalized, identityId: `channeltalk:${normalized}` };
+        }
+      }
+      if (typeof m.channelTalkUserId === "string" && m.channelTalkUserId.trim()) {
+        const account = (m.sourceAccount || "channeltalk").trim();
+        const normalized = `${account}:${m.channelTalkUserId.trim()}`;
+        return { kind: "channeltalk", value: normalized, identityId: `channeltalk:${normalized}` };
+      }
     }
     const rawId = fromVal.startsWith("channel:user:") ? fromVal.slice("channel:user:".length).trim() : fromVal;
     const account = (m.sourceAccount || "channeltalk").trim();
@@ -171,6 +185,8 @@ async function saveMessage(db, m) {
     const prevThread = threadSnap.exists ? threadSnap.data() : null;
     const prevInbound = prevThread?.lastInboundAt;
     const prevOutbound = prevThread?.lastOutboundAt;
+    const customerInbound = m.channel === "channeltalk" && m.direction === "in" && m.authorRole === "customer";
+    const hasCustomerInbound = Boolean(prevThread?.hasCustomerInbound || customerInbound);
 
     let nextInbound = prevInbound;
     let nextOutbound = prevOutbound;
@@ -188,6 +204,8 @@ async function saveMessage(db, m) {
         channel: m.channel,
         sourceAccount: m.sourceAccount,
         providerThreadId: m.providerThreadId,
+        ...(m.channelTalkUserId ? { channelTalkUserId: m.channelTalkUserId } : {}),
+        ...(m.channel === "channeltalk" ? { hasCustomerInbound } : {}),
         readState: m.direction === "in" ? "unread" : "read",
         triageState: "open",
         linkState: "unlinked",
@@ -213,6 +231,8 @@ async function saveMessage(db, m) {
         ...(conversationId ? { conversationId } : {}),
         ...(nextInbound ? { lastInboundAt: nextInbound } : {}),
         ...(nextOutbound ? { lastOutboundAt: nextOutbound } : {}),
+        ...(m.channelTalkUserId ? { channelTalkUserId: m.channelTalkUserId } : {}),
+        ...(m.channel === "channeltalk" ? { hasCustomerInbound } : {}),
       };
       if (latest) {
         threadUpdate.lastMessageAt = m.sentAt;

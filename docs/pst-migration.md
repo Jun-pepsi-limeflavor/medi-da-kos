@@ -27,4 +27,4 @@ node scripts/import-pst.mjs /absolute/path/support.pst \
 
 The importer first exports and parses every `.eml`; it writes nothing if parsing fails. Firestore writes then go through `functions-ingest/store.js`, so rerunning the same PST is deterministic and deduplicated. It does not advance `ingestState` because PST has no provider cursor.
 
-Attachments are preserved as filename, MIME type, size, and deterministic ID metadata. Binary attachment storage requires a separate Storage path and access contract.
+Attachments are preserved as filename, MIME type, size, and deterministic ID metadata only. PST attachment binaries are intentionally not stored in Firebase; when an original file is needed, download it from Outlook.
