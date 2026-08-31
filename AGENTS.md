@@ -28,6 +28,7 @@ Vault를 참조할 때는 `wiki/index.md` → `wiki/hot.md` → 관련 문서 �
 - `buyers`, `suppliers`, `deals`, `messages`는 클라이언트에서 직접 읽거나 쓸 수 없다. 새 컬렉션·테이블은 접근 규칙과 에뮬레이터 테스트를 같은 변경에 포함한다.
 - 관리자 판정은 서버 허용목록 `BACKOFFICE_ADMIN_EMAILS`로 한다. 비어 있으면 500으로 실패해야 하며, 기존 Functions의 알림 수신자 `ADMIN_EMAILS`와 합치지 않는다.
 - 비밀값은 수집기의 Secret Manager 또는 앱의 Vercel 환경변수에 둔다. `.env.local`과 자격 증명은 커밋하지 않는다.
+- 반대로 `functions/.env`와 `functions-ingest/.env`는 비밀이 아닌 배포 파라미터이므로 추적한다. 배포 설정이 한 사람의 노트북에만 있으면 안 되고, 클론만으로 재현되어야 한다. 여기에 비밀값을 넣지 않는다.
 
 ## 계획과 구현
 
