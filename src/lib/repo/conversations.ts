@@ -156,6 +156,14 @@ export function projectConversationThread(id: string, data: FirebaseFirestore.Do
   if (!fields.updatedAt) {
     fields.updatedAt = fields.createdAt || now;
   }
+  const isReview = fields.classification === "unclassified"
+    || fields.classification === "internal"
+    || fields.classification === "advertising";
+  if (isReview && fields.conversationId) {
+    delete fields.conversationId;
+    delete fields.buyerId;
+    delete fields.supplierId;
+  }
   return { threadKey: id, ...threadSchema.parse(fields) };
 }
 

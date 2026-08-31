@@ -226,9 +226,6 @@ async function saveMessage(db, m) {
     } else {
       const threadUpdate = {
         updatedAt: now,
-        identityId: identityInfo.identityId,
-        classification,
-        ...(conversationId ? { conversationId } : {}),
         ...(nextInbound ? { lastInboundAt: nextInbound } : {}),
         ...(nextOutbound ? { lastOutboundAt: nextOutbound } : {}),
         ...(m.channelTalkUserId ? { channelTalkUserId: m.channelTalkUserId } : {}),
@@ -237,6 +234,25 @@ async function saveMessage(db, m) {
       if (latest) {
         threadUpdate.lastMessageAt = m.sentAt;
         threadUpdate.lastDirection = m.direction;
+        threadUpdate.identityId = identityInfo.identityId;
+        threadUpdate.classification = classification;
+        if (conversationId) {
+          threadUpdate.conversationId = conversationId;
+          if (buyerId) threadUpdate.buyerId = buyerId;
+          if (supplierId) threadUpdate.supplierId = supplierId;
+        } else if (classification === "unclassified" || classification === "internal" || classification === "advertising") {
+          if (prevThread?.conversationId) threadUpdate.conversationId = FieldValue.delete();
+          if (prevThread?.buyerId) threadUpdate.buyerId = FieldValue.delete();
+          if (prevThread?.supplierId) threadUpdate.supplierId = FieldValue.delete();
+        }
+      } else if (!prevThread?.identityId) {
+        threadUpdate.identityId = identityInfo.identityId;
+        threadUpdate.classification = classification;
+        if (conversationId) {
+          threadUpdate.conversationId = conversationId;
+          if (buyerId) threadUpdate.buyerId = buyerId;
+          if (supplierId) threadUpdate.supplierId = supplierId;
+        }
       }
       if (isNewMessage && m.direction === "in") {
         threadUpdate.readState = "unread";
@@ -250,6 +266,11 @@ async function saveMessage(db, m) {
       }
       tx.update(threadRef, threadUpdate);
       updatedThreadData = { ...prevThread, ...threadUpdate };
+      if (!conversationId && (classification === "unclassified" || classification === "internal" || classification === "advertising")) {
+        delete updatedThreadData.conversationId;
+        delete updatedThreadData.buyerId;
+        delete updatedThreadData.supplierId;
+      }
     }
 
     // 4. Conversation write
