@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { test } from "node:test";
-import { parseArgs, readpstArgs } from "../scripts/import-pst.mjs";
+import { parseArgs, readJsonl, readpstArgs } from "../scripts/import-pst.mjs";
 
 const parser = join(process.cwd(), "scripts", "pst-to-jsonl.py");
 
@@ -77,4 +77,50 @@ test("PST importer requires an explicit mailbox and apply flag is opt-in", () =>
   assert.deepEqual(readpstArgs("/tmp/support.pst", "/tmp/export"), [
     "-e", "-8", "-q", "-t", "e", "-o", "/tmp/export", "/tmp/support.pst",
   ]);
+});
+
+test("PST conversion restores readpst's RTF-only Outlook body instead of treating it as an attachment", async () => {
+  const root = await mkdtemp(join(tmpdir(), "medidakos-pst-rtf-test-"));
+  try {
+    const exportDir = join(root, "export");
+    const output = join(root, "messages.jsonl");
+    const eml = [
+      "From: Buyer <buyer@example.test>",
+      "To: support@example.test",
+      "Subject: RTF body",
+      "Date: Mon, 31 Aug 2026 10:00:00 +0900",
+      "Message-ID: <pst-rtf@example.test>",
+      "MIME-Version: 1.0",
+      "Content-Type: multipart/mixed; boundary=boundary",
+      "",
+      "--boundary",
+      "Content-Type: application/rtf",
+      "Content-Disposition: attachment; filename=rtf-body.rtf",
+      "",
+      "{\\rtf1\\ansi Hello\\par World}",
+      "--boundary--",
+      "",
+    ].join("\r\n");
+    await mkdir(exportDir, { recursive: true });
+    await writeFile(join(exportDir, "1.eml"), eml);
+    await runParser(exportDir, output, "support@example.test");
+    const [message] = (await readFile(output, "utf8")).trim().split("\n").map(JSON.parse);
+
+    assert.match(message.bodyText, /Hello/);
+    assert.match(message.bodyText, /World/);
+    assert.deepEqual(message.attachments, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("PST JSONL reader preserves Unicode line-separator characters in message bodies", async () => {
+  const root = await mkdtemp(join(tmpdir(), "medidakos-pst-jsonl-test-"));
+  try {
+    const output = join(root, "messages.jsonl");
+    await writeFile(output, `${JSON.stringify({ bodyText: "first\u2028second" })}\n`);
+    assert.deepEqual(await readJsonl(output), [{ bodyText: "first\u2028second" }]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

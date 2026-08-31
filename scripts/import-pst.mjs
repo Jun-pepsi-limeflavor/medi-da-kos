@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-import { createReadStream } from "node:fs";
-import { lstat, mkdir, mkdtemp, rm } from "node:fs/promises";
-import { createInterface } from "node:readline";
+import { lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -52,6 +50,13 @@ function readpstArgs(pstPath, exportDir) {
   return ["-e", "-8", "-q", "-t", "e", "-o", exportDir, pstPath];
 }
 
+async function readJsonl(parsedPath) {
+  return (await readFile(parsedPath, "utf8"))
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line));
+}
+
 async function getDb() {
   if (getApps().length === 0) {
     const encoded = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
@@ -92,10 +97,7 @@ async function run() {
 
     const db = options.apply ? await getDb() : null;
     let count = 0;
-    const input = createInterface({ input: createReadStream(parsedPath), crlfDelay: Infinity });
-    for await (const line of input) {
-      if (!line.trim()) continue;
-      const message = JSON.parse(line);
+    for (const message of await readJsonl(parsedPath)) {
       if (db) await saveMessage(db, message);
       count += 1;
       if (db && count % 25 === 0) console.error(`saved ${count} messages`);
@@ -108,7 +110,7 @@ async function run() {
   }
 }
 
-export { parseArgs, readpstArgs };
+export { parseArgs, readJsonl, readpstArgs };
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   run().catch((error) => {

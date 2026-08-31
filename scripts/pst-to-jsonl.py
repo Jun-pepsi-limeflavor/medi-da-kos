@@ -7,6 +7,7 @@ import hashlib
 import html
 import json
 import re
+import subprocess
 import sys
 from datetime import timezone
 from email import policy
@@ -77,9 +78,27 @@ def strip_html(value):
     return html.unescape(value)
 
 
+def rtf_to_text(payload):
+    """Convert readpst's RTF-only Outlook body with macOS' native converter."""
+    try:
+        result = subprocess.run(
+            ["textutil", "-convert", "txt", "-stdout", "-format", "rtf", "-stdin"],
+            input=payload,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        raise ValueError(
+            "RTF-only Outlook message requires macOS textutil to preserve its body"
+        ) from error
+    return result.stdout.decode("utf-8", errors="replace")
+
+
 def body_and_attachments(message, message_key):
     plain = []
     markup = []
+    rtf_bodies = []
     attachments = []
     for part in message.walk():
         if part.is_multipart():
@@ -87,6 +106,16 @@ def body_and_attachments(message, message_key):
         disposition = part.get_content_disposition()
         filename = decode_value(part.get_filename())
         payload = part.get_payload(decode=True) or b""
+        # readpst writes Outlook RTF-only message bodies as rtf-body.rtf.
+        # Keep that synthetic attachment aside until we know no normal text
+        # body exists; other named RTF files remain ordinary attachments.
+        if (
+            part.get_content_type() == "application/rtf"
+            and disposition == "attachment"
+            and filename.lower() == "rtf-body.rtf"
+        ):
+            rtf_bodies.append(payload)
+            continue
         if disposition == "attachment" or filename:
             attachments.append({
                 "filename": filename or f"attachment-{len(attachments) + 1}",
@@ -103,6 +132,8 @@ def body_and_attachments(message, message_key):
     body = "\n\n".join(value for value in plain if value).strip()
     if not body:
         body = "\n\n".join(strip_html(value) for value in markup if value).strip()
+    if not body and rtf_bodies:
+        body = "\n\n".join(rtf_to_text(value) for value in rtf_bodies if value).strip()
     return body.replace("\r\n", "\n").replace("\r", "\n"), attachments
 
 
