@@ -1,0 +1,33 @@
+name: KakaoWork Notification
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - closed
+
+jobs:
+  notify:
+    name: Send KakaoWork Notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run KakaoWork Notify Script
+        env:
+          KAKAOWORK_APP_KEY: ${{ secrets.KAKAOWORK_APP_KEY || secrets.KAKAOWORK_API_KEY || secrets.KAKAOWORK_WEBHOOK_URL }}
+          KAKAOWORK_ROOM_NAME: '마케팅-medidakos'
+          KAKAOWORK_CONVERSATION_ID: ${{ secrets.KAKAOWORK_CONVERSATION_ID }}
+        run: node .github/scripts/kakaowork-notify.mjs
