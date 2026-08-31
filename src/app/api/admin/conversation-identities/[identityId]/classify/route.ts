@@ -22,8 +22,8 @@ export async function POST(
       return NextResponse.json({ error: "invalid input" }, { status: 400 });
     }
     try {
-      await classifyIdentity(identityId, body, actor);
-      return NextResponse.json({ ok: true });
+      const result = await classifyIdentity(identityId, body, actor);
+      return NextResponse.json(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json({ error: "invalid input", issues: error.issues }, { status: 400 });

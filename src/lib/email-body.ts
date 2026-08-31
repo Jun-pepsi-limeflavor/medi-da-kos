@@ -44,7 +44,15 @@ export function isAttributionLine(line: string, nextLine?: string): { isMatch: b
   }
 
   // Case 5: Forwarded / Original message separator
-  if (/^(?:-{2,}\s*(?:전달된 메일|forwarded message|original message)\s*-{2,}|-----original message-----)/i.test(trimmed)) {
+  if (/^(?:-{2,}\s*(?:전달된 메일|forwarded message|original message|원본 메일)\s*-{2,}|-----\s*(?:original message|원본 메일)\s*-----)/i.test(trimmed)) {
+    return { isMatch: true, linesConsumed: 1 };
+  }
+
+  // Case 6: Outlook / Mail Client header block: "From: ... \n Sent: ..." or "보낸사람: ... \n 받는사람/날짜: ..."
+  if (
+    /^(?:From:\s+.+|<From:\s*.+>|보낸사람:\s*.+)/i.test(trimmed) &&
+    /^(?:Sent|Date|To|Subject|받는사람|날짜|제목):\s+/i.test(trimmedNext)
+  ) {
     return { isMatch: true, linesConsumed: 1 };
   }
 

@@ -1,37 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowDownLeft,
+  ArrowRight,
   ArrowUpRight,
-  Building,
   CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
-  Clock,
-  ExternalLink,
   Forward,
-  HelpCircle,
   Inbox,
   Keyboard,
-  Mail,
-  MessageSquare,
-  Paperclip,
-  Radio,
+  Link2,
   Search,
-  ShieldAlert,
+  Sparkles,
   Tag,
-  UserCheck,
+  UserPlus,
 } from "lucide-react";
 import type { ReviewIdentityItem, ReviewIdentityDetail } from "@/lib/repo/conversations";
 import type { Buyer } from "@/lib/schemas/buyer";
+import { INFLOW_CHANNELS } from "@/lib/schemas/buyer";
 import type { Supplier } from "@/lib/schemas/supplier";
 import type { ConversationRollup } from "@/lib/schemas/conversation";
-import ExtractionPanel from "./[threadKey]/ExtractionPanel";
+import {
+  extractBuyerNameFromBody,
+  extractBrandNameFromBody,
+  extractCountryFromBody,
+} from "@/lib/name-extractor";
 import ThreadReplyForm from "./[threadKey]/ThreadReplyForm";
 import MessageBodyClean from "./MessageBodyClean";
 
@@ -46,6 +42,17 @@ const CHANNEL_NAMES: Record<string, string> = {
   channeltalk: "Channel Talk",
   web: "웹 문의",
 };
+
+function mapChannelToInflow(channel?: string): (typeof INFLOW_CHANNELS)[number] {
+  if (!channel) return "manual";
+  if (channel.startsWith("gmail_hally")) return "gmail_hally";
+  if (channel.startsWith("gmail_thomas")) return "gmail_thomas";
+  if (channel.startsWith("gmail_")) return "gmail_hally";
+  if (channel.startsWith("outlook")) return "outlook";
+  if (channel.startsWith("channeltalk") || channel.startsWith("channel_talk")) return "channel_talk";
+  if (channel === "web") return "website";
+  return "manual";
+}
 
 export function isForwardedMessage(m: { subject?: string; direction?: string; to?: string[]; bodyText?: string }): boolean {
   const subj = (m.subject || "").toLowerCase().trim();
@@ -96,10 +103,26 @@ export default function ReviewQueue({
 
   // Classification Dialog / Inline Controls
   const [modalMode, setModalMode] = useState<"buyer" | "supplier" | "advertising" | "internal" | null>(null);
+  const [buyerModeTab, setBuyerModeTab] = useState<"new" | "existing">("new");
   const [selectedBuyerId, setSelectedBuyerId] = useState(buyers[0]?.id || "");
   const [selectedSupplierId, setSelectedSupplierId] = useState(suppliers[0]?.id || "");
   const [targetConversationId, setTargetConversationId] = useState(conversations[0]?.id || "");
   const [reason, setReason] = useState("");
+
+  // New Buyer Form States
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newInflowChannel, setNewInflowChannel] = useState<(typeof INFLOW_CHANNELS)[number]>("gmail_hally");
+  const [newBrandName, setNewBrandName] = useState("");
+  const [newCountry, setNewCountry] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [autoExtractBrief, setAutoExtractBrief] = useState(true);
+
+  // Success Confirmation Modal State
+  const [successModalData, setSuccessModalData] = useState<{
+    buyerName: string;
+    conversationId: string;
+  } | null>(null);
 
   const filteredItems = items.filter((item) => {
     if (!searchTerm.trim()) return true;
@@ -112,6 +135,26 @@ export default function ReviewQueue({
   });
 
   const activeIdentity = items.find((it) => it.identity.id === selectedIdentityId) || items[0];
+  const anchorMessage = selectedDetail?.anchorMessage || selectedDetail?.messages?.[0] || null;
+
+  const openBuyerModal = useCallback(() => {
+    setModalMode("buyer");
+    setBuyerModeTab("new");
+    setReason("정상 바이어 문의 확인");
+    setAutoExtractBrief(true);
+
+    const email = activeIdentity?.identity.kind === "email" ? activeIdentity.identity.value : "";
+    const extractedName = extractBuyerNameFromBody(anchorMessage?.bodyText, anchorMessage?.fromName);
+    const extractedBrand = extractBrandNameFromBody(anchorMessage?.bodyText, email);
+    const extractedCountry = extractCountryFromBody(anchorMessage?.bodyText);
+
+    setNewName(extractedName);
+    setNewEmail(email);
+    setNewInflowChannel(mapChannelToInflow(activeIdentity?.channels?.[0]));
+    setNewBrandName(extractedBrand);
+    setNewCountry(extractedCountry);
+    setNewPhone("");
+  }, [activeIdentity, anchorMessage]);
 
   // Keyboard shortcut listener: 1 = Buyer, 2 = Supplier, 3 = Advertising, 4 = Internal
   useEffect(() => {
@@ -128,8 +171,7 @@ export default function ReviewQueue({
 
       if (e.key === "1") {
         e.preventDefault();
-        setModalMode("buyer");
-        setReason("바이어 문의 확인");
+        openBuyerModal();
       } else if (e.key === "2") {
         e.preventDefault();
         setModalMode("supplier");
@@ -149,7 +191,7 @@ export default function ReviewQueue({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [classifying, activeIdentity]);
+  }, [classifying, activeIdentity, openBuyerModal]);
 
   async function handleClassifySubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -161,12 +203,32 @@ export default function ReviewQueue({
 
     let payload: Record<string, unknown>;
     if (modalMode === "buyer") {
-      payload = {
-        classification: "buyer",
-        buyerId: selectedBuyerId,
-        conversationId: targetConversationId,
-        reason: reason.trim(),
-      };
+      if (buyerModeTab === "new") {
+        const emailVal = newEmail.trim().toLowerCase() || activeIdentity.identity.value.toLowerCase();
+        payload = {
+          classification: "buyer",
+          buyerMode: "new",
+          buyer: {
+            name: newName.trim() || newBrandName.trim() || emailVal.split("@")[0] || "신규 바이어",
+            emails: [emailVal],
+            inflowChannel: newInflowChannel,
+            brandName: newBrandName.trim(),
+            country: newCountry.trim(),
+            phone: newPhone.trim(),
+          },
+          reason: reason.trim(),
+          autoExtractBrief,
+        };
+      } else {
+        payload = {
+          classification: "buyer",
+          buyerMode: "existing",
+          buyerId: selectedBuyerId,
+          conversationId: targetConversationId || undefined,
+          reason: reason.trim(),
+          autoExtractBrief,
+        };
+      }
     } else if (modalMode === "supplier") {
       payload = {
         classification: "supplier",
@@ -191,16 +253,27 @@ export default function ReviewQueue({
         },
       );
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => null) as { error?: string } | null;
-        setActionError(err?.error || "분류 처리 중 오류가 발생했습니다.");
+      const resData = await res.json().catch(() => null) as { ok?: boolean; error?: string; conversationId?: string; buyerId?: string } | null;
+
+      if (!res.ok || !resData?.ok) {
+        setActionError(resData?.error || "분류 처리 중 오류가 발생했습니다.");
         return;
       }
 
-      setActionSuccess("분류가 완료되었습니다.");
-      setModalMode(null);
-      setReason("");
-      router.refresh();
+      if (modalMode === "buyer" && resData.conversationId) {
+        const displayName = buyerModeTab === "new"
+          ? (newName.trim() || newBrandName.trim() || activeIdentity.identity.value)
+          : (buyers.find((b) => b.id === selectedBuyerId)?.name || "바이어");
+        setSuccessModalData({
+          buyerName: displayName,
+          conversationId: resData.conversationId,
+        });
+      } else {
+        setActionSuccess("분류가 완료되었습니다.");
+        setModalMode(null);
+        setReason("");
+        router.refresh();
+      }
     } catch {
       setActionError("네트워크 요청 실패");
     } finally {
@@ -321,10 +394,7 @@ export default function ReviewQueue({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setModalMode("buyer");
-                      setReason("정상 바이어 문의 확인");
-                    }}
+                    onClick={openBuyerModal}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-sky-600/60 bg-sky-950/80 px-3 py-2 text-xs font-semibold text-sky-200 hover:bg-sky-900 hover:border-sky-500 transition-all shadow-[0_0_12px_rgba(14,165,233,0.15)] min-h-[36px]"
                   >
                     <span className="rounded bg-sky-900 px-1.5 py-0.5 font-mono text-[10px] text-sky-200">1</span>
@@ -406,38 +476,183 @@ export default function ReviewQueue({
                   </div>
 
                   {modalMode === "buyer" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-neutral-300">연결할 바이어 선택</label>
-                        <select
-                          value={selectedBuyerId}
-                          onChange={(e) => setSelectedBuyerId(e.target.value)}
-                          required
-                          className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
+                    <div className="space-y-3.5">
+                      {/* Sub-tab: New Buyer vs Existing Buyer */}
+                      <div className="flex items-center gap-1.5 p-1 bg-neutral-950 rounded-xl border border-neutral-800 w-fit">
+                        <button
+                          type="button"
+                          onClick={() => setBuyerModeTab("new")}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            buyerModeTab === "new"
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
+                          }`}
                         >
-                          {buyers.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name} ({b.emails?.join(", ") || b.id})
-                            </option>
-                          ))}
-                        </select>
+                          <UserPlus className="h-3.5 w-3.5" />
+                          신규 바이어 등록 (기본)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBuyerModeTab("existing")}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            buyerModeTab === "existing"
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
+                          }`}
+                        >
+                          <Link2 className="h-3.5 w-3.5" />
+                          기존 바이어 연결 ({buyers.length}명)
+                        </button>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-neutral-300">대상 대화 선택</label>
-                        <select
-                          value={targetConversationId}
-                          onChange={(e) => setTargetConversationId(e.target.value)}
-                          required
-                          className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
-                        >
-                          {conversations.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.counterpartyLabel || c.id} ({c.lastSubject || "대화"})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {buyerModeTab === "new" ? (
+                        <div className="space-y-3 rounded-xl border border-neutral-800/90 bg-neutral-950/60 p-3.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-semibold text-neutral-300 flex items-center justify-between">
+                                <span>바이어 담당자 이름 <span className="text-rose-400">*</span></span>
+                                {newName && <span className="text-[10px] text-emerald-400 font-normal">본문 추출됨</span>}
+                              </label>
+                              <input
+                                type="text"
+                                value={newName}
+                                onChange={(e) => setNewName(e.target.value)}
+                                placeholder="이름 (예: John Doe)"
+                                required
+                                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-100 placeholder:text-neutral-600 outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-semibold text-neutral-300">
+                                대표 이메일 <span className="text-rose-400">*</span>
+                              </label>
+                              <input
+                                type="email"
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                placeholder="이메일 (예: buyer@domain.com)"
+                                required
+                                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-100 placeholder:text-neutral-600 outline-none focus:border-indigo-500 font-mono"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-semibold text-neutral-300">
+                                유입 채널 <span className="text-rose-400">*</span>
+                              </label>
+                              <select
+                                value={newInflowChannel}
+                                onChange={(e) => setNewInflowChannel(e.target.value as (typeof INFLOW_CHANNELS)[number])}
+                                required
+                                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
+                              >
+                                {INFLOW_CHANNELS.map((ch) => (
+                                  <option key={ch} value={ch}>
+                                    {CHANNEL_NAMES[ch] || ch}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-semibold text-neutral-300">
+                                브랜드명 / 회사명
+                              </label>
+                              <input
+                                type="text"
+                                value={newBrandName}
+                                onChange={(e) => setNewBrandName(e.target.value)}
+                                placeholder="브랜드명 또는 회사명"
+                                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-100 placeholder:text-neutral-600 outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-semibold text-neutral-300">
+                                소재 국가
+                              </label>
+                              <input
+                                type="text"
+                                value={newCountry}
+                                onChange={(e) => setNewCountry(e.target.value)}
+                                placeholder="예: 미국 (USA), 일본"
+                                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-100 placeholder:text-neutral-600 outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-semibold text-neutral-300">
+                                전화번호 / 연락처
+                              </label>
+                              <input
+                                type="text"
+                                value={newPhone}
+                                onChange={(e) => setNewPhone(e.target.value)}
+                                placeholder="전화번호 (선택)"
+                                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-100 placeholder:text-neutral-600 outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* AI Brief Extract Checkbox */}
+                          <label className="flex items-center gap-2 text-xs text-indigo-300 font-medium cursor-pointer pt-1.5">
+                            <input
+                              type="checkbox"
+                              checked={autoExtractBrief}
+                              onChange={(e) => setAutoExtractBrief(e.target.checked)}
+                              className="rounded border-neutral-700 bg-neutral-900 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                            <span>승인 즉시 인바운드 본문 AI 브리프/추출 자동 실행</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 rounded-xl border border-neutral-800/90 bg-neutral-950/60 p-3.5">
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-semibold text-neutral-300">연결할 바이어 선택</label>
+                            <select
+                              value={selectedBuyerId}
+                              onChange={(e) => setSelectedBuyerId(e.target.value)}
+                              required
+                              className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
+                            >
+                              {buyers.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name} ({b.emails?.join(", ") || b.id})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-semibold text-neutral-300">대상 대화 선택</label>
+                            <select
+                              value={targetConversationId}
+                              onChange={(e) => setTargetConversationId(e.target.value)}
+                              required
+                              className="w-full rounded-xl border border-neutral-700 bg-neutral-900 p-2.5 text-xs text-neutral-200 outline-none focus:border-indigo-500"
+                            >
+                              {conversations.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.counterpartyLabel || c.id} ({c.lastSubject || "대화"})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <label className="sm:col-span-2 flex items-center gap-2 text-xs text-indigo-300 font-medium cursor-pointer pt-1">
+                            <input
+                              type="checkbox"
+                              checked={autoExtractBrief}
+                              onChange={(e) => setAutoExtractBrief(e.target.checked)}
+                              className="rounded border-neutral-700 bg-neutral-900 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                            <span>연결과 동시에 AI 브리프/추출 자동 실행</span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -667,6 +882,61 @@ export default function ReviewQueue({
           </div>
         )}
       </div>
+      {/* Completion & Decision Modal */}
+      {successModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900/95 p-6 shadow-2xl space-y-4 text-neutral-200">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-950/80 border border-emerald-800/80 text-emerald-400">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-neutral-100">
+                  바이어 등록 및 대화 개설 완료
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  <strong className="text-neutral-200 font-semibold">{successModalData.buyerName}</strong>의 고객 대화가 생성되었습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-3.5 text-xs text-neutral-400 space-y-1.5 leading-relaxed">
+              <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
+                <Sparkles className="h-4 w-4" />
+                <span>AI 브리프 자동 분석 완료</span>
+              </div>
+              <p>
+                인바운드 메시지 본문에서 제품 사양, 수량, 희망 일정이 추출되어 딜 인큐베이터에 준비되었습니다.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccessModalData(null);
+                  setModalMode(null);
+                  setReason("");
+                  router.refresh();
+                }}
+                className="w-full sm:w-auto rounded-xl border border-neutral-700 px-4 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800 transition-colors"
+              >
+                검토함에 남아 계속 분류
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  router.push(`/admin/inbox?queue=customer-work&conversationId=${encodeURIComponent(successModalData.conversationId)}`);
+                }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition-all shadow-[0_0_12px_rgba(99,102,241,0.3)]"
+              >
+                <span>고객 업무(대화)로 바로 이동</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
