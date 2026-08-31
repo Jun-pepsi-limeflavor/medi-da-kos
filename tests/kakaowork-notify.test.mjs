@@ -8,7 +8,7 @@ import {
 
 describe('buildKakaoWorkPayload', () => {
   describe('push event', () => {
-    it('dev 브랜치에 20개의 커밋이 푸시될 때 최대 15개만 렌더링하고 잔여 개수를 표시해야 한다', () => {
+    it('dev 브랜치에 20개의 커밋이 푸시될 때 최대 6개만 렌더링하고 500자 이하를 엄격히 보장해야 한다', () => {
       const commits = Array.from({ length: 20 }, (_, i) => ({
         id: `commit${String(i).padStart(2, '0')}abcdef123456`,
         message: `feat: change number ${i + 1}\n\nDetail body`,
@@ -31,27 +31,29 @@ describe('buildKakaoWorkPayload', () => {
       assert.ok(payload);
       assert.ok(payload.text.includes('[dev] 새 커밋 푸시 (20개)'));
 
-      // Check header block
+      // Check header block (max 20 chars limit)
       const headerBlock = payload.blocks.find((b) => b.type === 'header');
-      assert.equal(headerBlock?.text, '🚀 [dev] 새 커밋 푸시 (20개)');
+      assert.equal(headerBlock?.text, '🚀 [dev] 새 커밋 (20개)');
+      assert.ok(headerBlock?.text.length <= 20);
       assert.equal(headerBlock?.style, 'blue');
 
-      // Check text block for commits
+      // Check text block for commits (max 420 chars limit)
       const textBlock = payload.blocks.find((b) => b.type === 'text');
       assert.ok(textBlock);
+      assert.ok(textBlock.text.length <= 420);
 
-      // Verify first 15 commits are included
+      // Verify first commit is included
       assert.ok(textBlock.text.includes('commit0'));
       assert.ok(textBlock.text.includes('feat: change number 1'));
-      assert.ok(textBlock.text.includes('feat: change number 15'));
 
-      // Verify 16th commit (index 15) is not listed
-      assert.ok(!textBlock.text.includes('feat: change number 16'));
-      assert.ok(textBlock.text.includes('+ 외 5개의 커밋이 더 있습니다.'));
+      // Verify 20th commit is not listed and suffix is present
+      assert.ok(!textBlock.text.includes('feat: change number 20'));
+      assert.ok(textBlock.text.includes('+ 외 '));
 
-      // Check compare button
+      // Check compare button (max 20 chars limit)
       const buttonBlock = payload.blocks.find((b) => b.type === 'button');
-      assert.equal(buttonBlock?.text, '🔍 변경사항 비교 (Compare)');
+      assert.equal(buttonBlock?.text, '🔍 변경사항 확인');
+      assert.ok(buttonBlock?.text.length <= 20);
       assert.equal(buttonBlock?.action_type, 'open_inapp_browser');
       assert.equal(buttonBlock?.value, event.compare);
     });
@@ -86,7 +88,7 @@ describe('buildKakaoWorkPayload', () => {
       assert.ok(payload.text.includes('[PR #42] 풀 리퀘스트 등록'));
 
       const headerBlock = payload.blocks.find((b) => b.type === 'header');
-      assert.equal(headerBlock?.text, '📬 [PR #42] 풀 리퀘스트 등록');
+      assert.equal(headerBlock?.text, '📬 [PR #42] PR 등록');
       assert.equal(headerBlock?.style, 'yellow');
 
       const buttonBlock = payload.blocks.find((b) => b.type === 'button');
@@ -113,7 +115,7 @@ describe('buildKakaoWorkPayload', () => {
       assert.ok(payload.text.includes('[PR #42] 풀 리퀘스트 재오픈'));
 
       const headerBlock = payload.blocks.find((b) => b.type === 'header');
-      assert.equal(headerBlock?.text, '📬 [PR #42] 풀 리퀘스트 재오픈');
+      assert.equal(headerBlock?.text, '📬 [PR #42] PR 재오픈');
     });
 
     it('main 대상 PR closed & merged 이벤트 시 머지 알림 메시지를 생성해야 한다', () => {
@@ -136,7 +138,7 @@ describe('buildKakaoWorkPayload', () => {
       assert.ok(payload.text.includes('[PR #42] main 브랜치 머지 완료'));
 
       const headerBlock = payload.blocks.find((b) => b.type === 'header');
-      assert.equal(headerBlock?.text, '🎉 [PR #42] main 브랜치 머지 완료');
+      assert.equal(headerBlock?.text, '🎉 [PR #42] main 머지');
       assert.equal(headerBlock?.style, 'blue');
 
       const buttonBlock = payload.blocks.find((b) => b.type === 'button');
