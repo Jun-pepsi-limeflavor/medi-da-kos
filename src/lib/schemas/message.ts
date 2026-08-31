@@ -10,6 +10,7 @@ export const channelSchema = z.enum([
 export const sideSchema = z.enum(["brand", "factory", "unknown"]);
 export const sideSourceSchema = z.enum(["account_rule", "address_match", "manual"]);
 export const directionSchema = z.enum(["in", "out"]);
+export const authorRoleSchema = z.enum(["customer", "agent", "automation"]);
 export const parseStatusSchema = z.enum(["pending", "processing", "completed", "failed", "skipped"]);
 
 export const attachmentSchema = z.object({
@@ -31,6 +32,8 @@ export const messageSchema = z.object({
   threadKey: z.string(),
   historyId: z.string(),
   direction: directionSchema,
+  authorRole: authorRoleSchema.optional(),
+  channelTalkUserId: z.string().trim().min(1).optional(),
   from: z.string(),
   fromName: z.string(),
   to: z.array(z.string()),

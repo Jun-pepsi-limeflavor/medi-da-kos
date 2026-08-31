@@ -18,6 +18,7 @@ if (!emulatorHost) {
   register("./esm-alias-loader.mjs", import.meta.url);
   const { getAdminApp, getAdminDb } = await import("../src/lib/firebase-admin.ts");
   const { saveMessage } = await import("../functions-ingest/store.js");
+  const { listReviewIdentities } = await import("../src/lib/repo/conversations.ts");
   const { ingestHealthSummary } = await import("../src/lib/repo/ingest-state.ts");
   const { needsReply } = await import("../src/lib/schemas/thread.ts");
 
@@ -229,6 +230,67 @@ if (!emulatorHost) {
     assert.equal(needsReply(thread3Reopened.data()), true);
     assert.equal(convAfterReopen.data().unansweredThreadCount, 1);
     assert.equal(convAfterReopen.data().oldestUnansweredAt, "2026-08-29T14:00:00.000Z");
+  });
+
+  test("Channel Talk automation stays on its customer thread and never creates a main identity", async () => {
+    const automationThreadKey = id("channel-automation-only");
+    await saveMessage(db, {
+      docId: id("channel-automation"),
+      channel: "channeltalk",
+      side: "unknown",
+      sideSource: "account_rule",
+      sourceAccount: "main",
+      externalId: "channel-automation",
+      providerThreadId: "chat-automation-only",
+      threadKey: automationThreadKey,
+      historyId: "channel-automation",
+      direction: "out",
+      authorRole: "automation",
+      from: "main",
+      fromName: "",
+      to: ["channel:user:visitor-automation"],
+      channelTalkUserId: "visitor-automation",
+      subject: "",
+      bodyText: "방문해주셔서 감사합니다.",
+      attachments: [],
+      sentAt: "2026-08-29T15:00:00.000Z",
+    });
+
+    const mainIdentity = await db.collection("conversationIdentities").doc("channeltalk:main:main").get();
+    const automationIdentity = await db.collection("conversationIdentities").doc("channeltalk:main:visitor-automation").get();
+    assert.equal(mainIdentity.exists, false);
+    assert.equal(automationIdentity.exists, true);
+    assert.equal(automationIdentity.data().classification, "unclassified");
+
+    const reviewBeforeCustomer = await listReviewIdentities("unclassified");
+    assert.equal(reviewBeforeCustomer.some((item) => item.identity.id === automationIdentity.id), false);
+
+    await saveMessage(db, {
+      docId: id("channel-customer"),
+      channel: "channeltalk",
+      side: "unknown",
+      sideSource: "account_rule",
+      sourceAccount: "main",
+      externalId: "channel-customer",
+      providerThreadId: "chat-automation-only",
+      threadKey: automationThreadKey,
+      historyId: "channel-customer",
+      direction: "in",
+      authorRole: "customer",
+      from: "channel:user:visitor-automation",
+      fromName: "Automation Visitor",
+      to: ["main"],
+      channelTalkUserId: "visitor-automation",
+      subject: "",
+      bodyText: "제품 문의드립니다.",
+      attachments: [],
+      sentAt: "2026-08-29T15:01:00.000Z",
+    });
+
+    const thread = await db.collection("threads").doc(automationThreadKey).get();
+    assert.equal(thread.data().hasCustomerInbound, true);
+    const reviewAfterCustomer = await listReviewIdentities("unclassified");
+    assert.equal(reviewAfterCustomer.some((item) => item.identity.id === automationIdentity.id), true);
   });
 
   test("ingestHealthSummary flags degraded and errored accounts accurately", async () => {

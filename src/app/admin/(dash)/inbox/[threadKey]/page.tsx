@@ -257,7 +257,9 @@ export default async function ThreadDetailPage({
                     </div>
                     <div className={`min-w-0 max-w-[90%] sm:max-w-[82%] ${isInbound ? "" : "items-end"}`}>
                       <div className={`mb-1.5 flex flex-wrap items-center gap-2 ${isInbound ? "" : "justify-end"}`}>
-                        <span className="text-xs font-semibold text-neutral-200">{msg.fromName || msg.from}</span>
+                        <span className="text-xs font-semibold text-neutral-200">
+                          {msg.authorRole === "automation" ? "자동 안내" : msg.fromName || msg.from}
+                        </span>
                         <span className="text-[10px] text-neutral-600">{formatDatetime(msg.sentAt)}</span>
                         {anchorMessage && msg.id === anchorMessage.id && (
                           <span className="rounded border border-indigo-800 bg-indigo-950/60 px-1.5 py-0.5 text-[10px] text-indigo-300">추출 대상</span>

@@ -115,8 +115,13 @@ test("Channel Talk ingestion keeps same-chatKey user chats in separate threads a
       { id: `bot-${chatId}`, chatKey: "main", personType: "bot", personId: "bot-1", createdAt: 1656032152433, plainText: "bot" },
     ] }),
     normalizeChannelTalkMessage: (raw, options) => {
-      if (raw.personType === "bot" || !raw.plainText) return null;
-      return { threadKey: `channeltalk:main:${options.userChatId}`, channelTalkUserId: options.userId, docId: raw.id };
+      if (!raw.plainText) return null;
+      return {
+        threadKey: `channeltalk:main:${options.userChatId}`,
+        channelTalkUserId: options.userId,
+        authorRole: raw.personType === "bot" ? "automation" : "customer",
+        docId: raw.id,
+      };
     },
     saveMessage: async (_db, message) => saved.push(message),
     setIngestState: async (_db, key, value) => stateWrites.push({ key, value }),
@@ -127,11 +132,41 @@ test("Channel Talk ingestion keeps same-chatKey user chats in separate threads a
     credentials: { accessKey: "key", accessSecret: "secret", channelVersion: "2024-01-01" },
   }, { deps, now: Date.parse("2026-08-31T00:00:00.000Z") });
 
-  assert.equal(count, 2);
+  assert.equal(count, 4);
   assert.deepEqual(saved.map((message) => message.threadKey), [
     "channeltalk:main:chat-1",
+    "channeltalk:main:chat-1",
+    "channeltalk:main:chat-2",
     "channeltalk:main:chat-2",
   ]);
   assert.deepEqual(userFetches, ["visitor-1"]);
-  assert.equal(stateWrites[0].value.filteredCount, 4);
+  assert.equal(stateWrites[0].value.filteredCount, 2);
+});
+
+test("Channel Talk skips user chats without a customer userId and records unresolved counts", async () => {
+  const saved = [];
+  const stateWrites = [];
+  let normalized = 0;
+  const deps = {
+    listAllUserChats: async () => ({ userChats: [{ id: "chat-without-user" }] }),
+    getChannelTalkUser: async () => { throw new Error("must not fetch without userId"); },
+    listAllChatMessages: async () => ({ messages: [
+      { id: "m-1", personType: "user", plainText: "hello" },
+      { id: "m-2", personType: "bot", plainText: "welcome" },
+    ] }),
+    normalizeChannelTalkMessage: () => { normalized += 1; return null; },
+    saveMessage: async (_db, message) => saved.push(message),
+    setIngestState: async (_db, key, value) => stateWrites.push({ key, value }),
+  };
+
+  const count = await ingestChannelTalkAccount({}, {
+    account: "main",
+    credentials: { accessKey: "key", accessSecret: "secret", channelVersion: "2024-01-01" },
+  }, { deps, now: fixedNow });
+
+  assert.equal(count, 0);
+  assert.equal(normalized, 0);
+  assert.deepEqual(saved, []);
+  assert.equal(stateWrites[0].value.unresolvedUserChatCount, 1);
+  assert.equal(stateWrites[0].value.unresolvedMessageCount, 2);
 });

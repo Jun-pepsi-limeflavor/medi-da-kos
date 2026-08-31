@@ -18,6 +18,8 @@ export const threadSchema = z.object({
   channel: channelSchema,
   sourceAccount: z.string(),
   providerThreadId: z.string(),
+  channelTalkUserId: z.string().trim().min(1).optional(),
+  hasCustomerInbound: z.boolean().optional(),
   readState: readStateSchema,
   triageState: triageStateSchema,
   linkState: linkStateSchema,

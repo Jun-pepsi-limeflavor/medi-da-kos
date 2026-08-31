@@ -209,6 +209,7 @@ export default function ConversationTimeline({
         ) : (
           messages.map((msg, idx) => {
             const isInbound = msg.direction === "in";
+            const isAutomation = msg.authorRole === "automation";
             const channelName = CHANNEL_NAMES[msg.channel] || msg.channel;
             const sentDate = new Date(msg.sentAt);
             const isFwd = isForwardedMessage(msg);
@@ -289,7 +290,7 @@ export default function ConversationTimeline({
                       </span>
 
                       <span className="text-xs font-semibold text-neutral-100 truncate max-w-[200px]">
-                        {msg.fromName ? `${msg.fromName} (${msg.from})` : msg.from}
+                        {isAutomation ? "자동 안내" : msg.fromName ? `${msg.fromName} (${msg.from})` : msg.from}
                       </span>
                     </div>
 

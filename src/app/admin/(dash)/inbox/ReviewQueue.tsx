@@ -938,7 +938,7 @@ export default function ReviewQueue({
                               </span>
 
                               <span className="text-xs font-semibold text-neutral-100 truncate max-w-[200px]">
-                                {m.fromName ? `${m.fromName} (${m.from})` : m.from}
+                                {m.authorRole === "automation" ? "자동 안내" : m.fromName ? `${m.fromName} (${m.from})` : m.from}
                               </span>
                             </div>
 
