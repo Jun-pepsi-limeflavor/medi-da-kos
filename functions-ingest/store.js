@@ -118,6 +118,13 @@ async function saveMessage(db, m) {
         ...(buyerId ? { buyerId } : {}),
         ...(supplierId ? { supplierId } : {}),
         ...(conversationId ? { conversationId } : {}),
+        ...(m.channel === "channeltalk" && m.direction === "in" && m.fromName ? { displayName: m.fromName } : {}),
+        ...(m.channel === "channeltalk" && m.direction === "in" && m.channelTalkUserId
+          ? { channelTalkUserId: m.channelTalkUserId }
+          : {}),
+        ...(m.channel === "channeltalk" && identityInfo.kind === "email"
+          ? { displayEmail: identityInfo.value }
+          : {}),
         createdAt: now,
         updatedAt: now,
       };
@@ -139,6 +146,12 @@ async function saveMessage(db, m) {
     // 1. Identity write
     if (isNewIdentity) {
       tx.create(identityRef, identityData);
+    } else if (m.channel === "channeltalk" && m.direction === "in") {
+      const identityUpdate = { updatedAt: now };
+      if (m.fromName && !identityData?.displayName) identityUpdate.displayName = m.fromName;
+      if (m.channelTalkUserId && !identityData?.channelTalkUserId) identityUpdate.channelTalkUserId = m.channelTalkUserId;
+      if (identityInfo.kind === "email" && !identityData?.displayEmail) identityUpdate.displayEmail = identityInfo.value;
+      tx.update(identityRef, identityUpdate);
     }
 
     // 2. Message write

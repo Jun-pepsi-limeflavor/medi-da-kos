@@ -5,6 +5,7 @@ import {
   listAllUserChats,
   listChatMessagesPage,
   listUserChatsPage,
+  getChannelTalkUser,
   sendChatMessage,
 } from "../functions-ingest/channeltalk.js";
 
@@ -54,6 +55,19 @@ test("user-chat page keeps related messages without requiring their shape", asyn
     fetchImpl: async () => response({ userChats: [], messages: [{ id: "m1" }], next: null }),
   });
   assert.deepEqual(page.messages, [{ id: "m1" }]);
+});
+
+test("user enrichment uses the documented user endpoint and unwraps the user payload", async () => {
+  let requestedUrl = "";
+  const user = await getChannelTalkUser("visitor/1", credentials, {
+    baseUrl: "https://channel.test/open/v5",
+    fetchImpl: async (url) => {
+      requestedUrl = url;
+      return response({ user: { id: "visitor/1", name: "Buyer", profile: { email: "buyer@example.test" } } });
+    },
+  });
+  assert.equal(requestedUrl, "https://channel.test/open/v5/users/visitor%2F1");
+  assert.equal(user.profile.email, "buyer@example.test");
 });
 
 test("sendChatMessage sends formatted payload to user-chat message endpoint", async () => {

@@ -20,6 +20,7 @@ const {
 const {
   listAllChatMessages,
   listAllUserChats,
+  getChannelTalkUser,
   normalizeMessage: normalizeChannelTalkMessage,
 } = require("./channeltalk");
 const { saveMessage, getIngestState, setIngestState } = require("./store");
@@ -148,31 +149,57 @@ async function ingestOutlookAccount(db, config, options = {}) {
 async function ingestChannelTalkAccount(db, config, options = {}) {
   const stateKey = `channeltalk:${config.account}`;
   const nowMs = options.now ?? Date.now();
-  const chats = await listAllUserChats(config.credentials, { state: "opened" });
+  const deps = {
+    listAllChatMessages,
+    listAllUserChats,
+    getChannelTalkUser,
+    normalizeChannelTalkMessage,
+    saveMessage,
+    setIngestState,
+    ...options.deps,
+  };
+  const chats = await deps.listAllUserChats(config.credentials, { state: "opened" });
+  const userCache = new Map();
   let processedCount = 0;
+  let filteredCount = 0;
 
   for (const chat of chats.userChats) {
     if (!chat || typeof chat.id !== "string" || !chat.id) {
       throw new Error("Channel Talk user-chat is missing an id");
     }
-    const messages = await listAllChatMessages(chat.id, config.credentials);
+    const userId = chat.userId || chat.user?.id || chat.customer?.id || chat.contact?.id || "";
+    let user = chat.user || chat.customer || chat.contact;
+    if (userId) {
+      if (!userCache.has(userId)) {
+        userCache.set(userId, deps.getChannelTalkUser(userId, config.credentials).catch(() => user));
+      }
+      user = await userCache.get(userId);
+    }
+    const messages = await deps.listAllChatMessages(chat.id, config.credentials);
     for (const raw of messages.messages) {
-      await saveMessage(db, normalizeChannelTalkMessage(raw, {
+      const normalized = deps.normalizeChannelTalkMessage(raw, {
         account: config.account,
-        user: chat.user || chat.customer || chat.contact,
+        user,
+        userId,
         userChatId: chat.id,
-      }));
+      });
+      if (!normalized) {
+        filteredCount += 1;
+        continue;
+      }
+      await deps.saveMessage(db, normalized);
       processedCount += 1;
     }
   }
 
   const now = new Date(nowMs).toISOString();
-  await setIngestState(db, stateKey, {
+  await deps.setIngestState(db, stateKey, {
     lastPollAt: now,
     lastAttemptAt: now,
     lastSuccessAt: now,
     lastError: null,
     processedCount,
+    filteredCount,
   });
   return processedCount;
 }

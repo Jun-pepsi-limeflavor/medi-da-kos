@@ -77,6 +77,16 @@ async function listChatMessagesPage(userChatId, credentials, options = {}) {
   };
 }
 
+async function getChannelTalkUser(userId, credentials, options = {}) {
+  if (typeof userId !== "string" || !userId.trim()) {
+    throw new TypeError("Channel Talk userId is required");
+  }
+  const baseUrl = options.baseUrl || CHANNEL_TALK_BASE;
+  const url = `${baseUrl}/users/${encodeURIComponent(userId.trim())}`;
+  const json = await fetchJson(url, credentials, options);
+  return json?.user && typeof json.user === "object" ? json.user : json;
+}
+
 async function collectPages(fetchPage, { since, maxPages = 1000 } = {}) {
   let cursor = since;
   const pages = [];
@@ -126,6 +136,19 @@ function messageDirection(raw, { managerIds = [] } = {}) {
   throw new TypeError("Channel Talk message has an unsupported personType");
 }
 
+function messageDisposition(raw, { bodyText, attachments } = {}) {
+  const personType = typeof raw?.personType === "string" ? raw.personType.toLowerCase() : "";
+  if (["bot", "system", "event", "webhook", "workflow", "ai"].includes(personType)) {
+    return `skip_${personType}`;
+  }
+  if (!["user", "customer", "visitor", "contact", "manager", "operator", "admin"].includes(personType)) {
+    return "skip_unsupported_person_type";
+  }
+  const text = typeof bodyText === "string" ? bodyText.trim() : "";
+  const files = Array.isArray(attachments) ? attachments : [];
+  return text || files.length > 0 ? "accepted" : "skip_empty";
+}
+
 function blocksToText(blocks) {
   if (!Array.isArray(blocks)) return "";
   return blocks.map((block) => {
@@ -151,20 +174,26 @@ function timestampToIso(value) {
 }
 
 function userIdentity(user, fallbackId) {
+  const id = user?.id || user?.userId || fallbackId;
   const email = user?.email || user?.profile?.email;
   if (typeof email === "string" && email.trim()) {
-    return { from: email.trim().toLowerCase(), fromName: user?.name || user?.profile?.name || "" };
+    return {
+      from: email.trim().toLowerCase(),
+      fromName: user?.name || user?.profile?.name || "",
+      userId: id || "",
+    };
   }
-  const id = user?.id || user?.userId || fallbackId;
   return {
     from: id ? `channel:user:${id}` : "channel:user:unknown",
     fromName: user?.name || user?.profile?.name || "",
+    userId: id || "",
   };
 }
 
 function normalizeMessage(raw, {
   account,
   user,
+  userId,
   userChatId,
   managerIds = [],
   channel = "channeltalk",
@@ -176,22 +205,25 @@ function normalizeMessage(raw, {
     throw new TypeError("Channel Talk source account is required");
   }
   const sourceAccount = account.trim().toLowerCase();
-  const direction = messageDirection(raw, { managerIds });
-  const identity = userIdentity(user, raw.personId);
-  const providerThreadId = raw.chatKey || raw.chatId || raw.threadKey || userChatId;
-  if (typeof providerThreadId !== "string" || !providerThreadId) {
-    throw new TypeError("Channel Talk message chat key is required");
-  }
+  const identity = userIdentity(user, userId || raw.personId);
   const attachments = (Array.isArray(raw.files) ? raw.files : []).filter((file) => file && file.id).map((file) => ({
     filename: file.name || file.filename || file.id,
     mimeType: file.type || file.mimeType || "application/octet-stream",
     size: Number.isFinite(Number(file.size)) ? Number(file.size) : 0,
     attachmentId: file.id,
   }));
+  const plainText = typeof raw.plainText === "string" ? raw.plainText.trim() : "";
+  const bodyText = plainText || blocksToText(raw.blocks);
+  const disposition = messageDisposition(raw, { bodyText, attachments });
+  if (disposition !== "accepted") return null;
+  const direction = messageDirection(raw, { managerIds });
+  const providerThreadId = userChatId;
+  if (typeof providerThreadId !== "string" || !providerThreadId) {
+    throw new TypeError("Channel Talk user-chat id is required");
+  }
   const from = direction === "in" ? identity.from : sourceAccount;
   const fromName = direction === "in" ? identity.fromName : "";
   const to = direction === "in" ? [sourceAccount] : [identity.from];
-  const bodyText = typeof raw.plainText === "string" ? raw.plainText : blocksToText(raw.blocks);
 
   return {
     docId: `${channel}:${sourceAccount}:${raw.id}`,
@@ -206,6 +238,7 @@ function normalizeMessage(raw, {
     direction,
     from,
     fromName,
+    ...(direction === "in" && (userId || identity.userId) ? { channelTalkUserId: userId || identity.userId } : {}),
     to,
     // UserChat messages have no documented subject property.
     subject: "",
@@ -256,10 +289,12 @@ module.exports = {
   headers,
   listUserChatsPage,
   listChatMessagesPage,
+  getChannelTalkUser,
   listAllUserChats,
   listAllChatMessages,
   collectPages,
   messageDirection,
+  messageDisposition,
   blocksToText,
   normalizeMessage,
   sendChatMessage,
