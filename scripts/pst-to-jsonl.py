@@ -18,6 +18,7 @@ from pathlib import Path
 
 
 CHANNEL = "outlook_support"
+SENT_FOLDER_NAMES = {"sent", "sent items", "sent mail", "보낸 편지함"}
 TAG_RE = re.compile(r"<[^>]+>")
 MESSAGE_ID_RE = re.compile(r"<[^>]+>")
 
@@ -45,6 +46,37 @@ def address_list(value):
         for _, address in getaddresses([value] if value else [])
         if address and "@" in address
     ]
+
+
+def is_sent_path(path):
+    return any(part.casefold() in SENT_FOLDER_NAMES for part in path.parts)
+
+
+def sender_contacts(files):
+    contacts = {}
+    for path in files:
+        message = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
+        name, address = address_parts(decode_value(message.get("From", "")))
+        if name and "@" in address:
+            contacts.setdefault(name.casefold(), set()).add(address)
+    return contacts
+
+
+def sent_recipients(message, contacts, path):
+    recipients = address_list(decode_value(message.get("To", "")))
+    if recipients:
+        return recipients
+
+    resolved = []
+    for name, address in getaddresses([decode_value(message.get("To", ""))]):
+        label = (name or address).strip().strip('"')
+        matches = contacts.get(label.casefold(), set())
+        if len(matches) != 1:
+            raise ValueError(f"{path}: cannot resolve sent recipient {label!r} to one email")
+        resolved.extend(matches)
+    if not resolved:
+        raise ValueError(f"{path}: sent message requires a recipient email")
+    return list(dict.fromkeys(resolved))
 
 
 def iso_date(value, path):
@@ -151,7 +183,7 @@ def thread_id(message, message_key):
     return f"pst-message:{message_key}"
 
 
-def parse_eml(path, mailbox, side):
+def parse_eml(path, mailbox, side, contacts=None):
     raw = path.read_bytes()
     message = BytesParser(policy=policy.default).parsebytes(raw)
     message_id = decode_value(message.get("Message-ID", "")).strip()
@@ -162,6 +194,12 @@ def parse_eml(path, mailbox, side):
     from_name, sender = address_parts(decode_value(message.get("From", "")))
     body_text, attachments = body_and_attachments(message, message_key)
     source_account = mailbox.strip().lower()
+    sent = is_sent_path(path)
+    recipients = sent_recipients(message, contacts or {}, path) if sent else address_list(
+        decode_value(message.get("To", ""))
+    )
+    if sent:
+        sender = source_account
     return {
         "docId": f"{CHANNEL}:pst:{message_key}",
         "channel": CHANNEL,
@@ -172,10 +210,10 @@ def parse_eml(path, mailbox, side):
         "providerThreadId": thread_id(message, message_key),
         "threadKey": f"{CHANNEL}:{source_account}:{thread_id(message, message_key)}",
         "historyId": message_id or f"pst:{message_key}",
-        "direction": "out" if sender == source_account else "in",
+        "direction": "out" if sent or sender == source_account else "in",
         "from": sender,
         "fromName": from_name,
-        "to": address_list(decode_value(message.get("To", ""))),
+        "to": recipients,
         "subject": decode_value(message.get("Subject", "")).strip(),
         "bodyText": body_text,
         "attachments": attachments,
@@ -191,6 +229,7 @@ def main():
     parser.add_argument("export_dir", type=Path)
     parser.add_argument("--mailbox", required=True)
     parser.add_argument("--side", choices=("brand", "factory", "unknown"), default="unknown")
+    parser.add_argument("--sent-only", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -200,13 +239,18 @@ def main():
         path for path in args.export_dir.rglob("*")
         if path.is_file() and path.suffix.lower() == ".eml"
     )
+    contacts = sender_contacts(files)
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    parsed_count = 0
     with args.output.open("w", encoding="utf-8") as output:
         for path in files:
-            message = parse_eml(path, args.mailbox, args.side)
+            if args.sent_only and not is_sent_path(path):
+                continue
+            message = parse_eml(path, args.mailbox, args.side, contacts)
             output.write(json.dumps(message, ensure_ascii=False, separators=(",", ":")))
             output.write("\n")
-    print(f"parsed {len(files)} messages", file=sys.stderr)
+            parsed_count += 1
+    print(f"parsed {parsed_count} messages", file=sys.stderr)
 
 
 if __name__ == "__main__":
