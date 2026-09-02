@@ -161,10 +161,14 @@ export default async function DealConversationTimeline({ dealId }: { dealId: str
                       </div>
                     )}
                     <Link
-                      href={`/admin/inbox/${encodeURIComponent(thread.threadKey)}`}
+                      href={
+                        thread.conversationId
+                          ? `/admin/inbox?conversationId=${encodeURIComponent(thread.conversationId)}`
+                          : `/admin/inbox/${encodeURIComponent(thread.threadKey)}`
+                      }
                       className={`mt-2 inline-flex items-center gap-1 text-[10px] text-indigo-400 transition-colors hover:text-indigo-300 ${inbound ? "" : "float-right"}`}
                     >
-                      전체 스레드 <ExternalLink className="h-3 w-3" />
+                      대화함에서 보기 <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
                 </article>
