@@ -1,13 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  shouldParse,
-  isInternalEmail,
-  isBotSender,
-  isDeliveryFailure,
-  isNewsletter,
-  isForwardedMessage,
-} from "../functions-ingest/filter.js";
+import { shouldParse } from "../functions-ingest/filter.js";
 
 const baseThread = {
   channel: "gmail_thomas",
@@ -296,3 +289,25 @@ test("14. thread 객체 내부에 messages가 포함된 경우 및 단일 객체
     reason: "external_inbound",
   });
 });
+
+test("15. 발신자가 외부 이메일(@gmail.com)이지만 본문에 사내 도메인 서명이 포함된 경우 차단한다 (internal_communication)", () => {
+  const staffForwardingMsg = {
+    ...validInboundMessage,
+    from: "jhulbo0413@gmail.com",
+    fromName: "송준하",
+    subject: "Re: 옥시젠] 컨셉원료 자사 보유 내용 전달 드립니다.",
+    bodyText: `안녕하세요 옥시젠디벨로먼트 이승현 부장님 ,
+유선상으로 4 in 1 픽서 스프레이 개발 문의 드렸던 노차코스메틱 송준하입니다.
+개발 의뢰서를 첨부드리니 관련 자료 확인해보시고 추가 필요자료는 아래 담당자 연락처로 회신 부탁드리겠습니다.
+친절하게 안내해주셔서 정말 감사합니다.
+송준하 드림
+<담당자>김형선 매니저 : kimhs@techasset.co.kr유선 번호 : 010-5519-8462`,
+  };
+
+  const result = shouldParse(baseThread, [staffForwardingMsg]);
+  assert.deepEqual(result, {
+    parse: false,
+    reason: "internal_communication",
+  });
+});
+

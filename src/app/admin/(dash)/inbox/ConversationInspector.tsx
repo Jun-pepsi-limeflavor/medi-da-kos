@@ -560,10 +560,39 @@ export default function ConversationInspector({
                   {identities.map((idDoc) => (
                     <div
                       key={idDoc.id}
-                      className="rounded-xl border border-neutral-800/80 bg-neutral-900/60 p-2.5 text-xs text-neutral-300 flex items-center justify-between"
+                      className="rounded-xl border border-neutral-800/80 bg-neutral-900/60 p-2.5 text-xs text-neutral-300 flex items-center justify-between gap-2"
                     >
-                      <span className="font-mono text-[11px] text-neutral-200 truncate">{idDoc.value}</span>
-                      <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400 uppercase font-mono">{idDoc.kind}</span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="font-mono text-[11px] text-neutral-200 truncate">{idDoc.value}</span>
+                        <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400 uppercase font-mono">{idDoc.kind}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm(`'${idDoc.value}' 식별자를 '광고·내부'로 이동하시겠습니까? (고객 업무 큐에서 제외됩니다)`)) return;
+                          try {
+                            setSaving(true);
+                            const res = await fetch(`/api/admin/conversation-identities/${encodeURIComponent(idDoc.id)}/classify`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ classification: "internal" }),
+                            });
+                            if (!res.ok) {
+                              const errJson = await res.json().catch(() => ({}));
+                              throw new Error(errJson.error || "분류 변경 실패");
+                            }
+                            setSuccess("광고·내부로 이동되었습니다.");
+                            router.refresh();
+                          } catch (err: unknown) {
+                            setError(err instanceof Error ? err.message : "분류 변경 중 오류가 발생했습니다.");
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        className="text-[10px] text-neutral-400 hover:text-amber-300 bg-neutral-800 hover:bg-neutral-700 px-2 py-1 rounded-lg transition shrink-0"
+                      >
+                        광고·내부로 이동
+                      </button>
                     </div>
                   ))}
                 </div>

@@ -131,6 +131,28 @@ function isForwardedMessage(message) {
   return false;
 }
 
+function hasInternalSignature(bodyText) {
+  if (!bodyText || typeof bodyText !== "string") return false;
+
+  const quoteSplitRegex = /(?:^|\n)(?:-{2,}\s*original message\s*-{2,}|_{2,}|on .+ wrote:|>\s*|20\d{2}[-./]\s*\d{1,2}[-./]\s*\d{1,2}.+작성:)/i;
+  const match = bodyText.split(quoteSplitRegex);
+  const primaryBody = match[0] || bodyText;
+
+  // 1. 사내 도메인 이메일 주소 포함 여부
+  const internalDomainPattern = /(?:[a-zA-Z0-9._%+-]+)@(techasset\.co\.kr|medidakoslabs\.com|medidakos\.com)/i;
+  if (internalDomainPattern.test(primaryBody)) {
+    return true;
+  }
+
+  // 2. <담당자> 또는 드림 서명 패턴 검사
+  const staffSignaturePattern = /<담당자>\s*[^:\n]+:\s*(?:[a-zA-Z0-9._%+-]+)@(techasset\.co\.kr|medidakoslabs\.com|medidakos\.com)/i;
+  if (staffSignaturePattern.test(primaryBody)) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * 스레드와 메시지 목록을 받아 파싱(LLM) 대상인지 판정한다.
  *
@@ -189,13 +211,14 @@ function shouldParse(thread = {}, messages) {
     return { parse: false, reason: "newsletter" };
   }
 
-  // 5. 사내 발신자 확인
+  // 5. 사내 발신자 및 사내 본문 서명 확인
   const fromEmail = extractEmail(latestInbound.from || latestInbound.sender);
   const isInternal = isInternalEmail(fromEmail);
   const isForwarded = isForwardedMessage(latestInbound);
+  const hasStaffSignature = hasInternalSignature(latestInbound.bodyText);
 
-  if (isInternal) {
-    if (isForwarded) {
+  if (isInternal || hasStaffSignature) {
+    if (isForwarded && isInternal) {
       const body = (latestInbound.bodyText || "").trim();
       if (body.length < 30) {
         return { parse: false, reason: "body_too_short" };
@@ -222,9 +245,11 @@ function shouldParse(thread = {}, messages) {
 module.exports = {
   shouldParse,
   isInternalEmail,
+  hasInternalSignature,
   isBotSender,
   isDeliveryFailure,
   isNewsletter,
   isForwardedMessage,
   extractEmail,
 };
+
