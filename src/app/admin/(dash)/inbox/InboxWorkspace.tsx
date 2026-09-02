@@ -6,9 +6,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Building,
-  CheckCircle2,
   HelpCircle,
-  RefreshCw,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -55,8 +53,6 @@ export default function InboxWorkspace({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
-  const [syncingWeb, setSyncingWeb] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{ ok?: boolean; text?: string } | null>(null);
 
   const totalUnanswered = rollups.reduce((acc, r) => acc + (r.unansweredThreadCount || 0), 0);
 
@@ -67,31 +63,6 @@ export default function InboxWorkspace({
     params.delete("identityId");
     params.set("panel", "queue");
     return `/admin/inbox?${params.toString()}`;
-  }
-
-  async function handleSyncWeb() {
-    setSyncingWeb(true);
-    setSyncStatus(null);
-    try {
-      const res = await fetch("/api/admin/inbox/sync-web", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "동기화 실패");
-      }
-      const s = data.summary;
-      setSyncStatus({
-        ok: true,
-        text: `웹 고객문의 ${s.totalScanned}건 동기화 완료 (주문 ${s.ordersCount}건, 샘플 ${s.sampleRequestsCount}건, 문의 ${s.contactCount}건, 랜딩 ${s.landingRequestsCount}건)`,
-      });
-      router.refresh();
-    } catch (err) {
-      setSyncStatus({
-        ok: false,
-        text: err instanceof Error ? err.message : "동기화 중 오류가 발생했습니다.",
-      });
-    } finally {
-      setSyncingWeb(false);
-    }
   }
 
   return (
@@ -179,32 +150,6 @@ export default function InboxWorkspace({
             <ShieldAlert className="h-4 w-4" />
             <span>광고·내부</span>
           </Link>
-        </div>
-
-        {/* Right Action: Web Inquiries Sync */}
-        <div className="flex items-center gap-2">
-          {syncStatus && (
-            <span
-              className={`text-[11px] font-medium px-2 py-0.5 rounded flex items-center gap-1 transition-all ${
-                syncStatus.ok
-                  ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800"
-                  : "bg-rose-950/80 text-rose-300 border border-rose-800"
-              }`}
-            >
-              {syncStatus.ok ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-rose-400" />}
-              {syncStatus.text}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleSyncWeb}
-            disabled={syncingWeb}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 shadow-sm transition-all hover:border-neutral-600 hover:bg-neutral-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            title="대시보드 주문, 샘플 요청, 웹 문의, 랜딩 상담 데이터를 검토함에 동기화합니다"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${syncingWeb ? "animate-spin text-indigo-400" : "text-neutral-400"}`} />
-            <span>{syncingWeb ? "동기화 중…" : "웹 고객문의 동기화"}</span>
-          </button>
         </div>
       </div>
 
