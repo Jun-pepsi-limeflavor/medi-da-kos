@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Forward,
   Inbox,
-  Keyboard,
   Link2,
   Search,
   Sparkles,
@@ -320,20 +319,6 @@ export default function ReviewQueue({
               placeholder="식별자, 이메일, 내용 검색…"
               className="w-full rounded-xl border border-neutral-800 bg-neutral-900/90 py-2 pl-9 pr-3 text-xs text-neutral-200 placeholder:text-neutral-500 outline-none transition-colors focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
-          </div>
-          {/* 대기 건수 및 단축키 안내 */}
-          <div className="flex items-center justify-between text-[11px] text-neutral-400">
-            <span className="flex items-center gap-1.5">
-              <Inbox className="h-3.5 w-3.5 text-indigo-400" />
-              대기 건수: <strong className="text-neutral-100 font-semibold">{filteredItems.length}</strong>
-              {items.length !== filteredItems.length && (
-                <span className="text-[10px] text-neutral-500 font-normal">/ 전체 {items.length}</span>
-              )}
-              건
-            </span>
-            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
-              <Keyboard className="h-3 w-3 text-neutral-400" /> 단축키 <kbd className="rounded bg-neutral-800 px-1 py-0.5 font-mono text-[9px] text-neutral-300">1~4</kbd>
-            </span>
           </div>
 
           {/* 수신 이력 / 발신 전용(콜드메일) 필터 세그먼트 버튼 */}

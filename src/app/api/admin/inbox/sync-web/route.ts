@@ -4,6 +4,7 @@ import { withAdmin } from "@/lib/with-admin";
 import { syncAllWebSubmissions } from "@/lib/repo/web-inbound";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const POST = withAdmin(async () => {
   try {
