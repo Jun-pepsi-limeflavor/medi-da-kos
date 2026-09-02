@@ -28,8 +28,7 @@ You can also register new accounts or use **Continue with Google** (mock demo us
 2. Enable **Email/Password** and **Google** sign-in in Firebase Authentication.
 3. Create Firestore collections (rules as needed):
    - `cmBriefs/{uid}` — custom manufacturing brief (draft/submitted)
-   - `sampleRequests/{autoId}` — Top 10 sample requests
-   - `orders/{autoId}` — order history (custom + sample), field `uid` for queries
+   - `orders/{autoId}` — order history, field `uid` for queries
    - `tracking/{uid}/entries/{entryId}` — shipment tracking
    - `users/{uid}` — user profiles
    - `mail/{docId}` — email queue (written by Cloud Functions; Trigger Email extension sends)
@@ -45,13 +44,9 @@ You can also register new accounts or use **Continue with Google** (mock demo us
 | `/process` | ODM workflow (brief → delivery) |
 | `/compare` | Unit economics & lead-time benchmarks |
 | `/login` | Sign in / register |
-| `/dashboard` | CM Steps 1–6 + Top 10 samples |
+| `/dashboard` | CM Steps 1–6 |
 | `/dashboard/orders` | Orders (empty state) |
 | `/dashboard/tracking` | FedEx / DHL / UPS tracking |
-
-## Top 10 product images
-
-Replace placeholders in `public/products/prod-01.svg` … `prod-10.svg` with your product photos (same filenames, `.jpg` or `.png` — update paths in `src/lib/products.ts`).
 
 ## Design
 

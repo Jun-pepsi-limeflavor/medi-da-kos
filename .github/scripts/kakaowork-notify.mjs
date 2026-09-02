@@ -3,7 +3,12 @@ import { pathToFileURL } from 'node:url';
 
 function safeHeader(text) {
   if (!text) return '';
-  return text.length > 40 ? text.substring(0, 39) + '…' : text;
+  return text.length > 20 ? text.substring(0, 19) + '…' : text;
+}
+
+function safeButton(text) {
+  if (!text) return '';
+  return text.length > 20 ? text.substring(0, 19) + '…' : text;
 }
 
 function safeTerm(text) {
@@ -13,7 +18,7 @@ function safeTerm(text) {
 
 function safeContent(text) {
   if (!text) return '';
-  return text.length > 100 ? text.substring(0, 97) + '…' : text;
+  return text.length > 80 ? text.substring(0, 77) + '…' : text;
 }
 
 /**
@@ -38,29 +43,44 @@ export function buildKakaoWorkPayload(eventName, event) {
     const repoName = event.repository?.full_name || 'Jun-pepsi-limeflavor/medi-da-kos';
     const compareUrl = event.compare || '';
 
-    // 커밋 최대 15개 표시 (단일 text 블록 500자 제한 준수를 위해 35자 요약)
-    const maxCommits = 15;
-    const displayCommits = commits.slice(0, maxCommits);
-    const commitLines = displayCommits.map((c) => {
+    // 커밋 목록 구성 (420자 제한 엄격 준수 및 동적 슬라이싱)
+    const maxCommitTextLimit = 420;
+    const headerPrefix = `**📝 푸시된 커밋 (${commitCount}개):**\n`;
+
+    const commitLines = [];
+    let includedCount = 0;
+
+    for (let i = 0; i < commits.length; i++) {
+      const c = commits[i];
       const shortHash = (c.id || '').substring(0, 7) || 'unknown';
       let firstLine = (c.message || '').split('\n')[0].trim();
       if (firstLine.length > 35) {
         firstLine = firstLine.substring(0, 33) + '…';
       }
       const author = c.author?.username || c.author?.name || 'unknown';
-      return `• [\`${shortHash}\`] ${firstLine} (@${author})`;
-    });
+      const line = `• [\`${shortHash}\`] ${firstLine} (@${author})`;
 
-    if (commitCount > maxCommits) {
-      commitLines.push(`+ 외 ${commitCount - maxCommits}개의 커밋이 더 있습니다.`);
+      const remainingCount = commitCount - (i + 1);
+      const suffix = remainingCount > 0 ? `\n+ 외 ${remainingCount}개의 커밋` : '';
+      const testText = `${headerPrefix}${[...commitLines, line].join('\n')}${suffix}`;
+
+      if (testText.length > maxCommitTextLimit && commitLines.length > 0) {
+        break;
+      }
+      commitLines.push(line);
+      includedCount++;
+    }
+
+    if (commitCount > includedCount) {
+      commitLines.push(`+ 외 ${commitCount - includedCount}개의 커밋`);
     }
 
     const commitSectionText =
       commitLines.length > 0
-        ? `**📝 푸시된 커밋 (${commitCount}개):**\n${commitLines.join('\n')}`
+        ? `${headerPrefix}${commitLines.join('\n')}`
         : '**📝 푸시된 커밋이 없습니다.**';
 
-    const headerTitle = safeHeader(`🚀 [dev] 새 커밋 푸시 (${commitCount}개)`);
+    const headerTitle = safeHeader(`🚀 [dev] 새 커밋 (${commitCount}개)`);
 
     const blocks = [
       {
@@ -101,7 +121,7 @@ export function buildKakaoWorkPayload(eventName, event) {
     if (compareUrl) {
       blocks.push({
         type: 'button',
-        text: '🔍 변경사항 비교 (Compare)',
+        text: safeButton('🔍 변경사항 확인'),
         style: 'primary',
         action_type: 'open_inapp_browser',
         value: compareUrl,
@@ -136,12 +156,12 @@ export function buildKakaoWorkPayload(eventName, event) {
       const statusText = isReopened ? '재오픈 (Reopened)' : '검토 요청 (Open)';
       const headerTitle = safeHeader(
         isReopened
-          ? `📬 [PR #${prNumber}] 풀 리퀘스트 재오픈`
-          : `📬 [PR #${prNumber}] 풀 리퀘스트 등록`
+          ? `📬 [PR #${prNumber}] PR 재오픈`
+          : `📬 [PR #${prNumber}] PR 등록`
       );
 
       return {
-        text: `${headerTitle}: ${prTitle}`,
+        text: `📬 [PR #${prNumber}] ${isReopened ? '풀 리퀘스트 재오픈' : '풀 리퀘스트 등록'}: ${prTitle}`,
         blocks: [
           {
             type: 'header',
@@ -193,7 +213,7 @@ export function buildKakaoWorkPayload(eventName, event) {
           },
           {
             type: 'button',
-            text: '👉 PR 검토 및 확인하기',
+            text: safeButton('👉 PR 검토 및 확인하기'),
             style: 'primary',
             action_type: 'open_inapp_browser',
             value: prUrl,
@@ -209,7 +229,7 @@ export function buildKakaoWorkPayload(eventName, event) {
       }
 
       const mergedBy = pr.merged_by?.login || author;
-      const headerTitle = safeHeader(`🎉 [PR #${prNumber}] main 브랜치 머지 완료`);
+      const headerTitle = safeHeader(`🎉 [PR #${prNumber}] main 머지`);
 
       return {
         text: `🎉 [PR #${prNumber}] main 브랜치 머지 완료: ${prTitle}`,
@@ -264,7 +284,7 @@ export function buildKakaoWorkPayload(eventName, event) {
           },
           {
             type: 'button',
-            text: '🔍 머지된 PR 내역 보기',
+            text: safeButton('🔍 머지된 PR 내역 보기'),
             style: 'default',
             action_type: 'open_inapp_browser',
             value: prUrl,

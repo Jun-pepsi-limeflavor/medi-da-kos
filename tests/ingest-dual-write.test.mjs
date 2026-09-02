@@ -226,10 +226,37 @@ if (!emulatorHost) {
 
     const thread3Reopened = await db.collection("threads").doc(threadKey3).get();
     const convAfterReopen = await db.collection("conversations").doc(convId).get();
-
     assert.equal(needsReply(thread3Reopened.data()), true);
     assert.equal(convAfterReopen.data().unansweredThreadCount, 1);
     assert.equal(convAfterReopen.data().oldestUnansweredAt, "2026-08-29T14:00:00.000Z");
+
+    // Scenario 5: Older message on existing classified thread does not overwrite thread identity/classification/conversationId
+    const olderMsg = {
+      docId: id("msg-older"),
+      channel: "gmail_thomas",
+      side: "brand",
+      sideSource: "account_rule",
+      sourceAccount: "thomas@medidakoslabs.com",
+      externalId: "ext-older",
+      providerThreadId: "prov-2",
+      threadKey: threadKey2,
+      historyId: "h-older",
+      direction: "out",
+      from: "thomas@medidakoslabs.com",
+      fromName: "Thomas",
+      to: [`other-${runId}@example.test`], // unclassified recipient
+      subject: "Earlier draft",
+      bodyText: "Initial draft to secondary address.",
+      attachments: [],
+      sentAt: "2026-08-29T10:30:00.000Z", // Older than msg2 (11:00)
+    };
+    await saveMessage(db, olderMsg);
+
+    const thread2AfterOlder = await db.collection("threads").doc(threadKey2).get();
+    assert.equal(thread2AfterOlder.data().identityId, `email:${buyerEmail}`);
+    assert.equal(thread2AfterOlder.data().classification, "buyer");
+    assert.equal(thread2AfterOlder.data().conversationId, convId);
+    assert.equal(thread2AfterOlder.data().lastMessageAt, "2026-08-29T12:00:00.000Z");
   });
 
   test("Channel Talk automation stays on its customer thread and never creates a main identity", async () => {

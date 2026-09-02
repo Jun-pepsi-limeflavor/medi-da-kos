@@ -42,7 +42,6 @@ import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
 import { trackConversionEvent } from "@/lib/analytics";
 import { trackLandingEvent } from "@/lib/landing/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
-import { Top10Products } from "./Top10Products";
 import { LandingDashboardHeader } from "@/components/landing/LandingDashboardHeader";
 
 const stepContentClass = "min-h-[min(58vh,520px)] py-2";
@@ -65,9 +64,9 @@ const wizardExamplePanelClass =
 const wizardExampleBadgeClass =
   "inline-flex items-center gap-1.5 rounded-full bg-sky-100/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700";
 
-interface Props { uid?: string; mode?: "order" | "consultation"; onConsultationReady?: (brief: CMBrief) => void; }
+interface Props { mode?: "order" | "consultation"; onConsultationReady?: (brief: CMBrief) => void; }
 
-export function CMWizard({ uid = "landing", mode = "order", onConsultationReady }: Props) {
+export function CMWizard({ mode = "order", onConsultationReady }: Props) {
   const router = useRouter();
   const { brief, loading, setBrief, persistBrief, refreshBrief } =
     useDashboardBrief();
@@ -334,8 +333,6 @@ export function CMWizard({ uid = "landing", mode = "order", onConsultationReady 
         </div>
       </div>
       )}
-
-      {mode === "order" && step === 1 && <Top10Products uid={uid} compact />}
     </div>
   );
 }
