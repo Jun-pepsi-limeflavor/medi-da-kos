@@ -6,7 +6,7 @@ const IDENTITIES = "conversationIdentities";
 const CONVERSATIONS = "conversations";
 const STATE = "ingestState";
 
-const { hasInternalSignature } = require("./filter");
+const { hasInternalSignature, isSystemNotification } = require("./filter");
 
 const INTERNAL_DOMAINS = ["techasset.co.kr", "medidakoslabs.com", "medidakos.com"];
 
@@ -21,6 +21,7 @@ function isInternalStaffMessage(m) {
   const from = typeof m.from === "string" ? m.from.trim().toLowerCase() : "";
   if (isInternalEmail(from)) return true;
   if (hasInternalSignature(m.bodyText)) return true;
+  if (isSystemNotification(m)) return true;
   return false;
 }
 

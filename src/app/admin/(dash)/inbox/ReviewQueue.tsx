@@ -418,9 +418,12 @@ export default function ReviewQueue({
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <div className="min-w-0">
                       <span className="block font-mono text-xs font-semibold text-neutral-100 truncate group-hover:text-indigo-300 transition-colors">
-                        {display.primary}
+                        {item.identity.displayName ? `${item.identity.displayName}` : display.primary}
                       </span>
-                      {display.secondary && (
+                      {item.identity.displayName && (
+                        <span className="block mt-0.5 text-[10px] text-neutral-400 truncate">{display.primary}</span>
+                      )}
+                      {!item.identity.displayName && display.secondary && (
                         <span className="block mt-0.5 text-[10px] text-neutral-500 truncate">{display.secondary}</span>
                       )}
                     </div>
@@ -441,11 +444,13 @@ export default function ReviewQueue({
                             className={`rounded px-1.5 py-0.5 text-[9px] font-medium border font-mono ${
                               ch === "channeltalk"
                                 ? "bg-purple-950/80 text-purple-300 border-purple-800/60"
-                                : ch.startsWith("gmail")
-                                  ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
-                                  : ch.startsWith("outlook")
-                                    ? "bg-sky-950/80 text-sky-300 border-sky-800/60"
-                                    : "bg-neutral-800/80 text-neutral-400 border-neutral-700/50"
+                                : ch === "web"
+                                  ? "bg-teal-950/80 text-teal-300 border-teal-800/60 font-semibold"
+                                  : ch.startsWith("gmail")
+                                    ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
+                                    : ch.startsWith("outlook")
+                                      ? "bg-sky-950/80 text-sky-300 border-sky-800/60"
+                                      : "bg-neutral-800/80 text-neutral-400 border-neutral-700/50"
                             }`}
                           >
                             {CHANNEL_NAMES[ch] || ch}

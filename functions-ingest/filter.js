@@ -242,6 +242,25 @@ function shouldParse(thread = {}, messages) {
   return { parse: true, reason: "external_inbound" };
 }
 
+function isSystemNotification(message) {
+  if (!message) return false;
+  const subject = (message.subject || "").trim();
+  const SYSTEM_PATTERNS = [
+    /^\[신규 주문\]/i,
+    /^\[일반 주문\]/i,
+    /^\[샘플 주문\]/i,
+    /^\[문의\]/i,
+    /^\[랜딩/i,
+    /^\[육성 트랙\]/i,
+    /^신규 회원가입:/i,
+    /^주문이 접수되었습니다/i,
+    /^Welcome to Medidakos/i,
+  ];
+  if (!SYSTEM_PATTERNS.some((re) => re.test(subject))) return false;
+  const from = extractEmail(message.from);
+  return isInternalEmail(from) || isBotSender(from);
+}
+
 module.exports = {
   shouldParse,
   isInternalEmail,
@@ -250,6 +269,7 @@ module.exports = {
   isDeliveryFailure,
   isNewsletter,
   isForwardedMessage,
+  isSystemNotification,
   extractEmail,
 };
 
