@@ -51,3 +51,19 @@ test("our mailbox sender is outbound and conversation keys are namespaced", () =
 test("HTML stripping does not retain script/style contents", () => {
   assert.equal(stripHtml("<style>.x{}</style><p>A</p><script>secret()</script><p>B</p>"), "A\nB");
 });
+
+test("Graph API Base64 message id and conversationId with slashes/plus are normalized without slashes", () => {
+  const graphRaw = {
+    ...base,
+    id: "AAMkADAzYmYx/MGY5+TM4NjQtNDU1OC04ZmU4LTAwODgwY2M4N2NjOAA=",
+    conversationId: "AAQkADAzYmYx/MGY5+TM4NjQtNDU1OC04ZmU4LTAwODgwY2M4N2NjOAA=",
+  };
+  const message = normalizeMessage(graphRaw, { account: "support@example.test" });
+  assert.ok(!message.docId.includes("/"), "docId must not contain slashes");
+  assert.ok(!message.threadKey.includes("/"), "threadKey must not contain slashes");
+  assert.equal(message.externalId, "AAMkADAzYmYx_MGY5-TM4NjQtNDU1OC04ZmU4LTAwODgwY2M4N2NjOAA=");
+  assert.equal(message.providerThreadId, "AAQkADAzYmYx_MGY5-TM4NjQtNDU1OC04ZmU4LTAwODgwY2M4N2NjOAA=");
+  assert.equal(message.docId, "outlook_support:AAMkADAzYmYx_MGY5-TM4NjQtNDU1OC04ZmU4LTAwODgwY2M4N2NjOAA=");
+  assert.equal(message.threadKey, "outlook_support:support@example.test:AAQkADAzYmYx_MGY5-TM4NjQtNDU1OC04ZmU4LTAwODgwY2M4N2NjOAA=");
+});
+

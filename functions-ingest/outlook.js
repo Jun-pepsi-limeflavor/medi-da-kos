@@ -66,6 +66,11 @@ function normalizeDate(value) {
   return date.toISOString();
 }
 
+function safeGraphId(id) {
+  if (typeof id !== "string") return "";
+  return id.trim().replace(/\//g, "_").replace(/\+/g, "-");
+}
+
 /**
  * Convert a Microsoft Graph message resource into the shared messages contract.
  * Graph fields used here are documented message properties; no provider payload
@@ -87,19 +92,21 @@ function normalizeMessage(raw, {
   const sourceAccount = account.trim().toLowerCase();
   const sender = raw.sender?.emailAddress || raw.from?.emailAddress || {};
   const from = typeof sender.address === "string" ? sender.address.trim().toLowerCase() : "";
-  const providerThreadId = typeof raw.conversationId === "string" && raw.conversationId
+  const rawThreadId = typeof raw.conversationId === "string" && raw.conversationId
     ? raw.conversationId
     : raw.id;
+  const externalId = safeGraphId(raw.id);
+  const providerThreadId = safeGraphId(rawThreadId);
   const sentAt = normalizeDate(raw.sentDateTime || raw.receivedDateTime);
   const files = Array.isArray(raw.attachments) ? raw.attachments.map(attachmentOf).filter(Boolean) : [];
 
   return {
-    docId: `${channel}:${raw.id}`,
+    docId: `${channel}:${externalId}`,
     channel,
     side,
     sideSource,
     sourceAccount,
-    externalId: raw.id,
+    externalId,
     providerThreadId,
     threadKey: `${channel}:${sourceAccount}:${providerThreadId}`,
     // Graph does not expose Gmail's historyId. Keep a stable provider revision.
@@ -114,6 +121,7 @@ function normalizeMessage(raw, {
     sentAt,
   };
 }
+
 
 function initialDeltaUrl({ mailbox, folder = "inbox", baseUrl = GRAPH_BASE, since } = {}) {
   if (typeof mailbox !== "string" || !mailbox.trim()) {

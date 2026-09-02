@@ -6,9 +6,19 @@ import { setIntakeReview } from "@/lib/repo/intake-reviews";
 export const runtime = "nodejs";
 
 export const PUT = withAdmin(async (req, actor) => {
-  const segments = req.nextUrl.pathname.split("/").filter(Boolean);
-  const externalId = decodeURIComponent(segments.pop() ?? "");
-  const source = decodeURIComponent(segments.pop() ?? "");
+  const match = req.nextUrl.pathname.match(
+    /^\/api\/admin\/intake-reviews\/([^/]+)\/(.+)$/
+  );
+  let source = "";
+  let externalId = "";
+  if (match) {
+    source = decodeURIComponent(match[1]);
+    externalId = decodeURIComponent(match[2]);
+  } else {
+    const segments = req.nextUrl.pathname.split("/").filter(Boolean);
+    externalId = decodeURIComponent(segments.pop() ?? "");
+    source = decodeURIComponent(segments.pop() ?? "");
+  }
   if (!source || !externalId) {
     return NextResponse.json({ error: "source and externalId required" }, { status: 400 });
   }

@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 
 export const POST = withAdmin(async (req: NextRequest, actor: AdminIdentity) => {
   const match = req.nextUrl.pathname.match(
-    /^\/api\/admin\/messages\/([^/]+)\/accept\/?$/,
+    /^\/api\/admin\/messages\/(.+)\/accept\/?$/,
   );
   if (!match) {
     return NextResponse.json({ error: "invalid path" }, { status: 400 });

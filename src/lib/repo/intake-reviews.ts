@@ -228,7 +228,12 @@ interface BriefPkgSelection {
           if (!msgSnap.empty) {
             const msgs = msgSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as MessageDocData);
             msgs.sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""));
-            const m = msgs[0];
+            // accepted 또는 extraction이 있는 메시지 우선 탐색, 없으면 인바운드 앵커 메시지, 없으면 최신 메시지
+            const m =
+              msgs.find((msg) => msg.accepted && Object.keys(msg.accepted).length > 0) ||
+              msgs.find((msg) => msg.extraction && Object.keys(msg.extraction).length > 0) ||
+              msgs.find((msg) => msg.direction === "in") ||
+              msgs[0];
             const ext = m.accepted || m.extraction || {};
             const buyer = ext.buyer || {};
             const shipping = ext.shipping || {};
@@ -253,18 +258,19 @@ interface BriefPkgSelection {
               },
             }));
 
+            const inboundMsg = msgs.find((msg) => msg.direction === "in");
             const email =
               buyer.email ||
-              (m.direction === "in" ? m.from : m.to?.[0]) ||
+              (m.direction === "in" ? m.from : (inboundMsg?.from || m.to?.[0])) ||
               "";
 
             messageDataByKey.set(threadKey, {
               email: email.trim(),
-              buyerName: buyer.name || m.fromName,
+              buyerName: buyer.name || m.fromName || inboundMsg?.fromName,
               brandName: buyer.brandName || buyer.companyName,
               country: buyer.country || shipping.country,
               shippingInfo: shipping.country ? {
-                recipientName: shipping.recipientName || buyer.name || m.fromName,
+                recipientName: shipping.recipientName || buyer.name || m.fromName || inboundMsg?.fromName,
                 addressLine1: shipping.addressLine1 || "본사 확인 대기",
                 city: shipping.city || "",
                 country: shipping.country || "미국 (USA)",
