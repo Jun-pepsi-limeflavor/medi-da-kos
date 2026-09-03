@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -50,6 +50,7 @@ export default function InboxWorkspace({
   buyers,
   suppliers,
 }: InboxWorkspaceProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 

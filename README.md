@@ -31,8 +31,8 @@ You can also register new accounts or use **Continue with Google** (mock demo us
    - `orders/{autoId}` — order history, field `uid` for queries
    - `tracking/{uid}/entries/{entryId}` — shipment tracking
    - `users/{uid}` — user profiles
-   - `mail/{docId}` — email queue (written by Cloud Functions; Trigger Email extension sends)
-4. Deploy Cloud Functions and configure `functions/.env` (`ADMIN_EMAILS`). See [Firebase collections & mail](docs/firebase-collections-and-mail.md).
+   - `mail/{docId}` — email queue (Cloud Functions send via Gmail API as `support@medidakos.com`)
+4. Deploy Cloud Functions and configure `functions/.env` (`ADMIN_EMAILS`, `NOTIFY_FROM_EMAIL`). See [Firebase collections & mail](docs/firebase-collections-and-mail.md).
 5. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.
 
 ## Routes

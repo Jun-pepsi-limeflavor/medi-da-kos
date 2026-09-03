@@ -30,7 +30,9 @@ export const INTERNAL_STAFF_NAMES = [
   "김하은",
   "이관우",
   "송준혁",
+  "송준하",
   "김현성",
+  "김형선",
   "박준영",
 ];
 
@@ -82,9 +84,63 @@ export function isForwardedSubject(subject?: string | null): boolean {
 }
 
 /**
+ * 본문(서명 영역 등)에 사내 도메인/사내 직원 연락처가 포함되어 있는지 판별합니다.
+ * 외부 발신자 메일이라도 본문에 <담당자>...techasset.co.kr 등이 있으면 내부 직원 발신/포워딩으로 판정합니다.
+ */
+export function hasInternalSignature(bodyText?: string | null): boolean {
+  if (!bodyText || typeof bodyText !== "string") return false;
+
+  // 인용문 구분선 이전의 최신 메시지 본문만 우선 분리 (바이어 답장 메일의 인용구 오탐 방지)
+  const quoteSplitRegex = /(?:^|\n)(?:-{2,}\s*original message\s*-{2,}|_{2,}|on .+ wrote:|>\s*|20\d{2}[-./]\s*\d{1,2}[-./]\s*\d{1,2}.+작성:)/i;
+  const match = bodyText.split(quoteSplitRegex);
+  const primaryBody = match[0] || bodyText;
+
+  // 1. 사내 도메인 이메일 주소 포함 여부
+  const internalDomainPattern = /(?:[a-zA-Z0-9._%+-]+)@(techasset\.co\.kr|medidakoslabs\.com|medidakos\.com)/i;
+  if (internalDomainPattern.test(primaryBody)) {
+    return true;
+  }
+
+  // 2. <담당자> 또는 드림 서명 패턴 검사
+  const staffSignaturePattern = /<담당자>\s*[^:\n]+:\s*(?:[a-zA-Z0-9._%+-]+)@(techasset\.co\.kr|medidakoslabs\.com|medidakos\.com)/i;
+  if (staffSignaturePattern.test(primaryBody)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 메시지가 사내 직원의 발신/포워딩 메일인지 판별합니다.
+ * - 발신자 주소/이름이 사내 직원이거나
+ * - 본문에 사내 도메인 서명이 포함된 경우
+ */
+export function isInternalStaffMessage(message?: {
+  from?: string;
+  fromName?: string;
+  bodyText?: string;
+  subject?: string;
+} | null): boolean {
+  if (!message) return false;
+
+  // 1. 발신자 주소 또는 이름이 사내 계정인 경우
+  if (isInternalAddress(message.from) || isInternalAddress(message.fromName)) {
+    return true;
+  }
+
+  // 2. 본문에 사내 도메인 서명/연락처가 포함된 경우
+  if (hasInternalSignature(message.bodyText)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * 스레드 또는 메시지가 직원 간 대화 / 포워딩인지 판별합니다.
  * - 발신자가 사내 직원/도메인이고, 수신 메일함도 사내 계정인 경우
  * - 또는 발신자가 사내 직원 계정이고 제목이 Fwd: 형태인 경우
+ * - 또는 본문에 사내 서명이 포함된 경우
  */
 export function isInternalStaffThread(
   thread: { sourceAccount?: string; channel?: string; side?: string },
@@ -93,6 +149,7 @@ export function isInternalStaffThread(
     fromName?: string;
     senderName?: string;
     subject?: string;
+    bodyText?: string;
   } | string | null,
 ): boolean {
   if (!counterpartyOrMessage) {
@@ -101,6 +158,7 @@ export function isInternalStaffThread(
 
   let senderStr = "";
   let subjectStr = "";
+  let bodyTextStr = "";
 
   if (typeof counterpartyOrMessage === "string") {
     senderStr = counterpartyOrMessage;
@@ -111,6 +169,7 @@ export function isInternalStaffThread(
       counterpartyOrMessage.senderName ||
       "";
     subjectStr = counterpartyOrMessage.subject || "";
+    bodyTextStr = counterpartyOrMessage.bodyText || "";
   }
 
   const isSenderInternal = isInternalAddress(senderStr);
@@ -130,5 +189,11 @@ export function isInternalStaffThread(
     return true;
   }
 
+  // 3. 본문에 사내 서명이 포함된 경우
+  if (hasInternalSignature(bodyTextStr)) {
+    return true;
+  }
+
   return false;
 }
+

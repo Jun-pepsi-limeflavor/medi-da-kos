@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -65,10 +65,6 @@ export default function ConversationTimeline({
 
   const inspectorParams = new URLSearchParams(searchParams.toString());
   inspectorParams.set("panel", "inspector");
-
-  const returnUrlParam = encodeURIComponent(
-    `/admin/inbox?queue=customer-work&conversationId=${encodeURIComponent(conversation.id)}&panel=timeline`
-  );
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-neutral-950">
@@ -226,17 +222,11 @@ export default function ConversationTimeline({
                     </div>
                   </div>
 
-                  {/* Subject & Detail Link */}
+                  {/* Subject */}
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-bold text-neutral-100 truncate">
                       {msg.subject || "(제목 없음)"}
                     </h4>
-                    <Link
-                      href={`/admin/inbox/${encodeURIComponent(msg.threadKey)}?returnUrl=${returnUrlParam}`}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-1 shrink-0"
-                    >
-                      단독 뷰 &rarr;
-                    </Link>
                   </div>
 
                   {/* Message Body & Media Content */}

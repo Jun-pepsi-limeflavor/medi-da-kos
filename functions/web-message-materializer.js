@@ -22,6 +22,14 @@ const SOURCE_CONFIG = {
   },
 };
 
+const INTERNAL_DOMAINS = ["techasset.co.kr", "medidakoslabs.com", "medidakos.com"];
+
+function isInternalEmail(email) {
+  if (!email || typeof email !== "string") return false;
+  const clean = email.toLowerCase().trim();
+  return INTERNAL_DOMAINS.some((d) => clean.endsWith(`@${d}`));
+}
+
 function asText(value) {
   if (value === null || value === undefined) return "";
   return String(value)
@@ -50,14 +58,12 @@ function sourceTimestamp(value, fallback) {
 }
 
 function safeIdPart(value) {
-  // Keep percent escapes intact: replacing '%' would make `a/b` collide with
-  // an actual ID containing the text `a_2Fb`.
   return encodeURIComponent(asText(value));
 }
 
-function buildSubject(source, id, data) {
+function buildSubject(source, id, data, user) {
   const config = SOURCE_CONFIG[source];
-  const identity = firstValue(data.companyName, data.customerEmail, data.email, id);
+  const identity = firstValue(data.companyName, user && user.companyName, data.customerEmail, data.email, user && user.email, id);
   if (source === "landingRequests") {
     const variantTag = data.landingVariant === "catalog"
       ? "카탈로그"
@@ -69,11 +75,17 @@ function buildSubject(source, id, data) {
   return `[${config.subjectLabel}] ${identity}`.slice(0, 240);
 }
 
-function buildBody(source, id, data) {
+function buildBody(source, id, data, user) {
   const rows = [];
   const config = SOURCE_CONFIG[source];
   rows.push(config.label);
   rows.push(line("문서", `${source}/${id}`));
+
+  if (user) {
+    if (user.companyName) rows.push(line("회원 회사명", user.companyName));
+    if (user.displayName || user.name) rows.push(line("회원 이름", user.displayName || user.name));
+    if (user.email) rows.push(line("회원 이메일", user.email));
+  }
 
   if (source === "contact") {
     rows.push(line("회사/브랜드", data.companyName));
@@ -88,7 +100,12 @@ function buildBody(source, id, data) {
     rows.push(line("품목", data.title));
     rows.push(line("요약", data.summary));
     rows.push(line("상태", data.status));
-    rows.push(line("고객 이메일", data.customerEmail));
+    rows.push(line("고객 이메일", data.customerEmail || (user && user.email)));
+    if (data.briefSnapshot && typeof data.briefSnapshot === "object") {
+      const brief = data.briefSnapshot;
+      if (brief.step1) rows.push(line("카테고리", brief.step1.selection || JSON.stringify(brief.step1)));
+      if (brief.step4) rows.push(line("수량", brief.step4.orderQuantityTbd ? "수량 미정" : brief.step4.orderQuantity));
+    }
   } else if (source === "sampleRequests") {
     const address = data.shippingAddress || {};
     rows.push(line("제품", data.sampleProductName || data.sampleProductId));
@@ -131,7 +148,7 @@ function buildBody(source, id, data) {
   return rows.filter(Boolean).join("\n").slice(0, MAX_BODY_LENGTH);
 }
 
-function buildWebProjection(source, id, data, now = new Date().toISOString()) {
+function buildWebProjection(source, id, data, now = new Date().toISOString(), user = null) {
   const config = SOURCE_CONFIG[source];
   if (!config) throw new Error(`지원하지 않는 웹 원천: ${source}`);
 
@@ -140,17 +157,24 @@ function buildWebProjection(source, id, data, now = new Date().toISOString()) {
   const providerThreadId = `${source}:${sourceId}`;
   const threadKey = `${WEB_CHANNEL}:${sourceAccount}:${providerThreadId}`;
   const externalId = `${source}:${id}`;
-  const email = firstValue(data.email, data.customerEmail);
+  const rawEmail = firstValue(data.email, data.customerEmail, user && user.email);
+  const email = rawEmail ? rawEmail.toLowerCase().trim() : "";
   const name = firstValue(
     data.contactName,
     data.name,
+    user && user.displayName,
+    user && user.name,
     data.customerName,
     data.shippingAddress && data.shippingAddress.recipientName,
+    user && user.companyName,
     data.companyName,
     email,
   );
   const sentAt = sourceTimestamp(data.createdAt || data.serverCreatedAt, now);
   const updatedAt = sourceTimestamp(data.updatedAt || data.createdAt || data.serverCreatedAt, sentAt);
+
+  const fallbackEmail = email || `web+${sourceId}@medidakos.invalid`;
+  const identityId = `email:${fallbackEmail.toLowerCase()}`;
 
   const message = {
     channel: WEB_CHANNEL,
@@ -162,11 +186,11 @@ function buildWebProjection(source, id, data, now = new Date().toISOString()) {
     threadKey,
     historyId: externalId,
     direction: "in",
-    from: email || `web+${sourceId}@medidakos.invalid`,
+    from: fallbackEmail,
     fromName: name || config.label,
     to: [],
-    subject: buildSubject(source, id, data),
-    bodyText: buildBody(source, id, data),
+    subject: buildSubject(source, id, data, user),
+    bodyText: buildBody(source, id, data, user),
     attachments: [],
     sentAt,
     parseStatus: "completed",
@@ -186,17 +210,28 @@ function buildWebProjection(source, id, data, now = new Date().toISOString()) {
     sideHistory: [],
     lastMessageAt: sentAt,
     lastDirection: "in",
+    identityId,
+    classification: "unclassified",
+    lastInboundAt: sentAt,
     createdAt: sentAt,
     updatedAt: updatedAt,
   };
 
-  return { messageId: `web_${source}_${sourceId}`, threadKey, message, thread };
+  const identity = {
+    kind: "email",
+    value: fallbackEmail.toLowerCase(),
+    classification: "unclassified",
+    displayName: name || undefined,
+    displayEmail: fallbackEmail.toLowerCase(),
+    createdAt: sentAt,
+    updatedAt: now,
+  };
+
+  return { messageId: `web_${source}_${sourceId}`, threadKey, identityId, message, thread, identity };
 }
 
 /**
- * Create the synthetic inbound message and its thread in one transaction.
- * Existing messages are never overwritten; a missing thread is repaired so a
- * partially completed retry remains idempotent.
+ * Create the synthetic inbound message, its thread, and conversationIdentity in one transaction.
  */
 async function materializeWebSubmission(db, source, id, data, options = {}) {
   if (!SOURCE_CONFIG[source]) throw new Error(`지원하지 않는 웹 원천: ${source}`);
@@ -204,25 +239,83 @@ async function materializeWebSubmission(db, source, id, data, options = {}) {
     return { skipped: true, created: false };
   }
 
-  const projection = buildWebProjection(source, id, data, options.now);
+  let user = options.user || null;
+  if (!user && data.uid && typeof db.collection === "function") {
+    try {
+      const userSnap = await db.collection("users").doc(data.uid).get();
+      if (userSnap && userSnap.exists) {
+        user = userSnap.data();
+      }
+    } catch {
+      // Ignore user lookup error if running in restricted context
+    }
+  }
+
+  const projection = buildWebProjection(source, id, data, options.now, user);
   const messageRef = db.collection("messages").doc(projection.messageId);
   const threadRef = db.collection("threads").doc(projection.threadKey);
+  const identityRef = db.collection("conversationIdentities").doc(projection.identityId);
+
   let result = { skipped: false, created: false };
 
   await db.runTransaction(async (tx) => {
-    const messageSnap = await tx.get(messageRef);
-    const threadSnap = await tx.get(threadRef);
+    const [messageSnap, threadSnap, identitySnap] = await Promise.all([
+      tx.get(messageRef),
+      tx.get(threadRef),
+      tx.get(identityRef),
+    ]);
+
+    let classification = "unclassified";
+    let buyerId = undefined;
+    let conversationId = undefined;
+
+    if (!identitySnap.exists) {
+      if (isInternalEmail(projection.identity.value)) {
+        classification = "internal";
+      }
+      const newIdentity = {
+        ...projection.identity,
+        classification,
+      };
+      // Strip undefined
+      Object.keys(newIdentity).forEach((k) => newIdentity[k] === undefined && delete newIdentity[k]);
+      tx.create(identityRef, newIdentity);
+    } else {
+      const idData = identitySnap.data();
+      classification = idData.classification || "unclassified";
+      buyerId = idData.buyerId;
+      conversationId = idData.conversationId;
+    }
 
     if (!messageSnap.exists) {
       tx.create(messageRef, projection.message);
       result.created = true;
     }
+
     if (!threadSnap.exists) {
-      tx.create(threadRef, projection.thread);
+      const newThread = {
+        ...projection.thread,
+        classification,
+        ...(conversationId ? { conversationId } : {}),
+      };
+      tx.create(threadRef, newThread);
+    } else {
+      const prevThread = threadSnap.data() || {};
+      const needsUpdate = prevThread.identityId !== projection.identityId ||
+        prevThread.classification !== classification ||
+        (conversationId && prevThread.conversationId !== conversationId);
+      if (needsUpdate) {
+        tx.update(threadRef, {
+          identityId: projection.identityId,
+          classification,
+          ...(conversationId ? { conversationId } : {}),
+          updatedAt: options.now || new Date().toISOString(),
+        });
+      }
     }
   });
 
-  return { ...result, messageId: projection.messageId, threadKey: projection.threadKey };
+  return { ...result, messageId: projection.messageId, threadKey: projection.threadKey, identityId: projection.identityId };
 }
 
 module.exports = {

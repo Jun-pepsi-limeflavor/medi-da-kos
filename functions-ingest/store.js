@@ -6,6 +6,8 @@ const IDENTITIES = "conversationIdentities";
 const CONVERSATIONS = "conversations";
 const STATE = "ingestState";
 
+const { hasInternalSignature, isSystemNotification } = require("./filter");
+
 const INTERNAL_DOMAINS = ["techasset.co.kr", "medidakoslabs.com", "medidakos.com"];
 
 function isInternalEmail(email) {
@@ -13,6 +15,16 @@ function isInternalEmail(email) {
   const clean = email.toLowerCase().trim();
   return INTERNAL_DOMAINS.some((d) => clean.endsWith(`@${d}`));
 }
+
+function isInternalStaffMessage(m) {
+  if (!m) return false;
+  const from = typeof m.from === "string" ? m.from.trim().toLowerCase() : "";
+  if (isInternalEmail(from)) return true;
+  if (hasInternalSignature(m.bodyText)) return true;
+  if (isSystemNotification(m)) return true;
+  return false;
+}
+
 
 function extractCounterpartyIdentifier(m) {
   if (m.channel === "channeltalk") {
@@ -106,7 +118,9 @@ async function saveMessage(db, m) {
     let supplierId = identityData?.supplierId;
 
     if (!identitySnap.exists) {
-      if (identityInfo.kind === "email" && identityInfo.value) {
+      if (isInternalStaffMessage(m)) {
+        classification = "internal";
+      } else if (identityInfo.kind === "email" && identityInfo.value) {
         const buyerQuery = db.collection("buyers").where("emails", "array-contains", identityInfo.value).limit(2);
         const buyerSnap = await tx.get(buyerQuery);
         if (buyerSnap.docs.length === 1) {
@@ -199,6 +213,10 @@ async function saveMessage(db, m) {
     const latest = !threadSnap.exists || m.sentAt >= (prevThread?.lastMessageAt ?? "");
     let updatedThreadData = null;
 
+    const isStaffMsg = isInternalStaffMessage(m);
+    const effectiveSide = isStaffMsg ? "internal" : m.side;
+    const effectiveSideSource = isStaffMsg ? "account_rule" : m.sideSource;
+
     if (!threadSnap.exists) {
       updatedThreadData = {
         channel: m.channel,
@@ -209,8 +227,8 @@ async function saveMessage(db, m) {
         readState: m.direction === "in" ? "unread" : "read",
         triageState: "open",
         linkState: "unlinked",
-        side: m.side,
-        sideSource: m.sideSource,
+        side: effectiveSide,
+        sideSource: effectiveSideSource,
         sideHistory: [],
         lastMessageAt: m.sentAt,
         lastDirection: m.direction,
@@ -261,8 +279,8 @@ async function saveMessage(db, m) {
         }
       }
       if (prevThread?.sideSource !== "manual") {
-        threadUpdate.side = m.side;
-        threadUpdate.sideSource = m.sideSource;
+        threadUpdate.side = effectiveSide;
+        threadUpdate.sideSource = effectiveSideSource;
       }
       tx.update(threadRef, threadUpdate);
       updatedThreadData = { ...prevThread, ...threadUpdate };

@@ -17,6 +17,16 @@ node scripts/import-pst.mjs /absolute/path/support.pst \
   --mailbox support@example.com
 ```
 
+To repair or add only Outlook's Sent Items, use `--sent-only`. The parser treats
+the Sent Items folder as authoritative because `readpst` can export Exchange
+senders as `MAILER-DAEMON`; display-name-only recipients are resolved from the
+same PST and parsing fails instead of writing an ambiguous recipient.
+
+```sh
+node scripts/import-pst.mjs /absolute/path/support.pst \
+  --mailbox support@example.com --sent-only
+```
+
 The default is read-only dry-run. After reviewing the count, run:
 
 ```sh

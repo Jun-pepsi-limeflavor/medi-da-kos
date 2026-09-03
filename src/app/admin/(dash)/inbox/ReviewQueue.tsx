@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Forward,
   Inbox,
-  Keyboard,
   Link2,
   Search,
   Sparkles,
@@ -321,20 +320,6 @@ export default function ReviewQueue({
               className="w-full rounded-xl border border-neutral-800 bg-neutral-900/90 py-2 pl-9 pr-3 text-xs text-neutral-200 placeholder:text-neutral-500 outline-none transition-colors focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
             />
           </div>
-          {/* 대기 건수 및 단축키 안내 */}
-          <div className="flex items-center justify-between text-[11px] text-neutral-400">
-            <span className="flex items-center gap-1.5">
-              <Inbox className="h-3.5 w-3.5 text-indigo-400" />
-              대기 건수: <strong className="text-neutral-100 font-semibold">{filteredItems.length}</strong>
-              {items.length !== filteredItems.length && (
-                <span className="text-[10px] text-neutral-500 font-normal">/ 전체 {items.length}</span>
-              )}
-              건
-            </span>
-            <span className="text-[10px] text-neutral-500 flex items-center gap-1">
-              <Keyboard className="h-3 w-3 text-neutral-400" /> 단축키 <kbd className="rounded bg-neutral-800 px-1 py-0.5 font-mono text-[9px] text-neutral-300">1~4</kbd>
-            </span>
-          </div>
 
           {/* 수신 이력 / 발신 전용(콜드메일) 필터 세그먼트 버튼 */}
           <div className="flex items-center gap-1 p-1 bg-neutral-900/90 rounded-xl border border-neutral-800 text-[11px] select-none">
@@ -418,9 +403,12 @@ export default function ReviewQueue({
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <div className="min-w-0">
                       <span className="block font-mono text-xs font-semibold text-neutral-100 truncate group-hover:text-indigo-300 transition-colors">
-                        {display.primary}
+                        {item.identity.displayName ? `${item.identity.displayName}` : display.primary}
                       </span>
-                      {display.secondary && (
+                      {item.identity.displayName && (
+                        <span className="block mt-0.5 text-[10px] text-neutral-400 truncate">{display.primary}</span>
+                      )}
+                      {!item.identity.displayName && display.secondary && (
                         <span className="block mt-0.5 text-[10px] text-neutral-500 truncate">{display.secondary}</span>
                       )}
                     </div>
@@ -441,11 +429,13 @@ export default function ReviewQueue({
                             className={`rounded px-1.5 py-0.5 text-[9px] font-medium border font-mono ${
                               ch === "channeltalk"
                                 ? "bg-purple-950/80 text-purple-300 border-purple-800/60"
-                                : ch.startsWith("gmail")
-                                  ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
-                                  : ch.startsWith("outlook")
-                                    ? "bg-sky-950/80 text-sky-300 border-sky-800/60"
-                                    : "bg-neutral-800/80 text-neutral-400 border-neutral-700/50"
+                                : ch === "web"
+                                  ? "bg-teal-950/80 text-teal-300 border-teal-800/60 font-semibold"
+                                  : ch.startsWith("gmail")
+                                    ? "bg-rose-950/80 text-rose-300 border-rose-800/60"
+                                    : ch.startsWith("outlook")
+                                      ? "bg-sky-950/80 text-sky-300 border-sky-800/60"
+                                      : "bg-neutral-800/80 text-neutral-400 border-neutral-700/50"
                             }`}
                           >
                             {CHANNEL_NAMES[ch] || ch}
@@ -872,136 +862,124 @@ export default function ReviewQueue({
             {/* Chronological Messages Timeline */}
             <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
               {selectedDetail && selectedDetail.messages.length > 0 ? (
-                (() => {
-                  const returnUrlParam = encodeURIComponent(
-                    `/admin/inbox?queue=${encodeURIComponent(queue)}&identityId=${encodeURIComponent(selectedIdentityId || "")}&panel=timeline`
-                  );
+                selectedDetail.messages.map((m, idx) => {
+                  const isInbound = m.direction === "in";
+                  const sentDate = new Date(m.sentAt);
+                  const isFwd = isForwardedMessage(m);
+                  const isFwdExpanded = expandedForwards[m.id || String(idx)];
 
-                  return selectedDetail.messages.map((m, idx) => {
-                    const isInbound = m.direction === "in";
-                    const sentDate = new Date(m.sentAt);
-                    const isFwd = isForwardedMessage(m);
-                    const isFwdExpanded = expandedForwards[m.id || String(idx)];
-
-                    if (isFwd && !isFwdExpanded) {
-                      return (
-                        <div key={m.id || idx} className="flex justify-center my-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleForward(m.id || String(idx))}
-                            className="inline-flex items-center gap-2 rounded-full border border-purple-900/50 bg-purple-950/30 px-3.5 py-1.5 text-[11px] text-purple-300 hover:bg-purple-950/60 hover:text-purple-200 hover:border-purple-700/60 transition-all shadow-sm group"
-                          >
-                            <Forward className="h-3.5 w-3.5 text-purple-400 group-hover:scale-110 transition-transform" />
-                            <span>
-                              사내 전달: {m.fromName ? `${m.fromName} (${m.from.split("@")[0]})` : m.from} ➔ {m.to?.map(e => e.split("@")[0]).join(", ") || "내부"}
-                            </span>
-                            <span className="text-[10px] text-neutral-400 font-mono">
-                              {sentDate.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                            <span className="text-[10px] text-purple-400 font-semibold ml-1">펼치기 ▾</span>
-                          </button>
-                        </div>
-                      );
-                    }
-
+                  if (isFwd && !isFwdExpanded) {
                     return (
-                      <div
-                        key={m.id || idx}
-                        className={`flex w-full ${
-                          isInbound
-                            ? "justify-start pr-6 sm:pr-16"
-                            : "justify-end pl-6 sm:pl-16"
-                        }`}
-                      >
-                        <div
-                          className={`w-full max-w-[90%] sm:max-w-[84%] rounded-2xl border p-4.5 transition-all space-y-3.5 shadow-md ${
-                            isFwd
-                              ? "border-purple-900/60 bg-purple-950/20 text-neutral-100 rounded-tr-sm"
-                              : isInbound
-                                ? "border-neutral-800 bg-neutral-900/90 text-neutral-200 rounded-tl-sm"
-                                : "border-indigo-900/50 bg-indigo-950/25 text-neutral-100 rounded-tr-sm"
-                          }`}
+                      <div key={m.id || idx} className="flex justify-center my-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleForward(m.id || String(idx))}
+                          className="inline-flex items-center gap-2 rounded-full border border-purple-900/50 bg-purple-950/30 px-3.5 py-1.5 text-[11px] text-purple-300 hover:bg-purple-950/60 hover:text-purple-200 hover:border-purple-700/60 transition-all shadow-sm group"
                         >
-                          {/* Forward Header if expanded */}
-                          {isFwd && (
-                            <div className="flex items-center justify-between border-b border-purple-900/50 pb-2 text-[10px] text-purple-300 font-semibold">
-                              <span className="flex items-center gap-1.5">
-                                <Forward className="h-3 w-3 text-purple-400" />
-                                사내 포워딩 메시지
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => toggleForward(m.id || String(idx))}
-                                className="text-purple-400 hover:text-purple-200 underline font-medium"
-                              >
-                                접기 ▴
-                              </button>
-                            </div>
-                          )}
-
-                          {/* Message Header */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
-                                  isInbound
-                                    ? "border-sky-800/80 bg-sky-950/80 text-sky-300"
-                                    : "border-indigo-700/80 bg-indigo-950/90 text-indigo-200"
-                                }`}
-                              >
-                                {isInbound ? (
-                                  <ArrowDownLeft className="h-3 w-3" />
-                                ) : (
-                                  <ArrowUpRight className="h-3 w-3" />
-                                )}
-                                {isInbound ? "수신 (Inbound)" : "발신 (Outbound)"}
-                              </span>
-
-                              <span className="text-xs font-semibold text-neutral-100 truncate max-w-[200px]">
-                                {m.authorRole === "automation" ? "자동 안내" : m.fromName ? `${m.fromName} (${m.from})` : m.from}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                              <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
-                                {sentDate.toLocaleString("ko-KR", {
-                                  year: "numeric",
-                                  month: "numeric",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </time>
-                            </div>
-                          </div>
-
-                          {/* Subject & Single View Link */}
-                          <div className="flex items-center justify-between gap-2">
-                            <h4 className="text-xs font-bold text-neutral-100 truncate">
-                              {m.subject ? m.subject : m.channel === "channeltalk" ? "채널톡 메시지" : "(제목 없음)"}
-                            </h4>
-                            <Link
-                              href={`/admin/inbox/${encodeURIComponent(m.threadKey)}?returnUrl=${returnUrlParam}`}
-                              className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium inline-flex items-center gap-1 shrink-0"
-                            >
-                              단독 뷰 &rarr;
-                            </Link>
-                          </div>
-
-                          {/* Message Body & Media Content */}
-                          <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 font-sans break-words border border-neutral-800/60 select-text">
-                            <MessageBodyClean
-                              bodyText={m.bodyText || ""}
-                              attachments={m.attachments}
-                              messageId={m.id}
-                              isGmail={m.channel.startsWith("gmail_")}
-                            />
-                          </div>
-                        </div>
+                          <Forward className="h-3.5 w-3.5 text-purple-400 group-hover:scale-110 transition-transform" />
+                          <span>
+                            사내 전달: {m.fromName ? `${m.fromName} (${m.from.split("@")[0]})` : m.from} ➔ {m.to?.map(e => e.split("@")[0]).join(", ") || "내부"}
+                          </span>
+                          <span className="text-[10px] text-neutral-400 font-mono">
+                            {sentDate.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          <span className="text-[10px] text-purple-400 font-semibold ml-1">펼치기 ▾</span>
+                        </button>
                       </div>
                     );
-                  });
-                })()
+                  }
+
+                  return (
+                    <div
+                      key={m.id || idx}
+                      className={`flex w-full ${
+                        isInbound
+                          ? "justify-start pr-6 sm:pr-16"
+                          : "justify-end pl-6 sm:pl-16"
+                      }`}
+                    >
+                      <div
+                        className={`w-full max-w-[90%] sm:max-w-[84%] rounded-2xl border p-4.5 transition-all space-y-3.5 shadow-md ${
+                          isFwd
+                            ? "border-purple-900/60 bg-purple-950/20 text-neutral-100 rounded-tr-sm"
+                            : isInbound
+                              ? "border-neutral-800 bg-neutral-900/90 text-neutral-200 rounded-tl-sm"
+                              : "border-indigo-900/50 bg-indigo-950/25 text-neutral-100 rounded-tr-sm"
+                        }`}
+                      >
+                        {/* Forward Header if expanded */}
+                        {isFwd && (
+                          <div className="flex items-center justify-between border-b border-purple-900/50 pb-2 text-[10px] text-purple-300 font-semibold">
+                            <span className="flex items-center gap-1.5">
+                              <Forward className="h-3 w-3 text-purple-400" />
+                              사내 포워딩 메시지
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleForward(m.id || String(idx))}
+                              className="text-purple-400 hover:text-purple-200 underline font-medium"
+                            >
+                              접기 ▴
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Message Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
+                                isInbound
+                                  ? "border-sky-800/80 bg-sky-950/80 text-sky-300"
+                                  : "border-indigo-700/80 bg-indigo-950/90 text-indigo-200"
+                              }`}
+                            >
+                              {isInbound ? (
+                                <ArrowDownLeft className="h-3 w-3" />
+                              ) : (
+                                <ArrowUpRight className="h-3 w-3" />
+                              )}
+                              {isInbound ? "수신 (Inbound)" : "발신 (Outbound)"}
+                            </span>
+
+                            <span className="text-xs font-semibold text-neutral-100 truncate max-w-[200px]">
+                              {m.authorRole === "automation" ? "자동 안내" : m.fromName ? `${m.fromName} (${m.from})` : m.from}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[11px] text-neutral-400">
+                            <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
+                              {sentDate.toLocaleString("ko-KR", {
+                                year: "numeric",
+                                month: "numeric",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </time>
+                          </div>
+                        </div>
+
+                        {/* Subject */}
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold text-neutral-100 truncate">
+                            {m.subject ? m.subject : m.channel === "channeltalk" ? "채널톡 메시지" : "(제목 없음)"}
+                          </h4>
+                        </div>
+
+                        {/* Message Body & Media Content */}
+                        <div className="rounded-xl bg-neutral-950/80 p-4 text-xs leading-relaxed text-neutral-200 font-sans break-words border border-neutral-800/60 select-text">
+                          <MessageBodyClean
+                            bodyText={m.bodyText || ""}
+                            attachments={m.attachments}
+                            messageId={m.id}
+                            isGmail={m.channel.startsWith("gmail_")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 text-center text-xs text-neutral-500">
                   <Inbox className="mb-2 h-8 w-8 text-neutral-700" />

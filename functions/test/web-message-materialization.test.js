@@ -159,7 +159,7 @@ test("landingRequests projection formats catalog and dashboard inquiries accurat
   assert.equal(korea.message.from, "buyer@seoulbeauty.com");
 });
 
-test("materializer creates one message and thread transactionally", async () => {
+test("materializer creates identity, message and thread transactionally", async () => {
   const db = fakeDb();
   const data = {
     companyName: "Acme",
@@ -171,25 +171,32 @@ test("materializer creates one message and thread transactionally", async () => 
   const result = await materializeWebSubmission(db, "contact", "contact-1", data, { now: fixedNow });
 
   assert.equal(result.created, true);
-  assert.equal(db.writes.length, 2);
-  assert.deepEqual(db.writes.map((write) => write.type), ["create", "create"]);
-  assert.equal(db.writes[0].key, "messages/web_contact_contact-1");
-  assert.equal(db.writes[1].key, "threads/web:contact:contact:contact-1");
-  assert.equal(db.writes[0].data.threadKey, db.writes[1].key.slice("threads/".length));
+  assert.equal(db.writes.length, 3);
+  assert.deepEqual(db.writes.map((write) => write.type), ["create", "create", "create"]);
+  assert.equal(db.writes[0].key, "conversationIdentities/email:jane@example.com");
+  assert.equal(db.writes[1].key, "messages/web_contact_contact-1");
+  assert.equal(db.writes[2].key, "threads/web:contact:contact:contact-1");
+  assert.equal(db.writes[1].data.threadKey, db.writes[2].key.slice("threads/".length));
+  assert.equal(db.writes[2].data.identityId, "email:jane@example.com");
 });
 
 test("retry does not create duplicates and repairs a missing thread", async () => {
   const data = { email: "jane@example.com", message: "Hello", createdAt: fixedNow };
   const firstDb = fakeDb();
   const first = await materializeWebSubmission(firstDb, "contact", "contact-2", data, { now: fixedNow });
+  const existingIdentity = firstDb.writes.find((write) => write.key.startsWith("conversationIdentities/")).data;
   const existingMessage = firstDb.writes.find((write) => write.key.startsWith("messages/")).data;
-  const secondDb = fakeDb({ [`messages/${first.messageId}`]: existingMessage });
+  const secondDb = fakeDb({
+    [`conversationIdentities/${first.identityId}`]: existingIdentity,
+    [`messages/${first.messageId}`]: existingMessage,
+  });
   const repaired = await materializeWebSubmission(secondDb, "contact", "contact-2", data, { now: fixedNow });
   assert.equal(repaired.created, false);
   assert.equal(secondDb.writes.length, 1);
   assert.match(secondDb.writes[0].key, /^threads\//);
 
   const completeDb = fakeDb({
+    [`conversationIdentities/${first.identityId}`]: existingIdentity,
     [`messages/${first.messageId}`]: existingMessage,
     [`threads/${first.threadKey}`]: firstDb.writes.find((write) => write.key.startsWith("threads/")).data,
   });
@@ -211,5 +218,5 @@ test("test submissions follow source policy", async () => {
     now: fixedNow,
   });
   assert.equal(materialized.created, true);
-  assert.equal(db.writes.length, 2);
+  assert.equal(db.writes.length, 3);
 });

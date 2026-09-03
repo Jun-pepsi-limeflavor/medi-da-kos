@@ -44,7 +44,7 @@ export const conversationIdentitySchema = z.object({
   kind: conversationIdentityKindSchema,
   value: z.string().trim().min(1),
   displayName: z.string().trim().min(1).optional(),
-  displayEmail: z.string().trim().toLowerCase().email().optional(),
+  displayEmail: z.string().trim().toLowerCase().min(1).optional(),
   channelTalkUserId: z.string().trim().min(1).optional(),
   classification: conversationClassificationSchema,
   conversationId: nonEmptyIdSchema.optional(),

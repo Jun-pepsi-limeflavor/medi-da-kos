@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { saveMessage } from "../functions-ingest/store.js";
 
 const execFileAsync = promisify(execFile);
@@ -15,16 +15,18 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const parserPath = join(scriptDir, "pst-to-jsonl.py");
 
 function usage() {
-  console.error("Usage: node scripts/import-pst.mjs <file.pst> --mailbox <support@example.com> [--side unknown|brand|factory] [--apply]");
+  console.error("Usage: node scripts/import-pst.mjs <file.pst> --mailbox <support@example.com> [--side unknown|brand|factory] [--sent-only] [--apply]");
 }
 
 function parseArgs(argv) {
   const positional = [];
-  const options = { apply: false, side: "unknown" };
+  const options = { apply: false, sentOnly: false, side: "unknown" };
   for (let i = 0; i < argv.length; i += 1) {
     const value = argv[i];
     if (value === "--apply") {
       options.apply = true;
+    } else if (value === "--sent-only") {
+      options.sentOnly = true;
     } else if (value === "--mailbox" || value === "--side") {
       const next = argv[++i];
       if (!next) throw new Error(`${value} requires a value`);
@@ -70,6 +72,16 @@ async function getDb() {
   return getFirestore();
 }
 
+async function clearStaleInboundMarker(db, message) {
+  const messages = await db.collection("messages").where("threadKey", "==", message.threadKey).get();
+  if (messages.docs.some((doc) => doc.data().direction === "in")) return;
+  await db.collection("threads").doc(message.threadKey).update({
+    lastInboundAt: FieldValue.delete(),
+    readState: "read",
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 async function run() {
   const options = parseArgs(process.argv.slice(2));
   const pstStat = await lstat(options.pstPath);
@@ -84,7 +96,7 @@ async function run() {
     const readpst = process.env.READPST_BIN || "readpst";
     await mkdir(exportDir);
     await execFileAsync(readpst, readpstArgs(options.pstPath, exportDir), { maxBuffer: 1024 * 1024 });
-    await execFileAsync("python3", [
+    const parserArgs = [
       parserPath,
       exportDir,
       "--mailbox",
@@ -93,24 +105,35 @@ async function run() {
       options.side,
       "--output",
       parsedPath,
-    ], { maxBuffer: 1024 * 1024 });
+    ];
+    if (options.sentOnly) parserArgs.push("--sent-only");
+    await execFileAsync("python3", parserArgs, { maxBuffer: 1024 * 1024 });
 
     const db = options.apply ? await getDb() : null;
     let count = 0;
+    const directions = { in: 0, out: 0 };
     for (const message of await readJsonl(parsedPath)) {
-      if (db) await saveMessage(db, message);
+      if (db) {
+        await saveMessage(db, message);
+        if (options.sentOnly) {
+          await clearStaleInboundMarker(db, message);
+          await saveMessage(db, message);
+        }
+      }
       count += 1;
+      directions[message.direction] += 1;
       if (db && count % 25 === 0) console.error(`saved ${count} messages`);
     }
 
     console.log(`${options.apply ? "migrated" : "dry-run parsed"} ${count} messages from ${basename(options.pstPath)}`);
+    console.log(`directions: in=${directions.in}, out=${directions.out}`);
     if (!options.apply) console.log("No Firestore writes performed. Re-run with --apply after reviewing the count.");
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
 }
 
-export { parseArgs, readJsonl, readpstArgs };
+export { clearStaleInboundMarker, parseArgs, readJsonl, readpstArgs };
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   run().catch((error) => {

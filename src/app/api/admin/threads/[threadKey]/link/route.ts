@@ -7,7 +7,10 @@ import { DealNotFoundError } from "@/lib/repo/deals";
 export const runtime = "nodejs";
 
 export const PATCH = withAdmin(async (req, actor) => {
-  const threadKey = req.nextUrl.pathname.split("/").filter(Boolean).slice(-2)[0];
+  const match = req.nextUrl.pathname.match(
+    /^\/api\/admin\/threads\/(.+)\/link\/?$/
+  );
+  const threadKey = match ? decodeURIComponent(match[1]) : decodeURIComponent(req.nextUrl.pathname.split("/").filter(Boolean).slice(-2)[0] ?? "");
   if (!threadKey) return NextResponse.json({ error: "threadKey required" }, { status: 400 });
 
   const body = await req.json().catch(() => null);

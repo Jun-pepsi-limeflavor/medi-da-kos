@@ -3,13 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { withAdmin } from "@/lib/with-admin";
 import { getMessage, updateMessageExtraction } from "@/lib/repo/messages";
 import { runMessageExtraction } from "@/lib/extractor";
-import type { AdminIdentity } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
-export const POST = withAdmin(async (req: NextRequest, _actor: AdminIdentity) => {
+export const POST = withAdmin(async (req: NextRequest) => {
   const match = req.nextUrl.pathname.match(
-    /^\/api\/admin\/messages\/([^/]+)\/extract\/?$/,
+    /^\/api\/admin\/messages\/(.+)\/extract\/?$/,
   );
   if (!match) {
     return NextResponse.json({ error: "invalid path" }, { status: 400 });
