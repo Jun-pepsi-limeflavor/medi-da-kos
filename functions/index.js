@@ -8,6 +8,7 @@ const { setGlobalOptions } = require("firebase-functions/v2");
 const { buildLifecycleList, SEGMENT_ORDER } = require("./lifecycle");
 const { buildLandingRequestEmail } = require("./landing-request-email");
 const { materializeWebSubmission } = require("./web-message-materializer");
+const { queueAndSendEmail } = require("./gmail-notify");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -17,6 +18,9 @@ initializeApp();
 const db = getFirestore();
 
 const ADMIN_EMAILS = defineString("ADMIN_EMAILS");
+const NOTIFY_FROM_EMAIL = defineString("NOTIFY_FROM_EMAIL", {
+  default: "support@medidakos.com",
+});
 
 function getAdminEmails() {
   return ADMIN_EMAILS.value()
@@ -27,10 +31,6 @@ function getAdminEmails() {
 
 function formatKoDate(date = new Date()) {
   return date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-}
-
-function isAlreadyExistsError(error) {
-  return error.code === 6 || error.code === "already-exists";
 }
 
 function getFirstName(displayName) {
@@ -103,15 +103,12 @@ function escapeHtml(value) {
 }
 
 async function queueEmail(docId, payload) {
-  try {
-    await db.collection("mail").doc(docId).create(payload);
-  } catch (error) {
-    if (isAlreadyExistsError(error)) {
-      console.log(`mail/${docId} already queued — skip.`);
-      return;
-    }
-    throw error;
-  }
+  await queueAndSendEmail({
+    db,
+    docId,
+    payload,
+    from: NOTIFY_FROM_EMAIL.value(),
+  });
 }
 
 exports.onUserSignup = onDocumentCreated("users/{userId}", async (event) => {

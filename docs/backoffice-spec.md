@@ -33,7 +33,7 @@
 | `orders/{autoId}` | 9건, **전부 `submitted`** | 고객 제출 주문 | `onOrderCreated` |
 | `sampleRequests/{autoId}` | 3건 | 샘플 배송 상세 | 없음 |
 | `contact` / `koreaLeads` | 5건 / 3건 | 문의 폼 | 각각 트리거 있음 |
-| `mail/{결정적ID}` | 108건 | 발신 큐 | Trigger Email 확장 (us-central1) |
+| `mail/{결정적ID}` | 감사 로그 | 발신 큐 | Gmail API (`support@`); Trigger Email 끔 |
 | `tracking/{uid}/entries` | **컬렉션 없음** | 죽은 기능 | 없음 |
 
 예외 하나만 손댄다 — 2.4.
@@ -41,7 +41,7 @@
 ### 2.3 이미 있는 좋은 관행 두 개는 따른다
 
 - **결정적 문서 ID로 중복 방지** — `mail`이 `signup_member_{uid}` 같은 ID로 중복 발송을 막는다. 수집기의 `messages`도 같은 방식을 쓴다
-- **발신 경로가 이미 있다** — `mail`에 쓰면 메일이 나간다. 회신 기능을 붙일 때 새로 만들 필요가 없다
+- **알림 발신은 Functions** — `queueEmail()`이 Gmail API로 `support@`에서 보낸다. Trigger Email 확장에 `mail` 문서를 맡기지 않는다. 인박스 회신은 별도 Gmail send 경로다.
 
 ### 2.4 `role` 필드 — 착수 시 막는다
 
@@ -82,13 +82,13 @@ match /users/{uid} {
 |---|---|---|---|
 | `medidakoslabs.com` (Google Workspace) | `thomas@`, `hally@` | 바이어 | 도메인 전체 위임 |
 | `techasset.co.kr` (Google Workspace) | `rheekw`, `songjh`, `kimhs`, `parkjy` | 국내 공장 | 도메인 전체 위임 |
-| `medidakos.com` (Microsoft 365) | `support@` | 바이어 | Azure 앱 전용 `Mail.Read` |
+| `medidakos.com` (Google Workspace) | `support@` | 바이어 알림 발신 | 도메인 전체 위임 (`gmail.send`) |
 
-**서비스 계정은 하나.** 도메인 전체 위임은 관리콘솔에서 클라이언트 ID를 등록하는 방식이라, 같은 서비스 계정을 두 Workspace에 각각 등록하면 된다. 프로젝트가 그 조직에 속할 필요가 없다.
+**서비스 계정은 하나.** 도메인 전체 위임은 관리콘솔에서 클라이언트 ID를 등록하는 방식이라, 같은 서비스 계정을 Workspace마다 각각 등록하면 된다. 프로젝트가 그 조직에 속할 필요가 없다.
 
 `techasset.co.kr`는 GCP 프로젝트가 그 조직 소유(org `243848759364`)라 OAuth Internal도 가능하지만 쓰지 않는다. 두 도메인에 서로 다른 방식을 쓰면 코드가 두 갈래가 된다.
 
-Azure는 `ApplicationAccessPolicy`로 `support@` 하나만 접근되게 범위를 조인다. **빼먹으면 테넌트 전체 메일함이 열린다.** 같은 Azure 앱 등록에서 Firebase Auth 마이크로소프트 제공자도 같이 설정한다(5장).
+`support@medidakos.com`은 Outlook/M365에서 Gmail로 옮겼다. 알림 발송은 Azure Graph가 아니라 `mail-ingest`의 `gmail.send` 위임이다. 이 메일함 수집(인박스 폴링)은 아직 켜지 않는다.
 
 관리자 작업 3건이 크리티컬 패스다. 첫날 요청을 넣는다.
 
@@ -351,7 +351,7 @@ match /intakeReviews/{id} { allow read, write: if false; }
 | 소스 | 방식 |
 |---|---|
 | Gmail 6개함 | `after:` 중첩 조회 + 전 페이지 순회 + 결정적 ID 중복 흡수 |
-| Outlook `support@` | Graph delta 쿼리 |
+| `support@` (Gmail) | 알림 발신은 Gmail API. 인박스 수집은 아직 비활성 (구 Graph/Outlook 경로 폐기) |
 | 채널톡 | `GET /open/user-chats` → `.../messages`. `x-access-key` + `x-access-secret` + `Channel-Version` |
 | 웹 폼 | 가져올 게 없다. `contact`·`koreaLeads`·`orders` 트리거에서 `messages` 문서를 하나 더 만든다 |
 

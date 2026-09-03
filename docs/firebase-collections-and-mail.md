@@ -28,8 +28,8 @@ flowchart TB
     OnOrder[onOrderCreated]
   end
 
-  subgraph extension [Trigger Email Extension]
-    SMTP[Office365 SMTP]
+  subgraph gmail [Gmail API]
+    Support["support@medidakos.com"]
   end
 
   Register --> Users
@@ -41,11 +41,11 @@ flowchart TB
   SubmitBrief -->|브리프 초기화| CmBriefs
 
   Orders -->|document.created| OnOrder --> Mail
-  Mail --> SMTP
+  Mail --> Support
 ```
 
-**핵심:** 메일 트리거는 **`users` 생성**과 **`orders` 생성** 두 곳뿐입니다.  
-`cmBriefs`는 직접 메일을 보내지 않습니다.
+**핵심:** Functions가 `mail` 문서를 예약한 뒤 Gmail API로 발송한다. Trigger Email 확장·SMTP는 쓰지 않는다.  
+`cmBriefs`는 직접 메일을 보내지 않는다. 같은 `queueEmail()`을 contact·landingRequests·lifecycleScan도 쓴다.
 
 ---
 
@@ -142,10 +142,10 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 
 | 항목 | 내용 |
 |------|------|
-| **작성 주체** | Cloud Functions Admin SDK만 (`queueEmail()`) |
+| **작성 주체** | Cloud Functions Admin SDK만 (`queueEmail()` → `queueAndSendEmail()`) |
 | **클라이언트 접근** | `firestore.rules`에서 차단 (`allow read, write: if false`) |
-| **발송 주체** | Trigger Email 확장 (`ext-firestore-send-email`) |
-| **발송 후** | 문서에 `delivery` 필드 추가 (`delivery.state`: `SUCCESS` / `ERROR`) |
+| **발송 주체** | Gmail API (`users.messages.send`), From `NOTIFY_FROM_EMAIL` (`support@medidakos.com`) |
+| **발송 후** | 문서 `delivery.state`: `PENDING` → `SUCCESS` / `ERROR`. `SUCCESS`면 재발송하지 않음 |
 
 ---
 
@@ -175,8 +175,9 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 }
 ```
 
-- 문서 ID: 결정적 ID + `.create()` → 중복 발송 방지
-- 관리자 수신: `functions/.env`의 `ADMIN_EMAILS` (예: `songjh@techasset.co.kr,parkjy@techasset.co.kr`)
+- 문서 ID: 결정적 ID + `.create()` 예약 → Gmail 발송 → `delivery.SUCCESS`
+- 관리자 수신: `functions/.env`의 `ADMIN_EMAILS` (techasset 4계정). `BACKOFFICE_ADMIN_EMAILS`와 합치지 않는다
+- 발신: `NOTIFY_FROM_EMAIL` (기본 `support@medidakos.com`). `mail-ingest` 서비스 계정의 `gmail.send` 도메인 위임이 필요하다
 
 ---
 
@@ -209,7 +210,7 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 |------|------|
 | **트리거** | `users/{userId}` **created** |
 | **mail 문서 ID** | `signup_admin_{userId}` |
-| **수신** | `ADMIN_EMAILS` (2명) |
+| **수신** | `ADMIN_EMAILS` |
 
 **Subject:** `신규 회원가입: {email 또는 userId}`
 
@@ -275,12 +276,24 @@ orders 추가 (briefSnapshot 포함) → cmBriefs 초기화
 | `users` 재로그인 | 문서 **update**만 → 트리거 미실행 |
 | Functions IAM | 로그: `PERMISSION_DENIED` on `mail` write |
 | `mail` 문서 없음 | Firestore `mail` 컬렉션 확인 |
-| 확장 실패 | `mail.delivery.state !== SUCCESS` |
+| Gmail 발송 실패 | `mail.delivery.state !== SUCCESS` |
+| `medidakos.com` 위임 없음 | Functions 로그 `unauthorized_client` / `IAM signJwt failed for notify` |
+| Trigger Email 확장이 아직 `mail`을 감시 | 확장을 끄지 않으면 죽은 SMTP로 재시도하거나 나중에 중복 발송 |
+
+**도메인 전체 위임 (`support@` 발송 선행):**
+
+`medidakos.com` Workspace 관리콘솔 → 보안 → API 제어 → 도메인 전체 위임
+
+- 클라이언트 ID: `113911968669628612692` (`mail-ingest@medidakos.iam.gserviceaccount.com`)
+- 범위: `https://www.googleapis.com/auth/gmail.send`
+- 런타임 `778843049415-compute@developer.gserviceaccount.com`에 `mail-ingest`의 `roles/iam.serviceAccountTokenCreator`가 있어야 한다
+
+`support@` 수집(인박스 폴링)은 이 변경에 포함하지 않는다.
 
 **Functions 로그 확인:**
 
 ```bash
-npx firebase-tools functions:log --only onUserSignup,onOrderCreated --project medidakos
+npx firebase-tools functions:log --only onUserSignup,onOrderCreated,onContactCreated,onLandingRequestCreated --project medidakos
 ```
 
 **Functions 서비스 계정 Firestore 권한** (mail 쓰기 실패 시):
@@ -298,9 +311,11 @@ gcloud projects add-iam-policy-binding medidakos \
 | Firestore 이벤트 | mail 문서 ID | 수신자 | 언어 |
 |------------------|--------------|--------|------|
 | `users` created | `signup_member_{uid}` | 회원 | EN |
-| `users` created | `signup_admin_{uid}` | 관리자 2명 | KO |
-| `orders` created | `order_admin_{orderId}` | 관리자 2명 | KO |
+| `users` created | `signup_admin_{uid}` | `ADMIN_EMAILS` 4명 | KO |
+| `orders` created | `order_admin_{orderId}` | `ADMIN_EMAILS` 4명 | KO |
 | `orders` created | `order_customer_{orderId}` | 고객 | KO |
+| `contact` created | `contact_admin_{contactId}` | `ADMIN_EMAILS` 4명 | KO |
+| `landingRequests` created | `landing_request_admin_{requestId}` | `ADMIN_EMAILS` 4명 | KO |
 | `cmBriefs` 저장/제출 | — | — | — |
 
 ---
@@ -311,6 +326,7 @@ gcloud projects add-iam-policy-binding medidakos \
 |------|------|
 | `src/lib/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders) |
 | `src/lib/auth-context.tsx` | 회원가입/로그인 → `users` 저장 |
-| `functions/index.js` | `onUserSignup`, `onOrderCreated` → `mail` 큐잉 |
-| `functions/.env` | `ADMIN_EMAILS` |
+| `functions/index.js` | 트리거 → `queueEmail()` |
+| `functions/gmail-notify.js` | Gmail API 발송 + `mail` 예약/delivery |
+| `functions/.env` | `ADMIN_EMAILS`, `NOTIFY_FROM_EMAIL` |
 | `firestore.rules` | 클라이언트 접근 규칙 (`mail`은 클라이언트 차단) |
