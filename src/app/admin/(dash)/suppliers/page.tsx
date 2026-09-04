@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listSuppliers } from "@/lib/repo/suppliers";
-import { listDealsWithDetails } from "@/lib/repo/deals";
-import type { DealDetails, SupplierEngagement } from "@/lib/schemas/deal";
+import { listDealsForBoard } from "@/lib/repo/deals";
+import type { SupplierEngagement } from "@/lib/schemas/deal";
 import SupplierForm from "./SupplierForm";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function SuppliersPage({
 }) {
   const [suppliers, deals] = await Promise.all([
     listSuppliers(),
-    listDealsWithDetails(),
+    listDealsForBoard(),
   ]);
 
   const params = await searchParams;
@@ -44,7 +44,7 @@ export default async function SuppliersPage({
             </thead>
             <tbody className="divide-y divide-neutral-900">
               {suppliers.map((s) => {
-                const engagements = deals.flatMap((d: DealDetails) =>
+                const engagements = deals.flatMap((d) =>
                   d.supplierEngagements
                     .filter((e: SupplierEngagement) => e.supplierId === s.id)
                     .map((e: SupplierEngagement) => ({ deal: d.deal, engagement: e }))

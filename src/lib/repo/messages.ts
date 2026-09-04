@@ -7,6 +7,14 @@ import { z } from "zod";
 type ParseStatus = z.infer<typeof parseStatusSchema>;
 
 const COLLECTION = "messages";
+export const THREAD_KEY_QUERY_LIMIT = 30;
+
+export function chunkThreadKeys(threadKeys: string[]): string[][] {
+  const uniqueKeys = [...new Set(threadKeys)];
+  return Array.from({ length: Math.ceil(uniqueKeys.length / THREAD_KEY_QUERY_LIMIT) }, (_, index) =>
+    uniqueKeys.slice(index * THREAD_KEY_QUERY_LIMIT, (index + 1) * THREAD_KEY_QUERY_LIMIT),
+  );
+}
 
 /** 메시지 단일 조회 — 문서 ID로 메시지를 가져온다. */
 export async function getMessage(id: string): Promise<Message | null> {
@@ -23,6 +31,21 @@ export async function listThreadMessages(threadKey: string): Promise<Message[]> 
     .get();
   const messages = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Message);
   return messages.sort((a, b) => (a.sentAt ?? "").localeCompare(b.sentAt ?? ""));
+}
+
+/** Conversation detail reads at most one query per Firestore `in` chunk, never per thread. */
+export async function listMessagesForThreads(threadKeys: string[]): Promise<Message[]> {
+  const chunks = chunkThreadKeys(threadKeys);
+  if (chunks.length === 0) return [];
+
+  const snapshots = await Promise.all(
+    chunks.map((threadKeyChunk) =>
+      getAdminDb().collection(COLLECTION).where("threadKey", "in", threadKeyChunk).get(),
+    ),
+  );
+  return snapshots
+    .flatMap((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Message))
+    .sort((a, b) => (a.sentAt ?? "").localeCompare(b.sentAt ?? ""));
 }
 
 /** 메시지 추출 결과 확정 저장 */
@@ -77,4 +100,3 @@ export async function setMessageParseStatus(
       sourceUpdatedAt: now,
     });
 }
-

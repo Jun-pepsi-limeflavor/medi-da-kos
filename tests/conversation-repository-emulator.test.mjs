@@ -30,6 +30,7 @@ if (!emulatorHost) {
     ThreadNotConnectedError,
     ThreadNotFoundError,
   } = await import("../src/lib/repo/threads.ts");
+  const { listMessagesForThreads } = await import("../src/lib/repo/messages.ts");
 
   const db = getAdminDb();
   const actor = { email: "admin@example.test" };
@@ -237,6 +238,19 @@ if (!emulatorHost) {
     assert.match(routeSources, /Conversation(Entity)?NotFoundError[\s\S]{0,400}status: 404/);
     assert.match(routeSources, /ConversationRelationConflictError[\s\S]{0,200}status: 409/);
     assert.match(routeSources, /ThreadNotConnectedError[\s\S]{0,200}status: 409/);
+  });
+
+  test("conversation message chunks retain every thread message once in chronological order", async () => {
+    const threadKeys = Array.from({ length: 31 }, (_, index) => id(`fanout-thread-${index}`));
+    await Promise.all(threadKeys.map((threadKey, index) => db.collection("messages").doc(id(`fanout-message-${index}`)).set({
+      threadKey,
+      sentAt: `2026-08-29T00:${String(30 - index).padStart(2, "0")}:00.000Z`,
+    })));
+
+    const messages = await listMessagesForThreads([...threadKeys, threadKeys[0]]);
+    assert.equal(messages.length, 31);
+    assert.equal(new Set(messages.map((message) => message.id)).size, 31);
+    assert.deepEqual(messages.map((message) => message.sentAt), [...messages.map((message) => message.sentAt)].sort());
   });
 
   after(async () => {

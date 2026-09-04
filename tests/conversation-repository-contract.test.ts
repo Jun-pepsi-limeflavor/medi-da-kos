@@ -12,6 +12,7 @@ const {
   projectConversationRollup,
   projectConversationThread,
 } = await import("../src/lib/repo/conversations.ts");
+const { chunkThreadKeys, THREAD_KEY_QUERY_LIMIT } = await import("../src/lib/repo/messages.ts");
 
 const now = "2026-08-29T00:00:00.000Z";
 
@@ -137,4 +138,15 @@ test("Task 2 dynamic routes are directly guarded, await params, and safely parse
   for (const route of routes.slice(0, 2)) {
     assert.match(readFileSync(route, "utf8"), /\.json\(\)\.catch\(\(\) => null\)/);
   }
+});
+
+test("conversation message keys use bounded, duplicate-free Firestore query chunks", () => {
+  assert.deepEqual(chunkThreadKeys([]), []);
+  assert.deepEqual(chunkThreadKeys(["one"]), [["one"]]);
+  assert.equal(chunkThreadKeys(Array.from({ length: THREAD_KEY_QUERY_LIMIT }, (_, i) => `t-${i}`)).length, 1);
+  assert.deepEqual(
+    chunkThreadKeys(["a", "a", ...Array.from({ length: THREAD_KEY_QUERY_LIMIT }, (_, i) => `t-${i}`)]).map((chunk) => chunk.length),
+    [THREAD_KEY_QUERY_LIMIT, 1],
+  );
+  assert.match(readFileSync("src/lib/repo/conversations.ts", "utf8"), /listMessagesForThreads\(threads\.map/);
 });

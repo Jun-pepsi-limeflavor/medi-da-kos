@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { register } from "node:module";
+import { readFileSync } from "node:fs";
 
 register("./esm-alias-loader.mjs", import.meta.url);
 const { projectConversationRollup } = await import("../src/lib/repo/conversations.ts");
@@ -85,4 +86,24 @@ test("unassigned conversation preserves null owner and renders safely in rollup"
 
   assert.equal(rollup.ownerEmail, undefined);
   assert.equal(rollup.counterpartyLabel, "Anon");
+});
+
+test("customer work does not fetch review candidates and has a fixed three-panel loading shell", () => {
+  const page = readFileSync("src/app/admin/(dash)/inbox/page.tsx", "utf8");
+  const customerWork = page.slice(page.indexOf('if (queue === "customer-work")'), page.indexOf("} else {"));
+  assert.doesNotMatch(customerWork, /listBuyers\(\)|listSuppliers\(\)/);
+
+  const loading = readFileSync("src/app/admin/(dash)/inbox/loading.tsx", "utf8");
+  assert.match(loading, /h-\[calc\(100vh-7rem\)\]/);
+  assert.match(loading, /w-80/);
+  assert.match(loading, /w-\[440px\]/);
+});
+
+test("customer-work streams detail panels behind a Suspense fallback after queue data resolves", () => {
+  const page = readFileSync("src/app/admin/(dash)/inbox/page.tsx", "utf8");
+  const workspace = readFileSync("src/app/admin/(dash)/inbox/InboxWorkspace.tsx", "utf8");
+  assert.match(page, /conversationDetailPromise = getConversationDetail\([^)]*\)\.catch\(\(\) => null\)/);
+  assert.doesNotMatch(page, /conversationDetail = await getConversationDetail/);
+  assert.match(workspace, /<Suspense fallback=\{<DetailPanelsFallback/);
+  assert.match(workspace, /detailPromise=\{detailPromise\}/);
 });

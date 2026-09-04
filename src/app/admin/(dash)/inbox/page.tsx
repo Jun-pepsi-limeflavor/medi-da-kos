@@ -35,7 +35,8 @@ export default async function AdminInboxPage({
   let buyers: Awaited<ReturnType<typeof listBuyers>> = [];
   let suppliers: Awaited<ReturnType<typeof listSuppliers>> = [];
   let rollups: Awaited<ReturnType<typeof listConversationRollups>> = [];
-  let conversationDetail = null;
+  const conversationDetail = null;
+  let conversationDetailPromise: Promise<Awaited<ReturnType<typeof getConversationDetail>>> | undefined;
   let selectedConversationId = requestedConversationId;
 
   let reviewItems: Awaited<ReturnType<typeof listReviewIdentities>> = [];
@@ -45,32 +46,23 @@ export default async function AdminInboxPage({
   if (queue === "customer-work") {
     // If conversationId is known ahead of time, fetch detail concurrently in 1 hop
     if (requestedConversationId) {
-      const [h, b, s, r, cd] = await Promise.all([
+      conversationDetailPromise = getConversationDetail(requestedConversationId).catch(() => null);
+      const [h, r] = await Promise.all([
         ingestHealthSummary(),
-        listBuyers(),
-        listSuppliers(),
         listConversationRollups("customer-work"),
-        getConversationDetail(requestedConversationId),
       ]);
       healthSummary = h;
-      buyers = b;
-      suppliers = s;
       rollups = r;
-      conversationDetail = cd;
     } else {
-      const [h, b, s, r] = await Promise.all([
+      const [h, r] = await Promise.all([
         ingestHealthSummary(),
-        listBuyers(),
-        listSuppliers(),
         listConversationRollups("customer-work"),
       ]);
       healthSummary = h;
-      buyers = b;
-      suppliers = s;
       rollups = r;
       if (rollups.length > 0) {
         selectedConversationId = rollups[0].id;
-        conversationDetail = await getConversationDetail(selectedConversationId);
+        conversationDetailPromise = getConversationDetail(selectedConversationId).catch(() => null);
       }
     }
   } else {
@@ -123,6 +115,7 @@ export default async function AdminInboxPage({
         queue={queue}
         rollups={rollups}
         conversationDetail={conversationDetail}
+        conversationDetailPromise={conversationDetailPromise}
         reviewItems={reviewItems}
         reviewDetail={reviewDetail}
         healthSummary={healthSummary}

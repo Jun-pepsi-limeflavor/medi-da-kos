@@ -1,6 +1,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { assertAllowedAdmin, NotAdminError } from "../src/lib/admin-auth.ts";
+import { readFileSync } from "node:fs";
 
 const google = (email: string) => ({
   email,
@@ -117,4 +118,11 @@ test("U+212A KELVIN SIGN 으로 대소문자 폴딩을 노려도 거부한다", 
     () => assertAllowedAdmin(google(`rhee${kelvinSign}w@techasset.co.kr`)),
     NotAdminError,
   );
+});
+
+test("page guard is memoized only by React render scope and keeps revocation checking", () => {
+  const source = readFileSync("src/lib/admin-page.ts", "utf8");
+  assert.match(source, /cache\(async function requireAdminPage/);
+  assert.match(source, /verifySessionCookie\(cookie, true\)/);
+  assert.doesNotMatch(source, /unstable_cache|revalidate/);
 });

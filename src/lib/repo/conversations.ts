@@ -16,13 +16,14 @@ import {
 import { threadSchema, type Thread } from "@/lib/schemas/thread";
 import { getIntakeReview } from "@/lib/repo/intake-reviews";
 import { getDeal } from "@/lib/repo/deals";
-import { listThreadMessages } from "@/lib/repo/messages";
+import { listMessagesForThreads, listThreadMessages } from "@/lib/repo/messages";
 import type { IntakeReview } from "@/lib/schemas/intake-review";
 import { buyerInputSchema } from "@/lib/schemas/buyer";
 import { needsReply } from "@/lib/schemas/thread";
 import { runMessageExtraction } from "@/lib/extractor";
 import { updateMessageExtraction } from "@/lib/repo/messages";
 import { setIntakeReview } from "@/lib/repo/intake-reviews";
+import { measureAdminOperation } from "@/lib/admin-performance";
 
 const CONVERSATIONS = "conversations";
 const IDENTITIES = "conversationIdentities";
@@ -185,11 +186,13 @@ function compareRollups(now: string, a: ConversationRollup, b: ConversationRollu
 /** The customer-work queue is read solely from its server-maintained rollups. */
 export async function listConversationRollups(_queue: "customer-work" = "customer-work"): Promise<ConversationRollup[]> {
   void _queue;
-  const snap = await getAdminDb().collection(CONVERSATIONS).get();
-  const now = new Date().toISOString();
-  return snap.docs
-    .map((doc) => projectConversationRollup(doc.id, doc.data()))
-    .sort((a, b) => compareRollups(now, a, b));
+  return measureAdminOperation("inbox.queue", async () => {
+    const snap = await getAdminDb().collection(CONVERSATIONS).get();
+    const now = new Date().toISOString();
+    return snap.docs
+      .map((doc) => projectConversationRollup(doc.id, doc.data()))
+      .sort((a, b) => compareRollups(now, a, b));
+  }, (rollups) => ({ conversations: rollups.length }));
 }
 
 export type ConversationEvent = {
@@ -215,6 +218,7 @@ export type ConversationDetail = {
 
 /** Detail-only reads are server-only; message reads never occur in the list path. */
 export async function getConversationDetail(id: string): Promise<ConversationDetail | null> {
+  return measureAdminOperation("inbox.detail", async () => {
   const db = getAdminDb();
   const conversationRef = db.collection(CONVERSATIONS).doc(id);
   const conversationDoc = await conversationRef.get();
@@ -228,12 +232,7 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
   const threads = threadSnap.docs.map((doc) => projectConversationThread(doc.id, doc.data()));
   threads.sort((a, b) => (b.lastMessageAt || "").localeCompare(a.lastMessageAt || ""));
 
-  const messageArrays = await Promise.all(
-    threads.map((thread) => listThreadMessages(thread.threadKey)),
-  );
-  const messages = messageArrays
-    .flat()
-    .sort((a, b) => (a.sentAt || "").localeCompare(b.sentAt || ""));
+  const messages = await listMessagesForThreads(threads.map((thread) => thread.threadKey));
 
   const anchorMessage =
     [...messages].reverse().find((m) => m.direction === "in") ??
@@ -276,6 +275,13 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
     intakeReview,
     linkedDeal,
   };
+  }, (detail) => ({
+    conversations: detail ? 1 : 0,
+    identities: detail?.identities.length ?? 0,
+    threads: detail?.threads.length ?? 0,
+    messages: detail?.messages.length ?? 0,
+    events: detail?.events.length ?? 0,
+  }));
 }
 
 export interface ReviewIdentityItem {

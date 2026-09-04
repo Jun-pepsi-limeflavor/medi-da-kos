@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -17,9 +17,8 @@ import type { Buyer } from "@/lib/schemas/buyer";
 import type { Supplier } from "@/lib/schemas/supplier";
 
 import ConversationQueue from "./ConversationQueue";
-import ConversationTimeline from "./ConversationTimeline";
-import ConversationInspector from "./ConversationInspector";
 import ReviewQueue from "./ReviewQueue";
+import ConversationDetailPanels from "./ConversationDetailPanels";
 
 export type InboxQueueType = "customer-work" | "unclassified" | "supplier" | "advertising";
 
@@ -27,6 +26,7 @@ interface InboxWorkspaceProps {
   queue: InboxQueueType;
   rollups: ConversationRollup[];
   conversationDetail: ConversationDetail | null;
+  conversationDetailPromise?: Promise<ConversationDetail | null>;
   reviewItems: ReviewIdentityItem[];
   reviewDetail: ReviewIdentityDetail | null;
   healthSummary: IngestHealthSummary;
@@ -41,6 +41,7 @@ export default function InboxWorkspace({
   queue,
   rollups,
   conversationDetail,
+  conversationDetailPromise,
   reviewItems,
   reviewDetail,
   healthSummary,
@@ -50,11 +51,11 @@ export default function InboxWorkspace({
   buyers,
   suppliers,
 }: InboxWorkspaceProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 
   const totalUnanswered = rollups.reduce((acc, r) => acc + (r.unansweredThreadCount || 0), 0);
+  const detailPromise = conversationDetailPromise ?? Promise.resolve(conversationDetail);
 
   function getQueueLink(targetQueue: InboxQueueType) {
     const params = new URLSearchParams(searchParams.toString());
@@ -166,22 +167,14 @@ export default function InboxWorkspace({
                   totalUnanswered={totalUnanswered}
                 />
               </div>
-              <div className="flex-1 min-w-0 h-full min-h-0 overflow-hidden border-r border-neutral-800 transition-all duration-200">
-                <ConversationTimeline detail={conversationDetail} />
-              </div>
-              <div
-                className={`h-full min-h-0 overflow-hidden transition-all duration-200 ${
-                  inspectorCollapsed
-                    ? "w-12 shrink-0 bg-neutral-950"
-                    : "w-[440px] xl:w-[480px] shrink-0"
-                }`}
-              >
-                <ConversationInspector
-                  detail={conversationDetail}
+              <Suspense fallback={<DetailPanelsFallback isCollapsed={inspectorCollapsed} />}>
+                <ConversationDetailPanels
+                  detailPromise={detailPromise}
+                  mobilePanel="desktop"
                   isCollapsed={inspectorCollapsed}
                   onToggleCollapse={() => setInspectorCollapsed((prev) => !prev)}
                 />
-              </div>
+              </Suspense>
             </div>
 
             {/* Mobile / Tablet Staged Layout (< 1024px) */}
@@ -194,10 +187,14 @@ export default function InboxWorkspace({
                 />
               )}
               {mobilePanel === "timeline" && (
-                <ConversationTimeline detail={conversationDetail} />
+                <Suspense fallback={<DetailPanelsFallback mobile />}>
+                  <ConversationDetailPanels detailPromise={detailPromise} mobilePanel="timeline" />
+                </Suspense>
               )}
               {mobilePanel === "inspector" && (
-                <ConversationInspector detail={conversationDetail} />
+                <Suspense fallback={<DetailPanelsFallback mobile />}>
+                  <ConversationDetailPanels detailPromise={detailPromise} mobilePanel="inspector" />
+                </Suspense>
               )}
             </div>
           </>
@@ -213,6 +210,22 @@ export default function InboxWorkspace({
             conversations={rollups}
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+function DetailPanelsFallback({ isCollapsed = false, mobile = false }: { isCollapsed?: boolean; mobile?: boolean }) {
+  if (mobile) return <div className="h-full animate-pulse bg-neutral-900" aria-busy="true" />;
+
+  return (
+    <div className="flex flex-1 min-w-0 h-full" aria-busy="true">
+      <div className="flex-1 border-r border-neutral-800 bg-neutral-950 p-6 space-y-4">
+        <div className="h-5 w-2/5 animate-pulse rounded bg-neutral-800" />
+        <div className="h-4 w-full animate-pulse rounded bg-neutral-800" />
+      </div>
+      <div className={`${isCollapsed ? "w-12" : "w-[440px] xl:w-[480px]"} shrink-0 bg-neutral-950 p-5`}>
+        <div className="h-5 w-1/3 animate-pulse rounded bg-neutral-800" />
       </div>
     </div>
   );

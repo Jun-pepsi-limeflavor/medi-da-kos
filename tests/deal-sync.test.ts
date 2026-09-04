@@ -1,9 +1,34 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { register } from "node:module";
 import type { Extraction } from "../src/lib/schemas/extraction.ts";
 import { extractionSchema } from "../src/lib/schemas/extraction.ts";
+import type { Deal, DealItem, SupplierEngagement, SampleRound, DealTask } from "../src/lib/schemas/deal.ts";
+
+register("./esm-alias-loader.mjs", import.meta.url);
+const { assembleDealBoard } = await import("../src/lib/repo/deals.ts");
 
 describe("딜 자동 동기화 데이터 매핑 및 스키마 검증 테스트", () => {
+  test("보드 로더가 딜별로 제품·공급자 관계·샘플·태스크를 묶고 고아 문서를 제외함", () => {
+    const deal = { id: "deal-1" } as unknown as Deal;
+    const result = assembleDealBoard([deal], {
+      items: [{ dealId: "deal-1", value: { id: "item-1" } as unknown as DealItem }],
+      supplierEngagements: [{ dealId: "deal-1", value: { id: "eng-1" } as unknown as SupplierEngagement }],
+      sampleRounds: [{ dealId: "deal-1", value: { id: "sample-1" } as unknown as SampleRound }],
+      tasks: [
+        { dealId: "deal-1", value: { id: "task-1" } as unknown as DealTask },
+        { dealId: "missing", value: { id: "orphan-task" } as unknown as DealTask },
+      ],
+    });
+
+    assert.equal(result.length, 1);
+    assert.deepEqual(result[0].items.map((item) => item.id), ["item-1"]);
+    assert.deepEqual(result[0].supplierEngagements.map((item) => item.id), ["eng-1"]);
+    assert.deepEqual(result[0].sampleRounds.map((item) => item.id), ["sample-1"]);
+    assert.deepEqual(result[0].tasks.map((item) => item.id), ["task-1"]);
+    assert.equal("shipments" in result[0], false);
+    assert.equal("events" in result[0], false);
+  });
   test("Extraction 데이터가 딜 규격에 맞게 정상 파싱됨", () => {
     const rawExtraction: Extraction = {
       buyer: {

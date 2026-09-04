@@ -9,11 +9,11 @@ import {
   findViolations,
 } from "@/lib/stages";
 import type {
-  DealDetails,
   DealItem,
   SampleRound,
   DealTask,
 } from "@/lib/schemas/deal";
+import type { DealBoardDetails } from "@/lib/repo/deals";
 import {
   Search,
   AlertTriangle,
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 interface Props {
-  deals: DealDetails[];
+  deals: DealBoardDetails[];
 }
 
 const WAITING_ON_LABELS: Record<string, { label: string; color: string }> = {
@@ -83,7 +83,7 @@ export default function CrmKanbanBoard({ deals }: Props) {
   const totalDealsCount = deals.length;
   const violationDealsCount = useMemo(() => {
     return deals.filter(
-      (d: DealDetails) =>
+      (d: DealBoardDetails) =>
         findViolations({
           stageBrand: d.deal.stageBrand,
           engagements: d.supplierEngagements,
@@ -92,12 +92,12 @@ export default function CrmKanbanBoard({ deals }: Props) {
   }, [deals]);
 
   const highSampleRoundCount = useMemo(() => {
-    return deals.filter((d: DealDetails) => d.sampleRounds.some((r: SampleRound) => r.roundNo >= 4)).length;
+    return deals.filter((d: DealBoardDetails) => d.sampleRounds.some((r: SampleRound) => r.roundNo >= 4)).length;
   }, [deals]);
 
   const openTasksTotal = useMemo(() => {
     return deals.reduce(
-      (sum: number, d: DealDetails) => sum + d.tasks.filter((t: DealTask) => t.status === "open").length,
+      (sum: number, d: DealBoardDetails) => sum + d.tasks.filter((t: DealTask) => t.status === "open").length,
       0
     );
   }, [deals]);

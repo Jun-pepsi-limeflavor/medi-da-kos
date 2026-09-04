@@ -1,12 +1,14 @@
 import { getAdminDb } from "@/lib/firebase-admin";
 import { listIntakeReviews } from "@/lib/repo/intake-reviews";
 import { intakeReviewId } from "@/lib/schemas/intake-review";
+import { measureAdminOperation } from "@/lib/admin-performance";
 import IntakeTableClient from "./IntakeTableClient";
 import { type IntakeRowDetail } from "./IntakeDetailModal";
 
 export const dynamic = "force-dynamic";
 
 async function loadRows(): Promise<IntakeRowDetail[]> {
+  return measureAdminOperation("intake.load", async () => {
   const db = getAdminDb();
   const [ordersSnap, samplesSnap, contactSnap, landingSnap, koreaLeadsSnap, reviews] =
     await Promise.all([
@@ -160,6 +162,7 @@ async function loadRows(): Promise<IntakeRowDetail[]> {
 
   rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
   return rows;
+  }, (rows) => ({ rows: rows.length }));
 }
 
 export default async function IntakesPage({

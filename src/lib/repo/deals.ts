@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { AdminIdentity } from "@/lib/admin-auth";
 import { stripUndefined } from "@/lib/firestore-sanitize";
+import { measureAdminOperation } from "@/lib/admin-performance";
 import {
   dealInputSchema,
   dealItemInputSchema,
@@ -70,6 +71,7 @@ export class InvalidEngagementReferenceError extends Error {
 }
 
 export type { DealDetails };
+export type DealBoardDetails = Omit<DealDetails, "shipments" | "events">;
 
 export async function listDeals(): Promise<Deal[]> {
   const snap = await getAdminDb()
@@ -81,14 +83,99 @@ export async function listDeals(): Promise<Deal[]> {
 }
 
 export async function listDealsWithDetails(): Promise<DealDetails[]> {
-  const deals = await listDeals();
-  const details = await Promise.all(
-    deals.map(async (deal) => {
-      const full = await getDealWithSubcollections(deal.id);
-      return full;
-    })
+  return measureAdminOperation("deal.board", async () => {
+    const deals = await listDeals();
+    const details = await Promise.all(
+      deals.map(async (deal) => {
+        const full = await getDealWithSubcollections(deal.id);
+        return full;
+      })
+    );
+    return details.filter((d): d is DealDetails => d !== null);
+  }, (details) => ({ deals: details.length }));
+}
+
+type BoardChild<T> = { dealId: string; value: T };
+
+/**
+ * Builds the board shape from bounded collection-group reads. Child documents
+ * whose direct parent is not a loaded deal are deliberately ignored.
+ */
+export function assembleDealBoard(
+  deals: Deal[],
+  children: {
+    items: BoardChild<DealItem>[];
+    supplierEngagements: BoardChild<SupplierEngagement>[];
+    sampleRounds: BoardChild<SampleRound>[];
+    tasks: BoardChild<DealTask>[];
+  }
+): DealBoardDetails[] {
+  const byDeal = new Map(
+    deals.map((deal) => [
+      deal.id,
+      {
+        deal,
+        items: [] as DealItem[],
+        supplierEngagements: [] as SupplierEngagement[],
+        sampleRounds: [] as SampleRound[],
+        tasks: [] as DealTask[],
+      },
+    ])
   );
-  return details.filter((d): d is DealDetails => d !== null);
+
+  for (const child of children.items) byDeal.get(child.dealId)?.items.push(child.value);
+  for (const child of children.supplierEngagements) {
+    byDeal.get(child.dealId)?.supplierEngagements.push(child.value);
+  }
+  for (const child of children.sampleRounds) {
+    byDeal.get(child.dealId)?.sampleRounds.push(child.value);
+  }
+  for (const child of children.tasks) byDeal.get(child.dealId)?.tasks.push(child.value);
+
+  return [...byDeal.values()];
+}
+
+function childDealId(doc: FirebaseFirestore.QueryDocumentSnapshot): string | null {
+  return doc.ref.parent.parent?.id ?? null;
+}
+
+export async function listDealsForBoard(): Promise<DealBoardDetails[]> {
+  return measureAdminOperation("deal.board", async () => {
+    const db = getAdminDb();
+    const [deals, itemsSnap, engagementsSnap, sampleRoundsSnap, tasksSnap] =
+      await Promise.all([
+        listDeals(),
+        db.collectionGroup("items").get(),
+        db.collectionGroup("supplierEngagements").get(),
+        db.collectionGroup("sampleRounds").get(),
+        db.collectionGroup("tasks").get(),
+      ]);
+
+    const children = {
+      items: itemsSnap.docs.flatMap((doc) => {
+        const dealId = childDealId(doc);
+        return dealId ? [{ dealId, value: { id: doc.id, ...doc.data() } as DealItem }] : [];
+      }),
+      supplierEngagements: engagementsSnap.docs.flatMap((doc) => {
+        const dealId = childDealId(doc);
+        return dealId
+          ? [{ dealId, value: { id: doc.id, ...doc.data() } as SupplierEngagement }]
+          : [];
+      }),
+      sampleRounds: sampleRoundsSnap.docs.flatMap((doc) => {
+        const dealId = childDealId(doc);
+        return dealId
+          ? [{ dealId, value: { id: doc.id, ...doc.data() } as SampleRound }]
+          : [];
+      }),
+      tasks: tasksSnap.docs.flatMap((doc) => {
+        const dealId = childDealId(doc);
+        return dealId ? [{ dealId, value: { id: doc.id, ...doc.data() } as DealTask }] : [];
+      }),
+    };
+
+    return assembleDealBoard(deals, children);
+  }, (details) => ({ deals: details.length }));
 }
 
 export async function listDealsBySupplier(supplierId: string): Promise<Deal[]> {

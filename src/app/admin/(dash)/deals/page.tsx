@@ -1,5 +1,5 @@
 import { requireAdminPage } from "@/lib/admin-page";
-import { listDealsWithDetails } from "@/lib/repo/deals";
+import { listDealsForBoard } from "@/lib/repo/deals";
 import { listIntakeReviews, resolveQualifiedIntakeDetails } from "@/lib/repo/intake-reviews";
 import { getMessage } from "@/lib/repo/messages";
 import { intakeReviewId } from "@/lib/schemas/intake-review";
@@ -23,7 +23,7 @@ export default async function DealsPage({
   const createFromIntakeId = params?.createFromIntake;
 
   const [deals, intakeReviewsMap, prefillMsg] = await Promise.all([
-    listDealsWithDetails(),
+    listDealsForBoard(),
     listIntakeReviews(),
     createFromMessageId ? getMessage(createFromMessageId) : Promise.resolve(null),
   ]);
