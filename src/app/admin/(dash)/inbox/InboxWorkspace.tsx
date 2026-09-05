@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { unstable_catchError as catchError, type ErrorInfo } from "next/error";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -55,8 +56,6 @@ export default function InboxWorkspace({
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 
   const totalUnanswered = rollups.reduce((acc, r) => acc + (r.unansweredThreadCount || 0), 0);
-  const detailPromise = conversationDetailPromise ?? Promise.resolve(conversationDetail);
-
   function getQueueLink(targetQueue: InboxQueueType) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("queue", targetQueue);
@@ -167,14 +166,17 @@ export default function InboxWorkspace({
                   totalUnanswered={totalUnanswered}
                 />
               </div>
-              <Suspense fallback={<DetailPanelsFallback isCollapsed={inspectorCollapsed} />}>
-                <ConversationDetailPanels
-                  detailPromise={detailPromise}
-                  mobilePanel="desktop"
-                  isCollapsed={inspectorCollapsed}
-                  onToggleCollapse={() => setInspectorCollapsed((prev) => !prev)}
-                />
-              </Suspense>
+              <DetailPanelsErrorBoundary key={selectedConversationId ?? "empty"}>
+                <Suspense fallback={<DetailPanelsFallback isCollapsed={inspectorCollapsed} />}>
+                  <ConversationDetailPanels
+                    detailPromise={conversationDetailPromise}
+                    detail={conversationDetail}
+                    mobilePanel="desktop"
+                    isCollapsed={inspectorCollapsed}
+                    onToggleCollapse={() => setInspectorCollapsed((prev) => !prev)}
+                  />
+                </Suspense>
+              </DetailPanelsErrorBoundary>
             </div>
 
             {/* Mobile / Tablet Staged Layout (< 1024px) */}
@@ -187,14 +189,26 @@ export default function InboxWorkspace({
                 />
               )}
               {mobilePanel === "timeline" && (
-                <Suspense fallback={<DetailPanelsFallback mobile />}>
-                  <ConversationDetailPanels detailPromise={detailPromise} mobilePanel="timeline" />
-                </Suspense>
+                <DetailPanelsErrorBoundary key={selectedConversationId ?? "empty"} mobile>
+                  <Suspense fallback={<DetailPanelsFallback mobile />}>
+                    <ConversationDetailPanels
+                      detailPromise={conversationDetailPromise}
+                      detail={conversationDetail}
+                      mobilePanel="timeline"
+                    />
+                  </Suspense>
+                </DetailPanelsErrorBoundary>
               )}
               {mobilePanel === "inspector" && (
-                <Suspense fallback={<DetailPanelsFallback mobile />}>
-                  <ConversationDetailPanels detailPromise={detailPromise} mobilePanel="inspector" />
-                </Suspense>
+                <DetailPanelsErrorBoundary key={selectedConversationId ?? "empty"} mobile>
+                  <Suspense fallback={<DetailPanelsFallback mobile />}>
+                    <ConversationDetailPanels
+                      detailPromise={conversationDetailPromise}
+                      detail={conversationDetail}
+                      mobilePanel="inspector"
+                    />
+                  </Suspense>
+                </DetailPanelsErrorBoundary>
               )}
             </div>
           </>
@@ -214,6 +228,31 @@ export default function InboxWorkspace({
     </div>
   );
 }
+
+function DetailPanelsErrorFallback(
+  { mobile = false }: { mobile?: boolean },
+  { unstable_retry: retry }: ErrorInfo,
+) {
+  return (
+    <div
+      role="alert"
+      className={`${mobile ? "h-full" : "flex-1"} flex min-w-0 flex-col items-center justify-center bg-neutral-950 p-8 text-center`}
+    >
+      <AlertTriangle className="mb-3 h-9 w-9 text-amber-500" />
+      <h3 className="text-sm font-semibold text-neutral-200">대화 상세를 불러오지 못했습니다</h3>
+      <p className="mt-1 text-xs text-neutral-500">대화 목록은 유지됩니다. 잠시 후 다시 시도해주세요.</p>
+      <button
+        type="button"
+        onClick={() => retry()}
+        className="mt-4 min-h-[40px] rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-2 text-xs font-semibold text-neutral-200 hover:bg-neutral-800"
+      >
+        다시 시도
+      </button>
+    </div>
+  );
+}
+
+const DetailPanelsErrorBoundary = catchError(DetailPanelsErrorFallback);
 
 function DetailPanelsFallback({ isCollapsed = false, mobile = false }: { isCollapsed?: boolean; mobile?: boolean }) {
   if (mobile) return <div className="h-full animate-pulse bg-neutral-900" aria-busy="true" />;

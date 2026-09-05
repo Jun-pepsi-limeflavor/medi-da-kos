@@ -102,8 +102,23 @@ test("customer work does not fetch review candidates and has a fixed three-panel
 test("customer-work streams detail panels behind a Suspense fallback after queue data resolves", () => {
   const page = readFileSync("src/app/admin/(dash)/inbox/page.tsx", "utf8");
   const workspace = readFileSync("src/app/admin/(dash)/inbox/InboxWorkspace.tsx", "utf8");
-  assert.match(page, /conversationDetailPromise = getConversationDetail\([^)]*\)\.catch\(\(\) => null\)/);
+  assert.match(page, /conversationDetailPromise = getConversationDetail\([^)]*\)/);
+  assert.doesNotMatch(page, /getConversationDetail\([^)]*\)\.catch\(\(\) => null\)/);
   assert.doesNotMatch(page, /conversationDetail = await getConversationDetail/);
   assert.match(workspace, /<Suspense fallback=\{<DetailPanelsFallback/);
-  assert.match(workspace, /detailPromise=\{detailPromise\}/);
+  assert.match(workspace, /<DetailPanelsErrorBoundary key=\{selectedConversationId \?\? "empty"\}/);
+  assert.doesNotMatch(workspace, /Promise\.resolve\(conversationDetail\)/);
+  assert.match(workspace, /detailPromise=\{conversationDetailPromise\}/);
+  assert.match(workspace, /detail=\{conversationDetail\}/);
+});
+
+test("inbox timestamps render in a deterministic server and client time zone", () => {
+  for (const path of [
+    "src/app/admin/(dash)/inbox/ConversationTimeline.tsx",
+    "src/app/admin/(dash)/inbox/ReviewQueue.tsx",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    assert.equal(source.match(/timeZone: "Asia\/Seoul"/g)?.length, 2);
+    assert.doesNotMatch(source, /suppressHydrationWarning/);
+  }
 });

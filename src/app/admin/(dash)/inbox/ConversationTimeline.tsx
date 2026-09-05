@@ -210,13 +210,14 @@ export default function ConversationTimeline({
                       <span className="rounded bg-neutral-800/80 px-2 py-0.5 font-mono text-[10px] border border-neutral-700/50">
                         {channelName}
                       </span>
-                      <time dateTime={msg.sentAt} title={sentDate.toLocaleString("ko-KR")}>
+                      <time dateTime={msg.sentAt} title={sentDate.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}>
                         {sentDate.toLocaleString("ko-KR", {
                           year: "numeric",
                           month: "numeric",
                           day: "numeric",
                           hour: "2-digit",
                           minute: "2-digit",
+                          timeZone: "Asia/Seoul",
                         })}
                       </time>
                     </div>

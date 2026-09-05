@@ -948,13 +948,14 @@ export default function ReviewQueue({
                           </div>
 
                           <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                            <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR")}>
+                            <time dateTime={m.sentAt} title={sentDate.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}>
                               {sentDate.toLocaleString("ko-KR", {
                                 year: "numeric",
                                 month: "numeric",
                                 day: "numeric",
                                 hour: "2-digit",
                                 minute: "2-digit",
+                                timeZone: "Asia/Seoul",
                               })}
                             </time>
                           </div>

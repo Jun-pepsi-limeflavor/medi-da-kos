@@ -46,7 +46,7 @@ export default async function AdminInboxPage({
   if (queue === "customer-work") {
     // If conversationId is known ahead of time, fetch detail concurrently in 1 hop
     if (requestedConversationId) {
-      conversationDetailPromise = getConversationDetail(requestedConversationId).catch(() => null);
+      conversationDetailPromise = getConversationDetail(requestedConversationId);
       const [h, r] = await Promise.all([
         ingestHealthSummary(),
         listConversationRollups("customer-work"),
@@ -62,7 +62,7 @@ export default async function AdminInboxPage({
       rollups = r;
       if (rollups.length > 0) {
         selectedConversationId = rollups[0].id;
-        conversationDetailPromise = getConversationDetail(selectedConversationId).catch(() => null);
+        conversationDetailPromise = getConversationDetail(selectedConversationId);
       }
     }
   } else {
