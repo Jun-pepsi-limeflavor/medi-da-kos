@@ -3,12 +3,14 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { defineString } = require("firebase-functions/params");
+const { defineString, defineSecret } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { buildLifecycleList, SEGMENT_ORDER } = require("./lifecycle");
 const { buildLandingRequestEmail } = require("./landing-request-email");
 const { materializeWebSubmission } = require("./web-message-materializer");
 const { queueAndSendEmail } = require("./gmail-notify");
+const { syncOrderToNotion } = require("./notion-sync");
+const { syncPendingEmailHistories } = require("./notion-email-history");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -21,6 +23,38 @@ const ADMIN_EMAILS = defineString("ADMIN_EMAILS");
 const NOTIFY_FROM_EMAIL = defineString("NOTIFY_FROM_EMAIL", {
   default: "support@medidakos.com",
 });
+
+// Notion 연동 — Integration 토큰은 비밀값이라 Secret Manager, DB ID/속성명은
+// 배포 파라미터(.env)다. databaseId가 비어 있으면 두 함수 모두 조용히 스킵한다.
+const NOTION_API_KEY = defineSecret("NOTION_API_KEY");
+const NOTION_DATABASE_ID = defineString("NOTION_DATABASE_ID", { default: "" });
+const NOTION_PROP_NAME = defineString("NOTION_PROP_NAME", { default: "이름" });
+const NOTION_PROP_EMAIL = defineString("NOTION_PROP_EMAIL", { default: "이메일" });
+const NOTION_PROP_ITEMS = defineString("NOTION_PROP_ITEMS", { default: "품목" });
+const NOTION_PROP_SYNCED = defineString("NOTION_PROP_SYNCED", {
+  default: "메일이력생성됨",
+});
+const NOTION_PROP_CREATED_AT = defineString("NOTION_PROP_CREATED_AT", {
+  default: "생성일",
+});
+const NOTION_EMAIL_PROPERTY_TYPE = defineString("NOTION_EMAIL_PROPERTY_TYPE", {
+  default: "email",
+});
+
+function getNotionConfig() {
+  return {
+    apiKey: NOTION_API_KEY.value(),
+    databaseId: NOTION_DATABASE_ID.value(),
+    emailPropertyType: NOTION_EMAIL_PROPERTY_TYPE.value(),
+    propertyNames: {
+      name: NOTION_PROP_NAME.value(),
+      email: NOTION_PROP_EMAIL.value(),
+      items: NOTION_PROP_ITEMS.value(),
+      synced: NOTION_PROP_SYNCED.value(),
+      createdAt: NOTION_PROP_CREATED_AT.value(),
+    },
+  };
+}
 
 function getAdminEmails() {
   return ADMIN_EMAILS.value()
@@ -188,38 +222,40 @@ exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event
   });
 });
 
-exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => {
-  const snap = event.data;
-  if (!snap) return;
+exports.onOrderCreated = onDocumentCreated(
+  { document: "orders/{orderId}", secrets: [NOTION_API_KEY] },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
 
-  const order = snap.data();
-  const orderId = event.params.orderId;
+    const order = snap.data();
+    const orderId = event.params.orderId;
 
-  await materializeWebSubmission(db, "orders", orderId, order);
+    await materializeWebSubmission(db, "orders", orderId, order);
 
-  const isSample = order.type === "sample";
-  const label = isSample ? "샘플 주문" : "일반 주문";
-  const items = [order.title, order.summary].filter(Boolean).join(" — ") || "-";
-  const orderedAt = formatKoDate();
+    const isSample = order.type === "sample";
+    const label = isSample ? "샘플 주문" : "일반 주문";
+    const items = [order.title, order.summary].filter(Boolean).join(" — ") || "-";
+    const orderedAt = formatKoDate();
 
-  let customerEmail = order.customerEmail || null;
-  let customerName = order.customerName || null;
+    let customerEmail = order.customerEmail || null;
+    let customerName = order.customerName || null;
 
-  if (order.uid) {
-    const userSnap = await db.collection("users").doc(order.uid).get();
-    if (userSnap.exists) {
-      const userData = userSnap.data();
-      customerEmail = customerEmail || userData.email || null;
-      customerName =
-        customerName || userData.displayName || userData.companyName || null;
+    if (order.uid) {
+      const userSnap = await db.collection("users").doc(order.uid).get();
+      if (userSnap.exists) {
+        const userData = userSnap.data();
+        customerEmail = customerEmail || userData.email || null;
+        customerName =
+          customerName || userData.displayName || userData.companyName || null;
+      }
     }
-  }
 
-  await queueEmail(`order_admin_${orderId}`, {
-    to: getAdminEmails(),
-    message: {
-      subject: `[${label}] 신규 주문 - ${orderId}`,
-      html: `
+    await queueEmail(`order_admin_${orderId}`, {
+      to: getAdminEmails(),
+      message: {
+        subject: `[${label}] 신규 주문 - ${orderId}`,
+        html: `
         <div style="font-family:sans-serif;line-height:1.6">
           <h2>${label}이 들어왔습니다</h2>
           <p><strong>주문번호:</strong> ${orderId}</p>
@@ -229,26 +265,41 @@ exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => 
           <p><strong>상태:</strong> ${order.status || "-"}</p>
           <p><strong>주문 시각:</strong> ${orderedAt}</p>
         </div>`,
-    },
-  });
+      },
+    });
 
-  if (customerEmail) {
-    await queueEmail(`order_customer_${orderId}`, {
-      to: [customerEmail],
-      message: {
-        subject: `주문이 접수되었습니다 (${orderId})`,
-        text: `주문번호 ${orderId} (${label})가 정상 접수되었습니다. 품목: ${items}`,
-        html: `
+    if (customerEmail) {
+      await queueEmail(`order_customer_${orderId}`, {
+        to: [customerEmail],
+        message: {
+          subject: `주문이 접수되었습니다 (${orderId})`,
+          text: `주문번호 ${orderId} (${label})가 정상 접수되었습니다. 품목: ${items}`,
+          html: `
           <div style="font-family:sans-serif;line-height:1.6">
             <h2>주문이 접수되었습니다</h2>
             <p>주문번호 <strong>${orderId}</strong> (${label})가 정상 접수되었습니다.</p>
             <p>품목: ${items}</p>
             <p style="color:#888;font-size:12px">본 메일은 주문 확인용으로 자동 발송되었습니다.</p>
           </div>`,
-      },
-    });
-  }
-});
+        },
+      });
+    }
+
+    // Notion 동기화 실패가 주문 확인 메일 발송을 막으면 안 된다 — 별도로 격리한다.
+    try {
+      await syncOrderToNotion({
+        db,
+        orderId,
+        order,
+        customerEmail,
+        customerName,
+        notion: getNotionConfig(),
+      });
+    } catch (error) {
+      console.error(`notion-sync ${orderId} 실패:`, error.message || error);
+    }
+  },
+);
 
 // sampleRequests에는 기존 알림 트리거가 없지만, 인박스에서는 주문과 같은
 // 웹 인바운드 원문으로 보여야 한다. 테스트 제출은 운영 수집에서 제외한다.
@@ -452,4 +503,24 @@ exports.lifecycleScan = onSchedule(
 
     console.log(`lifecycleScan ${dateKey}: 접촉 대기 ${pending.length}명 — 알림 발송`);
   }
+);
+
+// ---------------------------------------------------------------------------
+// Notion CRM 이메일 이력 백필 — 10분마다 폴링
+//
+// Notion DB에 새 고객 행(주문 동기화로 생성됐든, 직원이 직접 만들었든)이 생기면
+// `메일이력생성됨` 체크박스가 false로 남는다. 이 스캔이 그 이메일 주소로
+// support@/thomas@/hally@ 세 메일함에서 주고받은 이력(functions-ingest가 이미
+// 수집해 둔 messages 컬렉션)을 찾아 페이지 본문에 정리하고 체크박스를 켠다.
+// ---------------------------------------------------------------------------
+
+exports.notionEmailHistorySync = onSchedule(
+  { schedule: "every 10 minutes", secrets: [NOTION_API_KEY] },
+  async () => {
+    const result = await syncPendingEmailHistories({ db, notion: getNotionConfig() });
+    if (result.skipped) return;
+    console.log(
+      `notionEmailHistorySync: 대기 ${result.pending}건 · 성공 ${result.succeeded} · 실패 ${result.failed}`,
+    );
+  },
 );
