@@ -139,16 +139,52 @@
 - 자동화의 고객 태그는 `dup-candidate` 하나. 쓰기 직전 최신 태그 조회 후 merge(PATCH는 전체 교체). 20개 제한이면 추가를 포기하고 동기화 기록에 남긴다. 담당자가 지운 동일 조합에는 다시 붙이지 않는다.
 - 상담 태그(`응대상태`: 고객회신대기 / 리마인드필요 / 보류 / 회신필요 / 후속회신필요)는 절대 건드리지 않는다. 문의 출처 표시가 필요하면 상담 description을 우선 검토한다.
 
-| `isTest` | 허용 테스트 이메일 | 내부 계정 | 결과 | 표시 |
+### 판정과 표시
+
+| `isTest` | 허용 테스트 이메일 | 내부 계정 | 결과 | 첫 줄 표시 |
 |---|---|---|---|---|
 | true | 아님 | 무관 | 연동 제외 | — |
-| 무관 | 예 | 무관 | 정상 연동 | `[TEST]` |
+| 무관 | 예 | (항상 내부 도메인) | 정상 연동 | `[TEST]`만(`[내부]` 중복 표시 안 함) |
 | false | 아님 | 예 | 정상 연동 | `[내부]` |
 | false | 아님 | 아님 | 정상 연동 | — |
 
-- 허용 테스트 이메일은 `+chtest`가 있다는 이유만으로 허용하지 않고 회사가 관리하는 주소에 한한다.
-- 내부 계정 판정은 흩어진 기준(`src/lib/internal-staff.ts`, `functions/lifecycle.js`, `functions/web-message-materializer.js`, `functions-ingest`)을 통합한다.
-- **구현 전 확인:** 허용 테스트 이메일 목록·판정 방식, 내부 계정 최종 도메인·이메일 목록, 직원 개인 이메일을 저장소에 두는 것이 적절한지.
+`isTest`와 내부 계정은 따로 판단한다. 내부 계정이라는 이유로 연동을 건너뛰지 않는다.
+
+### 내부 계정 (확정 2026-10-02)
+
+- 이메일 도메인이 정확히 `techasset.co.kr`, `medidakoslabs.com`, `medidakos.com` 중 하나면 내부 계정이다. 대소문자 무시, 하위 도메인(`mail.techasset.co.kr` 등)은 제외.
+- 예: `kimbm@techasset.co.kr`은 내부 계정 → `[내부]`.
+- 직원 개인 gmail은 이 판정에 넣지 않는다(개인 이메일을 저장소에 더 퍼뜨리지 않기 위해서. 놓쳐도 표시만 빠지고 연동은 된다).
+- 도메인 목록은 비밀이 아니므로 `functions/.env`에 둔다.
+- 기존 내부 계정 코드·목록(`src/lib/internal-staff.ts`, `functions/lifecycle.js`의 개인 gmail 3개, `functions/web-message-materializer.js`, `functions-ingest`)은 삭제·수정하지 않는다. 통합은 기존 시스템 정리 단계에서 판단한다.
+
+### 허용 테스트 이메일 (확정 2026-10-02, 도메인 전체 + 형식 검사)
+
+모두 만족해야 허용한다. 소문자로 정규화한 뒤 판정한다.
+
+1. 도메인이 정확히 `techasset.co.kr`(테스트 허용은 이 도메인만. `medidakoslabs.com`·`medidakos.com`은 내부 계정 판정에만 쓴다).
+2. local part가 `{기준 이름}+chtest` 또는 `{기준 이름}+chtest-{문자}`.
+   - 기준 이름과 뒤 문자는 영문·숫자·`.`·`_`·`-`만.
+   - `+` 태그는 `chtest` 하나만.
+
+| 이메일 | 결과 |
+|---|---|
+| `kimbm+chtest@techasset.co.kr` | 허용 |
+| `kimbm+chtest-20261001@techasset.co.kr` | 허용 |
+| `KIMBM+CHTEST@TECHASSET.CO.KR` | 허용 |
+| `someone+chtest@gmail.com` | 거부(외부 도메인) |
+| `kimbm+chtest@medidakos.com` | 거부(테스트 허용 도메인 아님) → 내부 계정 `[내부]` |
+| `kimbm+test@techasset.co.kr` | 거부(형식 아님) → 내부 계정 `[내부]` |
+| `kimbm+chtest+x@techasset.co.kr` | 거부(`+` 태그 2개) |
+| `kimbm@techasset.co.kr` | 테스트 아님 → 내부 계정 `[내부]` |
+
+**알려진 한계:** 코드만으로는 실제 존재하는 회사 계정인지 확인할 수 없어 없는 주소(`nobody+chtest@techasset.co.kr`)도 통과한다. 받아들인 이유:
+
+- 운영 폼에서는 원래 누구나 아무 이메일로 제출할 수 있어 차이는 `[TEST]` 표시뿐이다.
+- 유일한 실질 차이는 미리보기·`?qa`(`isTest=true`) 제출이 연동된다는 것인데, 생겨도 `[TEST]` 상담 하나다.
+- 우리는 고객에게 메일·메시지를 보내지 않으므로 외부 발송이나 고객 데이터 노출 경로가 없다.
+
+더 엄격하게 할 필요가 생기면 명시적 계정 목록 방식으로 바꾼다(판정 함수 한 곳과 설정 한 줄).
 
 ## 6. 내부대화 작성 봇
 
@@ -161,7 +197,7 @@
 - 기존 `functions/` 코드베이스에 Channel Talk 전용 함수를 **새로 추가**한다. 기존 트리거 4개(`onUserSignup`, `onContactCreated`, `onOrderCreated`, `onLandingRequestCreated`)는 수정·재배포하지 않는다. 운영 배포본과 저장소 소스가 다를 수 있기 때문이다.
 - 새 함수(리전 `asia-northeast3`): `channelTalkOnUserCreated`, `channelTalkOnContactCreated`, `channelTalkOnLandingCreated`, `channelTalkOnOrderCreated`, `channelTalkRetry`(10분).
 - 비밀: 웹 접수 전용 키를 새로 발급해 Secret Manager `CHANNELTALK_INTAKE_ACCESS_KEY`, `CHANNELTALK_INTAKE_ACCESS_SECRET`. 발급·등록은 구현 테스트 직전에 담당자가 직접 입력. 기존 `CHANNELTALK_ACCESS_KEY`·`CHANNELTALK_ACCESS_SECRET`(수집기)과 0단계 테스트 키는 쓰지 않는다.
-- 일반 설정(`functions/.env`): API 버전 `2026-06-01`, 봇 이름. 내부 계정·허용 테스트 이메일 목록은 값을 넣기 전에 확인받는다.
+- 일반 설정(`functions/.env`): API 버전 `2026-06-01`, 봇 이름, 내부 계정 도메인 3개, 테스트 허용 도메인 `techasset.co.kr`(5장).
 - 회원 해시 비밀값은 기존대로 Vercel.
 
 ## 8. Firestore 스키마 (승인됨)
