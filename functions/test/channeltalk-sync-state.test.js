@@ -5,6 +5,7 @@ const {
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
   afterFailure,
+  decideClaim,
   initialSyncDoc,
   isComplete,
   isLeaseActive,
@@ -141,4 +142,77 @@ test("서버 리드 생성이 애매하게 끝난 뒤 재시도하면 possibleOr
   assert.deepEqual(leadRetryFlags({ identity: "creating_lead" }), { possibleOrphanLead: true });
   assert.deepEqual(leadRetryFlags({ identity: "pending" }), { possibleOrphanLead: false });
   assert.deepEqual(leadRetryFlags(null), { possibleOrphanLead: false });
+});
+
+const syncable = { sync: true, skipReason: null, flags: { test: false, internal: false } };
+const testOnly = { sync: false, skipReason: "is_test", flags: { test: false, internal: false } };
+const claimBase = { source: "contact", docId: "c1", email: "buyer@example.com", nowMs: NOW };
+
+test("처리권: 처음이고 켜져 있으면 processing, attempts 1, lease 5분, 안전망 10분", () => {
+  const result = decideClaim({ ...claimBase, existing: null, classification: syncable, enabled: true });
+  assert.equal(result.action, "process");
+  assert.equal(result.create.status, "processing");
+  assert.equal(result.create.attempts, 1);
+  assert.equal(result.create.leaseUntil, NOW + 5 * 60 * 1000);
+  assert.equal(result.create.nextRetryAt, NOW + RETRY_INTERVAL_MS);
+  assert.equal(result.create.pendingReason, null);
+});
+
+test("처리권: 일반 isTest는 스위치와 무관하게 skipped(is_test)로 확정", () => {
+  for (const enabled of [true, false]) {
+    const result = decideClaim({ ...claimBase, existing: null, classification: testOnly, enabled });
+    assert.equal(result.action, "skip");
+    assert.equal(result.create.status, "skipped");
+    assert.equal(result.create.skipReason, "is_test");
+    assert.equal(result.create.pendingReason, null);
+    assert.equal(result.create.nextRetryAt, null);
+  }
+});
+
+test("처리권: 스위치가 꺼져 있으면 pending + intake_disabled, nextRetryAt=제출 시각, attempts 0", () => {
+  const submittedAtMs = NOW - 60 * 1000;
+  const result = decideClaim({ ...claimBase, existing: null, classification: syncable, enabled: false, submittedAtMs });
+  assert.equal(result.action, "defer");
+  assert.equal(result.create.status, "pending");
+  assert.equal(result.create.pendingReason, "intake_disabled");
+  assert.equal(result.create.skipReason, null);
+  assert.equal(result.create.nextRetryAt, submittedAtMs);
+  assert.equal(result.create.attempts, 0);
+  assert.equal(result.create.leaseUntil, null);
+});
+
+test("처리권: 대기 중이던 건은 켜진 뒤 pendingReason을 지우고 1회째로 처리", () => {
+  const deferred = decideClaim({ ...claimBase, existing: null, classification: syncable, enabled: false }).create;
+  const result = decideClaim({ ...claimBase, existing: deferred, classification: syncable, enabled: true });
+  assert.equal(result.action, "process");
+  assert.equal(result.patch.attempts, 1);
+  assert.equal(result.patch.pendingReason, null);
+  assert.equal(result.patch.status, "processing");
+});
+
+test("처리권: 꺼져 있으면 기존 건(pending·error)을 건드리지 않는다", () => {
+  assert.deepEqual(decideClaim({ ...claimBase, existing: { status: "error", attempts: 3 }, classification: syncable, enabled: false }), { action: "none" });
+  assert.deepEqual(decideClaim({ ...claimBase, existing: { status: "pending", attempts: 0 }, classification: syncable, enabled: false }), { action: "none" });
+});
+
+test("처리권: success·skipped·failed와 lease가 유효한 건은 처리하지 않는다", () => {
+  for (const status of ["success", "skipped", "failed"]) {
+    assert.deepEqual(decideClaim({ ...claimBase, existing: { status, attempts: 1 }, classification: syncable, enabled: true }), { action: "none" }, status);
+  }
+  assert.deepEqual(
+    decideClaim({ ...claimBase, existing: { status: "processing", attempts: 1, leaseUntil: NOW + 1000 }, classification: syncable, enabled: true }),
+    { action: "none" },
+  );
+});
+
+test("처리권: 이미 12회면 API를 부르지 않고 failed", () => {
+  const result = decideClaim({ ...claimBase, existing: { status: "processing", attempts: 12, leaseUntil: NOW - 1 }, classification: syncable, enabled: true });
+  assert.equal(result.action, "fail");
+  assert.deepEqual(result.patch, { status: "failed", nextRetryAt: null, leaseUntil: null, updatedAt: NOW });
+});
+
+test("처리권: 11회까지 실패한 error 건은 12회째로 처리", () => {
+  const result = decideClaim({ ...claimBase, existing: { status: "error", attempts: 11, nextRetryAt: NOW - 1 }, classification: syncable, enabled: true });
+  assert.equal(result.action, "process");
+  assert.equal(result.patch.attempts, 12);
 });

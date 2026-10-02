@@ -196,6 +196,12 @@
 
 - 기존 `functions/` 코드베이스에 Channel Talk 전용 함수를 **새로 추가**한다. 기존 트리거 4개(`onUserSignup`, `onContactCreated`, `onOrderCreated`, `onLandingRequestCreated`)는 수정·재배포하지 않는다. 운영 배포본과 저장소 소스가 다를 수 있기 때문이다.
 - 새 함수(리전 `asia-northeast3`): `channelTalkOnUserCreated`, `channelTalkOnContactCreated`, `channelTalkOnLandingCreated`, `channelTalkOnOrderCreated`, `channelTalkRetry`(10분).
+- `functions/index.js`에는 새 트리거를 내보내는 줄만 추가한다(`functions/channeltalk/triggers.js`). 기존 함수 로직은 바꾸지 않는다.
+- 실행 시간 제한 2분, lease 5분. 재시도는 한 번 실행에 최대 50건(설정 가능한 상수)이며, 2분 안에 끝나도록 남은 시간이 부족하면 새 건을 잡지 않고 다음 실행으로 넘긴다.
+- **연동 스위치 `CHANNELTALK_INTAKE_ENABLED`(기본 `false`)**
+  - 꺼져 있으면 트리거는 실제 연동 대상 제출을 `status=pending`, `pendingReason=intake_disabled`, `nextRetryAt=제출 시각`, `attempts=0`으로 기록하고 Channel Talk을 호출하지 않는다. 일반 `isTest` 제출은 지금처럼 `skipped`(`skipReason=is_test`)로 확정한다.
+  - 꺼져 있으면 `channelTalkRetry`는 아무것도 읽거나 바꾸지 않고 끝난다. 대기 건과 `error` 건의 `attempts`를 소모하지 않는다.
+  - 켜면 다음 재시도부터 기간 제한 없이 `nextRetryAt`이 오래된 순으로 처리한다. 처음 처리권을 잡을 때 `pendingReason`을 지우고 그때부터 `attempts` 1회로 센다.
 - 비밀: 웹 접수 전용 키를 새로 발급해 Secret Manager `CHANNELTALK_INTAKE_ACCESS_KEY`, `CHANNELTALK_INTAKE_ACCESS_SECRET`. 발급·등록은 구현 테스트 직전에 담당자가 직접 입력. 기존 `CHANNELTALK_ACCESS_KEY`·`CHANNELTALK_ACCESS_SECRET`(수집기)과 0단계 테스트 키는 쓰지 않는다.
 - 일반 설정(`functions/.env`): API 버전 `2026-06-01`, 봇 이름, 내부 계정 도메인 3개, 테스트 허용 도메인 `techasset.co.kr`(5장).
 - 회원 해시 비밀값은 기존대로 Vercel.
@@ -212,6 +218,7 @@
 | `uid` | string \| null | 회원이면 Firebase uid |
 | `memberId` | string \| null | 우리가 uid로 boot·upsert한 회원일 때만(= uid) |
 | `otherChannelUserIds` | string[] | 같은 이메일의 다른 Channel 고객 |
+| `missingChannelUserIds` | string[] | Channel 조회에서 없다고 확인된 id(병합·삭제). 대표가 사라졌으면 새로 식별한 고객을 대표로 바꾸고 사라진 id를 여기로 옮긴다. 다음 같은 이메일 문의는 새 대표를 재사용해 리드를 반복 생성하지 않는다 |
 | `dupPairs` | map | `{id1}_{id2}` → `{ state: tagged \| tag_limit \| dismissed, at }` |
 | `firstSource` | string \| null | 처음 넣은 `firstSource` |
 | `createdAt`, `updatedAt` | timestamp | |
@@ -223,6 +230,7 @@
 | `source`, `docId` | string | `users` / `contact` / `landingRequests` / `orders` |
 | `email`, `uid` | string \| null | |
 | `identitySource` | string | `member` / `browser` / `email_mapping` / `server_lead` |
+| `identityNote` | string \| null | 식별 사유 코드만(고객 원문·개인정보 금지). `mapping_user_missing`(매핑 대표 고객이 사라져 정정) / `browser_email_mismatch`(브라우저 고객 이메일이 폼과 달라 쓰지 않음) / `browser_user_missing`(폼의 브라우저 id 고객이 없음). 겹치면 앞의 것이 우선 |
 | `channelUserId` | string \| null | |
 | `userChatId` | string \| null | 생성 즉시 기록 |
 | `chatCreateStartedAt` | timestamp \| null | 상담 생성 의도 기록 |
@@ -234,6 +242,7 @@
 | `steps` | map | `identity`, `profile`, `chat`, `note`, `open`, `dupTag` → `pending` / `done` / `skipped` / `error`. `chat`은 `creating`, `identity`는 `creating_lead` 추가 |
 | `status` | string | `pending` / `processing` / `success` / `error` / `skipped` / `failed`. `error`는 자동 재시도 대상, `failed`는 자동 재시도 종료·사람 확인 필요(재시도 스캔에서 제외) |
 | `skipReason` | string \| null | 예: `is_test` |
+| `pendingReason` | string \| null | 처리 대기 이유. 스위치가 꺼져 있어 대기 중이면 `intake_disabled`. 처리권을 잡을 때 지운다. `skipped`(영구 제외)와 구분된다 |
 | `flags` | map | `{ test, internal }` |
 | `profileResult` | map | `{ applied: string[], skipped: { 필드: 사유 } }` |
 | `attempts` | number | 최초 처리를 포함한 자동 처리 시도 횟수. **12회**에 도달한 시도가 실패하면 `failed`로 바꾸고 `nextRetryAt`을 비운다 |
@@ -245,6 +254,11 @@
 ### 중복 방지
 
 - 처음 처리 시 sync 문서를 없을 때만 생성해 처리 권한을 잡고, 단계마다 `steps`를 갱신한다. `leaseUntil`로 동시 실행을 막는다.
+- 처리권 잡기(트랜잭션): 문서가 없으면 만든다. `success`·`skipped`·`failed`이거나 lease가 유효하면 처리하지 않는다. `attempts >= 12`이면 API를 부르지 않고 `failed`로 바꾼다. 그 밖에는 `processing`, `attempts+1`, `leaseUntil=지금+5분`, `nextRetryAt=지금+10분`(함수가 멈췄을 때의 안전망), `pendingReason=null`.
+- 성공: `success`, `leaseUntil`·`nextRetryAt`·`lastError` 비움. 실패: 11회째까지 `error` + `nextRetryAt=지금+10분`, 12회째 `failed` + `nextRetryAt` 비움. 둘 다 `leaseUntil` 비움. 함수가 멈추면 `processing`이 남고 lease 만료 후 안전망 시각에 재시도가 다시 집는다.
+- **오류 처리 경계(2026-10-02 확정).** 처리 기록을 만들기 전(처리권을 잡기 전: 원본·회원 문서 읽기, 설정 읽기, 처리권 잡기 트랜잭션)의 오류만 트리거 밖으로 던져 Firebase 자동 재실행(`retry: true`)을 안전망으로 쓴다. 기록이 없으면 `channelTalkRetry`가 그 제출을 모르기 때문이다. 다시 실행돼도 처리권 잡기 트랜잭션이 중복을 막는다.
+- 처리 기록을 만든 뒤의 오류는 던지지 않고 `channelTalkSync`에 남기며, 재시도는 `channelTalkRetry`만 한다(Firebase 재실행에 의존하지 않음). 마지막 `success` 기록만 실패한 경우도 던지지 않고, lease 만료 후 재시도가 남은 단계 없이 `success`로 마무리한다.
+- 재시도 묶음에서 한 건이 처리권 잡기 전에 실패해도 다음 건을 계속 처리하고, 실패한 건은 기록이 그대로라 다음 실행이 다시 집는다.
 - **상담 생성:** `steps.chat=creating`과 `chatCreateStartedAt`을 먼저 기록 → 생성 API 호출 → 성공 응답이면 즉시 `userChatId`. 4xx는 미생성 확정. 시간 초과·5xx·함수 종료로 `creating`이 남으면 재시도는 바로 만들지 않고 `GET /open/user-chats?state=initial`에서 해당 고객의 `chatCreateStartedAt` 이후 상담을 찾는다. 1건이면 채택, 0건이면 생성, 2건 이상이면 가장 먼저 생긴 것을 채택하고 나머지는 `extraChatIds`에 남긴다.
   - **미검증 전제:** `state=initial` 조회가 API로 만든 상담을 고객 id와 함께 돌려주는지 구현 테스트 첫 항목으로 확인한다. 성립하지 않으면 대체 방식을 임의로 확정하지 않고 대안을 정리해 승인받는다.
 - **내부대화:** 보내기 전에 상담 메시지에서 `기록: {source}/{docId}`(분할 시 `(n/m)` 포함)를 확인한다.
@@ -292,6 +306,8 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 3. 웹(Vercel)은 1·2 이후 병합.
 
 각 배포, `웹 접수` 봇 생성, 운영 키 발급·Secret 등록, Desk 필드 생성은 그 시점에 따로 승인받는다.
+
+**배포 전 확인:** Firestore 문서 트리거의 `retry: true` 재실행 기간(현재 "최대 7일"로 알고 있음)을 공식 문서로 다시 확인한다. 처리권을 잡기 전 실패의 마지막 안전망이므로 별도 시간 제한은 두지 않는다(2026-10-02 결정).
 
 ## 10. 웹 수정
 

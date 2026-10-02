@@ -42,6 +42,7 @@ function initialSyncDoc({ source, docId, email = null, uid = null, flags, skipRe
     email,
     uid,
     identitySource: null,
+    identityNote: null,
     channelUserId: null,
     userChatId: null,
     chatCreateStartedAt: null,
@@ -53,6 +54,7 @@ function initialSyncDoc({ source, docId, email = null, uid = null, flags, skipRe
     steps,
     status: skipReason ? "skipped" : "pending",
     skipReason,
+    pendingReason: null,
     flags: flags || { test: false, internal: false },
     profileResult: null,
     attempts: 0,
@@ -109,6 +111,58 @@ function isRetryDue(doc, nowMs) {
   return !isLeaseActive(doc.leaseUntil, nowMs);
 }
 
+const TERMINAL_STATUSES = new Set(["success", "skipped", "failed"]);
+
+/**
+ * 처리권 잡기 판정. store가 트랜잭션 안에서 이 결과대로 쓴다.
+ *
+ * @param {object} input
+ * @param {object|null} input.existing      지금 sync 문서(없으면 null). 시각은 밀리초 또는 Timestamp
+ * @param {{sync: boolean, skipReason: string|null, flags: object}} input.classification  classifySubmission 결과
+ * @param {boolean} input.enabled           CHANNELTALK_INTAKE_ENABLED
+ * @param {number} [input.submittedAtMs]    제출 시각. 스위치가 꺼져 대기할 때 처리 순서 기준
+ * @returns {{action: "skip"|"defer"|"process"|"fail"|"none", create?: object, patch?: object}}
+ */
+function decideClaim({ existing, source, docId, email = null, uid = null, classification, enabled, nowMs, submittedAtMs, maxAttempts = MAX_ATTEMPTS }) {
+  if (!existing) {
+    const flags = classification.flags;
+    if (!classification.sync) {
+      return { action: "skip", create: initialSyncDoc({ source, docId, email, uid, flags, skipReason: classification.skipReason, nowMs }) };
+    }
+    const base = initialSyncDoc({ source, docId, email, uid, flags, nowMs });
+    if (!enabled) {
+      return {
+        action: "defer",
+        create: { ...base, pendingReason: "intake_disabled", nextRetryAt: Number.isFinite(submittedAtMs) ? submittedAtMs : nowMs },
+      };
+    }
+    return {
+      action: "process",
+      create: { ...base, status: "processing", attempts: 1, leaseUntil: leaseExpiry(nowMs), nextRetryAt: nextRetryAt(nowMs) },
+    };
+  }
+
+  if (TERMINAL_STATUSES.has(existing.status)) return { action: "none" };
+  if (isLeaseActive(existing.leaseUntil, nowMs)) return { action: "none" };
+  if (!enabled) return { action: "none" };
+
+  const attempts = Number.isSafeInteger(existing.attempts) ? existing.attempts : 0;
+  if (attempts >= maxAttempts) {
+    return { action: "fail", patch: { status: "failed", nextRetryAt: null, leaseUntil: null, updatedAt: nowMs } };
+  }
+  return {
+    action: "process",
+    patch: {
+      status: "processing",
+      attempts: attempts + 1,
+      leaseUntil: leaseExpiry(nowMs),
+      nextRetryAt: nextRetryAt(nowMs),
+      pendingReason: null,
+      updatedAt: nowMs,
+    },
+  };
+}
+
 /**
  * 상담 생성 결과가 애매할 때(steps.chat === "creating") 이미 만들어진 상담을 찾는다.
  * candidates는 GET /open/user-chats?state=initial 결과다. 이 고객의 상담 중
@@ -142,6 +196,7 @@ module.exports = {
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
   afterFailure,
+  decideClaim,
   initialSyncDoc,
   isRetryDue,
   isComplete,
