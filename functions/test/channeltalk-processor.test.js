@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const { ChannelTalkApiError } = require("../channeltalk/api");
 const { emailKey, normalizeEmail } = require("../channeltalk/email");
+const { applyIdentityRecord, applyUnifiedRecord } = require("../channeltalk/identity");
 const { PreClaimError, handleTriggerEvent, processSubmission, runRetryBatch } = require("../channeltalk/processor");
 const { decideClaim, isRetryDue, syncDocId } = require("../channeltalk/sync-state");
 
@@ -74,24 +75,21 @@ function fakeStore(sources = {}) {
     async getMapping(email) {
       return structuredClone(identities.get(emailKey(email)) || null);
     },
-    async recordIdentity({ email, channelUserId, origin, uid = null, missingIds = [] }) {
+    async recordIdentity({ email, channelUserId, origin, uid = null, missingIds = [], unified = {} }) {
       const key = emailKey(email);
-      if (!key) return null;
-      const missing = missingIds.filter((id) => id && id !== channelUserId);
+      if (!key || !channelUserId) return null;
       const doc = identities.get(key);
-      if (!doc) {
-        identities.set(key, { email: normalizeEmail(email), channelUserId, channelUserOrigin: origin, uid, memberId: uid, otherChannelUserIds: [], missingChannelUserIds: missing, dupPairs: {}, firstSource: null });
-      } else {
-        if (!doc.channelUserId || missing.includes(doc.channelUserId)) Object.assign(doc, { channelUserId, channelUserOrigin: origin });
-        const others = new Set(doc.otherChannelUserIds);
-        if (channelUserId !== doc.channelUserId) others.add(channelUserId);
-        others.delete(doc.channelUserId);
-        missing.forEach((id) => others.delete(id));
-        doc.otherChannelUserIds = [...others];
-        doc.missingChannelUserIds = [...new Set([...(doc.missingChannelUserIds || []), ...missing])];
-        if (uid && !doc.uid) Object.assign(doc, { uid, memberId: uid });
-      }
+      const fields = applyIdentityRecord(doc ? structuredClone(doc) : null, { channelUserId, origin, uid, missingIds, unified });
+      if (!doc) identities.set(key, { email: normalizeEmail(email), ...fields, dupPairs: {}, firstSource: null });
+      else Object.assign(doc, fields);
       return structuredClone(identities.get(key));
+    },
+    async recordUnified({ email, unified = {}, missingIds = [], live = {} }) {
+      calls.push("recordUnified");
+      const doc = identities.get(emailKey(email));
+      if (!doc) return null;
+      Object.assign(doc, applyUnifiedRecord(structuredClone(doc), { unified, missingIds, live }));
+      return structuredClone(doc);
     },
     async setFirstSource(email, firstSource) {
       const doc = identities.get(emailKey(email));
@@ -617,11 +615,16 @@ test("두 번째 주문: 자동 관리 값 갱신과 3번째 줄 안내", async 
 
 test("같은 이메일의 리드와 회원이 따로 있으면 양쪽에 dup-candidate, 담당자가 지우면 다시 붙이지 않는다", async () => {
   const sources = { users: { "uid-1": user }, orders: {} };
-  const { api, store, deps } = setup({ sources });
+  const { api, store, deps, now } = setup({ sources });
   const lead = api.newUser({ type: "lead", tags: ["vip"], profile: { email: user.email } });
   await store.recordIdentity({ email: user.email, channelUserId: lead.id, origin: "server_lead" });
 
-  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  // 회원가입 직후에는 판정을 미루고, 다음 재시도에서 L이 여전히 별개(다른 기기)면 기존 정책대로 붙인다.
+  assert.equal((await processSubmission({ source: "users", docId: "uid-1", data: user, deps })).outcome, "deferred");
+  assert.deepEqual(api.users.get(lead.id).tags, ["vip"]);
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
+  assert.equal(syncOf(store, "users", "uid-1").status, "success");
   const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
   assert.deepEqual(api.users.get(lead.id).tags, ["vip", "dup-candidate"]);
   assert.deepEqual(member.tags, ["dup-candidate"]);
@@ -637,11 +640,13 @@ test("같은 이메일의 리드와 회원이 따로 있으면 양쪽에 dup-can
 });
 
 test("태그가 20개인 고객에게는 dup-candidate를 붙이지 않고 tag_limit으로 남긴다", async () => {
-  const { api, store, deps } = setup({ sources: { users: { "uid-1": user } } });
+  const { api, store, deps, now } = setup({ sources: { users: { "uid-1": user } } });
   const full = Array.from({ length: 20 }, (_, i) => `t${i}`);
   const lead = api.newUser({ type: "lead", tags: [...full] });
   await store.recordIdentity({ email: user.email, channelUserId: lead.id, origin: "server_lead" });
   await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
   assert.deepEqual(api.users.get(lead.id).tags, full);
   const mapping = store.identities.get(emailKey(user.email));
   assert.equal(Object.values(mapping.dupPairs)[0].state, "tag_limit");
@@ -779,4 +784,381 @@ test("보호: 로그인 회원의 Contact도 upsert에는 firebaseUid만", async
   const { api, deps } = setup();
   await processSubmission({ source: "contact", docId: "cu", data: { ...contact, uid: "uid-7" }, deps });
   assertSafeUpserts(api, "uid-7");
+});
+
+// ---- Channel 자동 통합(type: unified) — T4·X12 실제 관찰을 흉내 낸다 ----
+// 같은 브라우저 리드가 회원 boot 때 회원에 합쳐진다. 회원 프로필의 빈 칸만 리드 값으로 채워지고,
+// 태그는 회원 태그 + 리드 태그로 합쳐지며, 리드는 profile {}·tags null인 unified로 남는다.
+function unify(api, fromId, toId) {
+  const from = api.users.get(fromId);
+  const to = api.users.get(toId);
+  for (const [key, value] of Object.entries(from.profile || {})) {
+    if (to.profile[key] === undefined || to.profile[key] === "") to.profile[key] = value;
+  }
+  to.tags = [...new Set([...(to.tags || []), ...(from.tags || [])])];
+  Object.assign(from, { type: "unified", unifiedId: toId, memberId: null, profile: {}, tags: null });
+}
+
+const tagPatches = (api) => api.calls.filter((c) => c.name === "patchUser" && c.args[1].tags);
+const callsFor = (api, name, id) => api.calls.filter((c) => c.name === name && c.args[0] === id);
+const mappingOf = (store, email) => store.identities.get(emailKey(email));
+const buyer = contact.email;
+
+test("통합: 매핑 대표 L이 M으로 통합됐고 M 이메일이 비었거나 같으면 M을 쓰고 대표를 M으로 바꾼다", async () => {
+  for (const memberEmail of [undefined, buyer.toUpperCase()]) {
+    const { api, store, deps } = setup();
+    const lead = api.newUser({ type: "lead", profile: { email: buyer } });
+    const member = api.newUser({ type: "member", member: true, memberId: "uid-m", profile: memberEmail ? { email: memberEmail } : {} });
+    await store.recordIdentity({ email: buyer, channelUserId: lead.id, origin: "browser" });
+    unify(api, lead.id, member.id);
+
+    await processSubmission({ source: "contact", docId: "u7", data: contact, deps });
+    const sync = syncOf(store, "contact", "u7");
+    assert.equal(sync.status, "success");
+    assert.equal(sync.identitySource, "email_mapping");
+    assert.equal(sync.channelUserId, member.id);
+    assert.equal(sync.identityNote, "mapping_user_unified");
+    assert.equal(api.chats.get(sync.userChatId).userId, member.id);
+    assert.equal(callsFor(api, "patchUser", lead.id).length, 0);
+    assert.ok(!api.names().includes("createLead"));
+    const mapping = mappingOf(store, buyer);
+    assert.equal(mapping.channelUserId, member.id);
+    assert.deepEqual(mapping.unifiedChannelUserIds, { [lead.id]: member.id });
+    assert.deepEqual(mapping.otherChannelUserIds, []);
+    assert.deepEqual(mapping.missingChannelUserIds, []);
+  }
+});
+
+test("통합 + 이메일 안전장치: L이 다른 이메일(B)의 M에 통합됐으면 M에 쓰지 않고 새 리드를 대표로", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: { email: buyer } });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-b", tags: ["vip"], profile: { email: "someone-else@example.com" } });
+  await store.recordIdentity({ email: buyer, channelUserId: lead.id, origin: "browser" });
+  unify(api, lead.id, member.id);
+
+  await processSubmission({ source: "contact", docId: "u8", data: contact, deps });
+  const sync = syncOf(store, "contact", "u8");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.identitySource, "server_lead");
+  assert.equal(sync.identityNote, "mapping_user_unified_other_email");
+  assert.notEqual(sync.channelUserId, member.id);
+  assert.equal(callsFor(api, "patchUser", member.id).length, 0);
+  assert.equal(callsFor(api, "createUserChat", member.id).length, 0);
+  assert.equal(api.chats.get(sync.userChatId).userId, sync.channelUserId);
+  assert.deepEqual(api.users.get(member.id).tags, ["vip"]);
+  assert.equal(api.users.get(member.id).profile.email, "someone-else@example.com");
+  const mapping = mappingOf(store, buyer);
+  assert.equal(mapping.channelUserId, sync.channelUserId);
+  assert.equal(mapping.channelUserOrigin, "server_lead");
+  assert.deepEqual(mapping.unifiedChannelUserIds, { [lead.id]: member.id });
+  assert.ok(!mapping.otherChannelUserIds.includes(member.id));
+  assert.equal(sync.steps.dupTag, "skipped");
+
+  // 다음 같은 이메일 문의는 새 리드를 그대로 쓴다.
+  await processSubmission({ source: "contact", docId: "u8b", data: contact, deps });
+  assert.equal(syncOf(store, "contact", "u8b").channelUserId, sync.channelUserId);
+  assert.equal(api.calls.filter((c) => c.name === "createLead").length, 1);
+});
+
+test("통합: 매핑 대표의 unifiedId를 알 수 없으면 리드·상담을 만들지 않고 실패, 12회째 failed", async () => {
+  const { api, store, deps, now } = setup({ sources: { contact: { u9: contact } } });
+  const lead = api.newUser({ type: "unified", profile: {} });
+  await store.recordIdentity({ email: buyer, channelUserId: lead.id, origin: "browser" });
+  await processSubmission({ source: "contact", docId: "u9", data: contact, deps });
+  assert.equal(syncOf(store, "contact", "u9").lastError, "identity: unified_unresolved");
+  for (let attempt = 2; attempt <= 12; attempt += 1) {
+    now.advance(10 * 60 * 1000);
+    await runRetryBatch({ deps });
+  }
+  assert.equal(syncOf(store, "contact", "u9").status, "failed");
+  assert.ok(!api.names().includes("createLead"));
+  assert.equal(api.chats.size, 0);
+});
+
+test("통합: 브라우저 id L이 이메일 빈 M에 통합됐으면 M을 브라우저 고객으로 쓰고 이메일을 채운다", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: {} });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-m", profile: {} });
+  unify(api, lead.id, member.id);
+  await processSubmission({ source: "contact", docId: "u10", data: { ...contact, channelUserId: lead.id }, deps });
+  const sync = syncOf(store, "contact", "u10");
+  assert.equal(sync.identitySource, "browser");
+  assert.equal(sync.channelUserId, member.id);
+  assert.equal(sync.identityNote, "browser_user_unified");
+  assert.equal(api.users.get(member.id).profile.email, buyer);
+  assert.equal(callsFor(api, "patchUser", lead.id).length, 0);
+});
+
+test("통합 + 이메일 안전장치: 브라우저 id L이 다른 이메일의 M에 통합됐으면 M을 쓰지 않는다", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: {} });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-b", profile: { email: "someone-else@example.com" } });
+  unify(api, lead.id, member.id);
+  await processSubmission({ source: "contact", docId: "u11", data: { ...contact, channelUserId: lead.id }, deps });
+  const sync = syncOf(store, "contact", "u11");
+  assert.equal(sync.identitySource, "server_lead");
+  assert.equal(sync.identityNote, "browser_user_unified_other_email");
+  assert.equal(callsFor(api, "patchUser", member.id).length, 0);
+  assert.equal(callsFor(api, "createUserChat", member.id).length, 0);
+});
+
+test("실제 404 대표는 missingChannelUserIds에만 기록하고 unifiedChannelUserIds는 비운다", async () => {
+  const { store, deps } = setup();
+  await store.recordIdentity({ email: buyer, channelUserId: "gone", origin: "browser" });
+  await processSubmission({ source: "contact", docId: "u12", data: contact, deps });
+  const mapping = mappingOf(store, buyer);
+  assert.deepEqual(mapping.missingChannelUserIds, ["gone"]);
+  assert.deepEqual(mapping.unifiedChannelUserIds, {});
+});
+
+test("가입 + 같은 브라우저 통합(T4·X12): 판정을 미뤘다가 unified로 기록, 태그 없음, 대표를 M으로 바로 정리", async () => {
+  const sources = { users: { "uid-1": user }, contact: {} };
+  const { api, store, deps, now } = setup({ sources });
+  const lead = api.newUser({ type: "lead", tags: ["zz-l"], profile: { email: user.email } });
+  await store.recordIdentity({ email: user.email, channelUserId: lead.id, origin: "browser" });
+
+  const first = await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  assert.equal(first.outcome, "deferred");
+  let sync = syncOf(store, "users", "uid-1");
+  assert.equal(sync.status, "pending");
+  assert.equal(sync.pendingReason, "dup_check_delayed");
+  assert.equal(sync.steps.dupTag, "deferred");
+  assert.equal(sync.nextRetryAt, now() + 10 * 60 * 1000);
+  assert.equal(sync.leaseUntil, null);
+  assert.equal(tagPatches(api).length, 0);
+  const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
+  assert.equal(mappingOf(store, user.email).channelUserId, lead.id);
+
+  unify(api, lead.id, member.id); // 브라우저가 회원으로 boot
+  now.advance(9 * 60 * 1000);
+  assert.deepEqual((await runRetryBatch({ deps })).processed, []); // 시각 전에는 집지 않는다
+  now.advance(60 * 1000);
+  const batch = await runRetryBatch({ deps });
+  assert.deepEqual(batch.processed, [{ source: "users", docId: "uid-1", outcome: "success" }]);
+  sync = syncOf(store, "users", "uid-1");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.pendingReason, null);
+  assert.equal(sync.steps.dupTag, "done");
+  assert.equal(sync.attempts, 2);
+  assert.equal(tagPatches(api).length, 0);
+  assert.ok(!(api.users.get(member.id).tags || []).includes("dup-candidate"));
+  const mapping = mappingOf(store, user.email);
+  assert.equal(mapping.dupPairs[[lead.id, member.id].sort().join("_")].state, "unified");
+  assert.equal(mapping.channelUserId, member.id);
+  assert.equal(mapping.channelUserOrigin, "member");
+  assert.deepEqual(mapping.otherChannelUserIds, []);
+  assert.deepEqual(mapping.unifiedChannelUserIds, { [lead.id]: member.id });
+
+  // 이어지는 같은 이메일의 비회원 Contact는 memberId 경로로 M을 쓰고 매핑을 바꾸지 않는다.
+  const before = structuredClone(mapping);
+  const data = { ...contact, email: user.email };
+  await processSubmission({ source: "contact", docId: "u30", data, deps });
+  const next = syncOf(store, "contact", "u30");
+  assert.equal(next.channelUserId, member.id);
+  assert.equal(next.steps.dupTag, "skipped");
+  const after = mappingOf(store, user.email);
+  for (const field of ["channelUserId", "otherChannelUserIds", "unifiedChannelUserIds", "missingChannelUserIds", "dupPairs"]) {
+    assert.deepEqual(after[field], before[field], field);
+  }
+});
+
+test("가입 판정 지연 중 같은 가입 이벤트가 다시 와도 처리하지 않는다", async () => {
+  const { api, store, deps } = setup({ sources: { users: { "uid-1": user } } });
+  const lead = api.newUser({ type: "lead", profile: { email: user.email } });
+  await store.recordIdentity({ email: user.email, channelUserId: lead.id, origin: "browser" });
+  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  const callsBefore = api.calls.length;
+  const again = await handleTriggerEvent({ source: "users", docId: "uid-1", data: user, deps, log: quiet });
+  assert.equal(again.outcome, "none");
+  assert.equal(api.calls.length, callsBefore);
+  assert.equal(syncOf(store, "users", "uid-1").attempts, 1);
+});
+
+test("가입 판정 지연 중 같은 이메일 Contact가 먼저 판정하면, 미뤄 둔 판정은 태그를 더 붙이지 않는다", async () => {
+  const sources = { users: { "uid-1": user }, contact: {} };
+  const { api, store, deps, now } = setup({ sources });
+  const lead = api.newUser({ type: "lead", profile: { email: user.email } }); // 다른 기기 리드
+  await store.recordIdentity({ email: user.email, channelUserId: lead.id, origin: "browser" });
+  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
+
+  const data = { ...contact, email: user.email };
+  sources.contact.u16 = data;
+  await processSubmission({ source: "contact", docId: "u16", data, deps });
+  const key = [lead.id, member.id].sort().join("_");
+  assert.equal(mappingOf(store, user.email).dupPairs[key].state, "tagged");
+  const patched = tagPatches(api).length;
+  assert.equal(patched, 2);
+
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
+  assert.equal(syncOf(store, "users", "uid-1").status, "success");
+  assert.equal(tagPatches(api).length, patched);
+});
+
+test("서로 다른 살아 있는 고객 쌍의 dismissed·tag_limit은 그대로 지킨다", async () => {
+  for (const state of ["dismissed", "tag_limit"]) {
+    const { api, store, deps } = setup();
+    const lead = api.newUser({ type: "lead", profile: { email: buyer } });
+    const other = api.newUser({ type: "lead", profile: { email: buyer } });
+    await store.recordIdentity({ email: buyer, channelUserId: lead.id, origin: "browser" });
+    await store.recordIdentity({ email: buyer, channelUserId: other.id, origin: "browser" });
+    const key = [lead.id, other.id].sort().join("_");
+    await store.setDupPairState(buyer, key, state, 0);
+    await processSubmission({ source: "contact", docId: `u17-${state}`, data: { ...contact, channelUserId: other.id }, deps });
+    assert.equal(tagPatches(api).length, 0, state);
+    assert.equal(mappingOf(store, buyer).dupPairs[key].state, state);
+  }
+});
+
+test("tagged였던 쌍이 나중에 같은 고객으로 통합되면 unified로 바꾸고 붙은 태그는 지우지 않는다", async () => {
+  const sources = { users: { "uid-1": user }, orders: { o18: { uid: "uid-1", title: "T", briefSnapshot: brief, isTest: false, createdAt: "2026-10-02T00:59:00.000Z" } } };
+  const { api, store, deps, now } = setup({ sources });
+  const lead = api.newUser({ type: "lead", profile: { email: user.email } });
+  await store.recordIdentity({ email: user.email, channelUserId: lead.id, origin: "browser" });
+  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
+  const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
+  const key = [lead.id, member.id].sort().join("_");
+  assert.equal(mappingOf(store, user.email).dupPairs[key].state, "tagged");
+  const patched = tagPatches(api).length;
+
+  unify(api, lead.id, member.id); // 늦은 통합
+  await processSubmission({ source: "orders", docId: "o18", data: sources.orders.o18, deps });
+  assert.equal(mappingOf(store, user.email).dupPairs[key].state, "unified");
+  assert.equal(tagPatches(api).length, patched);
+  assert.ok(api.users.get(member.id).tags.includes("dup-candidate"));
+});
+
+test("이번 제출의 고객이 다른 이메일의 회원에 합쳐졌으면(공용 브라우저) 중복 판정을 건너뛰고 관계만 기록", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: { email: buyer } });
+  const older = api.newUser({ type: "lead", profile: { email: buyer } });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-b", profile: { email: "someone-else@example.com" } });
+  await store.recordIdentity({ email: buyer, channelUserId: older.id, origin: "browser" });
+  api.failures.openUserChat = ({ run }) => {
+    unify(api, lead.id, member.id); // 처리 도중 다른 사람이 같은 브라우저로 로그인
+    return run();
+  };
+  await processSubmission({ source: "contact", docId: "u19", data: { ...contact, channelUserId: lead.id }, deps });
+  const sync = syncOf(store, "contact", "u19");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.steps.dupTag, "skipped");
+  assert.equal(tagPatches(api).length, 0);
+  const mapping = mappingOf(store, buyer);
+  assert.deepEqual(mapping.unifiedChannelUserIds, { [lead.id]: member.id });
+  assert.ok(!mapping.otherChannelUserIds.includes(member.id));
+  assert.equal(mapping.channelUserId, older.id);
+});
+
+test("프로필 단계에서 통합을 발견하면 PATCH 전에 다시 식별하고 M에만 PATCH (attempts 그대로)", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: {} });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-m", profile: {} });
+  let leadReads = 0;
+  api.failures.getUser = ({ args, run }) => {
+    if (args[0] === lead.id && ++leadReads === 2) unify(api, lead.id, member.id); // 식별 직후 통합
+    return run();
+  };
+  await processSubmission({ source: "contact", docId: "u20", data: { ...contact, channelUserId: lead.id }, deps });
+  const sync = syncOf(store, "contact", "u20");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.channelUserId, member.id);
+  assert.equal(sync.reidentified, true);
+  assert.equal(sync.possibleOrphanLead, false);
+  assert.equal(sync.identityNote, "browser_user_unified");
+  assert.equal(sync.attempts, 1);
+  assert.equal(callsFor(api, "patchUser", lead.id).length, 0);
+  assert.ok(callsFor(api, "patchUser", member.id).length >= 1);
+  assert.equal(api.chats.get(sync.userChatId).userId, member.id);
+});
+
+test("다시 식별은 한 실행에 한 번만: 또 통합되면 user_unified_again으로 실패, attempts 그대로", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: {} });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-m", profile: {} });
+  const third = api.newUser({ type: "member", member: true, memberId: "uid-n", profile: {} });
+  const reads = {};
+  api.failures.getUser = ({ args, run }) => {
+    reads[args[0]] = (reads[args[0]] || 0) + 1;
+    if (args[0] === lead.id && reads[lead.id] === 2) unify(api, lead.id, member.id);
+    if (args[0] === member.id && reads[member.id] === 2) unify(api, member.id, third.id);
+    return run();
+  };
+  const result = await processSubmission({ source: "contact", docId: "u31", data: { ...contact, channelUserId: lead.id }, deps });
+  assert.equal(result.outcome, "error");
+  const sync = syncOf(store, "contact", "u31");
+  assert.equal(sync.lastError, "profile: user_unified_again");
+  assert.equal(sync.attempts, 1);
+  assert.equal(api.calls.filter((c) => c.name === "patchUser").length, 0);
+  assert.equal(api.chats.size, 0);
+});
+
+test("상담 재시도에서 통합을 발견하면 다시 식별한 뒤 M에 상담을 만든다", async () => {
+  const { api, store, deps, now } = setup({ sources: { contact: {} } });
+  const lead = api.newUser({ type: "lead", profile: {} });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-m", profile: {} });
+  const data = { ...contact, channelUserId: lead.id };
+  store.sources.contact.u21 = data;
+  api.failures.createUserChat = () => Promise.reject(rejected());
+  await processSubmission({ source: "contact", docId: "u21", data, deps });
+  assert.equal(syncOf(store, "contact", "u21").steps.chat, "error");
+
+  delete api.failures.createUserChat;
+  unify(api, lead.id, member.id);
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
+  const sync = syncOf(store, "contact", "u21");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.channelUserId, member.id);
+  assert.equal(sync.reidentified, true);
+  assert.equal(sync.possibleOrphanChat, false);
+  assert.equal(api.chats.get(sync.userChatId).userId, member.id);
+  assert.equal(callsFor(api, "createUserChat", member.id).length, 1);
+});
+
+test("회원 upsert 결과가 unified면 member_unified로 실패하고 상담을 만들지 않는다", async () => {
+  const { api, store, deps } = setup();
+  api.newUser({ type: "unified", memberId: "uid-u", unifiedId: "elsewhere", profile: {} });
+  await processSubmission({ source: "contact", docId: "u22", data: { ...contact, uid: "uid-u" }, deps });
+  assert.equal(syncOf(store, "contact", "u22").lastError, "identity: member_unified");
+  assert.equal(api.chats.size, 0);
+});
+
+test("unified_missing: 통합 대상 M이 실제 404이고 매핑에 있으면 M을 missing으로, 새 리드를 대표로", async () => {
+  const { api, store, deps } = setup();
+  const lead = api.newUser({ type: "lead", profile: { email: buyer } });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-m", profile: { email: buyer } });
+  await store.recordIdentity({ email: buyer, channelUserId: lead.id, origin: "browser" });
+  await store.recordIdentity({ email: buyer, channelUserId: member.id, origin: "member", uid: "uid-m" });
+  unify(api, lead.id, member.id);
+  api.users.delete(member.id); // 이후 M이 삭제됨
+  // memberId 매핑이 있으면 memberId로 찾으므로, 이 경로는 memberId 없는 매핑에서 확인한다.
+  mappingOf(store, buyer).memberId = null;
+  mappingOf(store, buyer).uid = null;
+
+  await processSubmission({ source: "contact", docId: "u28", data: contact, deps });
+  const sync = syncOf(store, "contact", "u28");
+  assert.equal(sync.identitySource, "server_lead");
+  assert.equal(sync.identityNote, "mapping_user_missing");
+  const mapping = mappingOf(store, buyer);
+  assert.equal(mapping.channelUserId, sync.channelUserId);
+  assert.deepEqual(mapping.unifiedChannelUserIds, { [lead.id]: member.id });
+  assert.deepEqual(mapping.missingChannelUserIds, [member.id]);
+  assert.deepEqual(mapping.otherChannelUserIds, []);
+});
+
+test("통합 기록이 있던 id가 다시 살아 있는 고객으로 식별되면 기록을 지우고 후보에 다시 넣는다", async () => {
+  const { api, store, deps } = setup();
+  const primary = api.newUser({ type: "lead", profile: { email: buyer } });
+  const revived = api.newUser({ type: "lead", profile: { email: buyer } });
+  await store.recordIdentity({ email: buyer, channelUserId: primary.id, origin: "browser" });
+  mappingOf(store, buyer).unifiedChannelUserIds = { [revived.id]: "somewhere" };
+
+  await processSubmission({ source: "contact", docId: "u29", data: { ...contact, channelUserId: revived.id }, deps });
+  const mapping = mappingOf(store, buyer);
+  assert.deepEqual(mapping.unifiedChannelUserIds, {});
+  assert.deepEqual(mapping.otherChannelUserIds, [revived.id]);
+  assert.equal(mapping.dupPairs[[primary.id, revived.id].sort().join("_")].state, "tagged");
 });

@@ -10,16 +10,35 @@
 const { ChannelTalkApiError } = require("./api");
 const { classifySubmission } = require("./email");
 const { toMillis } = require("./field-types");
-const { DUP_TAG, decideIdentity, dupPairKey, evaluateDupPair, mergeTags } = require("./identity");
+const {
+  DUP_TAG, decideIdentity, dupPairKey, evaluateDupPair, isEmailCompatible, mergeTags, resolveChannelUser, userEmail,
+} = require("./identity");
 const { buildNotes } = require("./notes");
 const { buildProfileUpdate } = require("./profile");
-const { afterFailure, nextStep } = require("./sync-state");
+const { afterFailure, deferDupCheck, nextStep } = require("./sync-state");
 
 // 한 번의 재시도 실행에서 처리할 최대 건수. 실제 처리 시간·호출량을 보고 조정한다.
 const RETRY_BATCH_LIMIT = 50;
 // 재시도 함수의 실행 시간 제한(2분) 안에 끝나도록, 이 시간이 지나면 새 건을 잡지 않는다.
 const RETRY_TIME_BUDGET_MS = 80 * 1000;
 const TERMINAL = new Set(["success", "skipped", "failed"]);
+// 단계 함수가 돌려주면 회원가입의 중복 판정을 미루고 이번 실행을 끝낸다.
+const DEFER_DUP_CHECK = Symbol("defer_dup_check");
+// identityNote 우선순위(앞이 높음). 사유 코드만 남긴다(고객 정보 금지).
+const NOTE_PRIORITY = [
+  "mapping_user_unified_other_email",
+  "mapping_user_missing",
+  "mapping_user_unified",
+  "browser_email_mismatch",
+  "browser_user_unified_other_email",
+  "browser_user_unified",
+  "browser_user_unresolved",
+  "browser_user_missing",
+];
+
+function topNote(notes) {
+  return NOTE_PRIORITY.find((note) => notes.has(note)) || null;
+}
 
 /** 처리 기록을 만들기 전(처리권을 잡기 전)에 난 오류. 이 오류만 트리거 밖으로 나간다. */
 class PreClaimError extends Error {
@@ -127,6 +146,22 @@ async function processSubmission({ source, docId, data: given, deps }) {
     await store.updateSync(source, docId, stored, clock());
   }
 
+  // 식별 뒤 고객이 통합된 것을 발견하면 식별·프로필부터 다시 한다. 한 번의 실행에서 한 번만.
+  let reidentifiedThisRun = false;
+  async function reidentify() {
+    if (reidentifiedThisRun) throw new StepError("user_unified_again");
+    reidentifiedThisRun = true;
+    await save({
+      "steps.identity": "pending",
+      "steps.profile": "pending",
+      channelUserId: null,
+      identitySource: null,
+      identityNote: null,
+      leadCreateStartedAt: null,
+      reidentified: true,
+    });
+  }
+
   const steps = {
     async identity() {
       const isMember = source === "users" || source === "orders" || Boolean(ctx.uid);
@@ -134,36 +169,78 @@ async function processSubmission({ source, docId, data: given, deps }) {
         if (!ctx.uid) throw new StepError("no_uid");
         const member = await api.upsertMember(ctx.uid, { profile: { firebaseUid: ctx.uid } });
         if (!member || !member.id) throw new StepError("no_user_id");
+        // 회원끼리의 통합은 관찰된 적이 없다. 임의로 고르지 않고 사람이 확인하게 둔다.
+        if (member.type === "unified") throw new StepError("member_unified");
         await store.recordIdentity({ email: ctx.email, channelUserId: member.id, origin: "member", uid: ctx.uid, nowMs: clock() });
         await save({ "steps.identity": "done", identitySource: "member", channelUserId: member.id });
         return;
       }
 
-      // identityNote에는 사유 코드만 남긴다(고객 정보 금지). 여러 사유가 겹치면 매핑 정정 > 이메일 불일치 > 브라우저 고객 없음.
-      let identityNote = null;
+      const notes = new Set();
+      const unified = {};
+      const mapping = await store.getMapping(ctx.email);
+      const mappingIds = new Set([mapping && mapping.channelUserId, ...((mapping && mapping.otherChannelUserIds) || [])].filter(Boolean));
+
+      // 브라우저 id는 참고값이다. 통합됐으면 최종 고객의 이메일이 맞을 때만 쓰고, 그 밖에는 없는 것으로 보고 진행한다.
       let browserUser = null;
       if (typeof data.channelUserId === "string" && data.channelUserId) {
-        const found = await api.getUser(data.channelUserId);
-        if (found) browserUser = { id: found.id, email: (found.profile && found.profile.email) || found.email || null };
-        else identityNote = "browser_user_missing";
+        const found = await resolveChannelUser(api.getUser, data.channelUserId);
+        if (found.kind === "live") {
+          browserUser = { id: found.user.id, email: userEmail(found.user) || null };
+        } else if (found.kind === "missing") {
+          notes.add("browser_user_missing");
+        } else if (found.kind === "unified") {
+          if (mappingIds.has(found.id)) unified[found.id] = found.canonicalId;
+          if (isEmailCompatible(found.canonical, ctx.email)) {
+            browserUser = { id: found.canonicalId, email: userEmail(found.canonical) || null };
+            notes.add("browser_user_unified");
+          } else {
+            notes.add("browser_user_unified_other_email");
+          }
+        } else {
+          notes.add("browser_user_unresolved");
+        }
       }
-      const mapping = await store.getMapping(ctx.email);
       let decision = decideIdentity({ uid: null, email: ctx.email, browserUser, mapping });
       if (!decision.source) throw new StepError(decision.reason || "unidentifiable");
-      if (decision.browserMismatch) identityNote = "browser_email_mismatch";
+      if (decision.browserMismatch) notes.add("browser_email_mismatch");
 
       let channelUserId = decision.channelUserId;
       const missingIds = [];
       if (decision.source === "email_mapping") {
-        const found = decision.memberId ? await api.getUserByMemberId(decision.memberId) : await api.getUser(decision.channelUserId);
-        if (found && found.id) {
-          channelUserId = found.id;
+        let useServerLead = true;
+        let found;
+        if (decision.memberId) {
+          const member = await api.getUserByMemberId(decision.memberId);
+          found = member ? await resolveChannelUser(api.getUser, member.id, { initial: member }) : { kind: "missing", id: mapping.channelUserId };
         } else {
-          // 매핑의 대표 고객이 사라졌다(병합·삭제). 새로 식별한 고객으로 대표를 바꾼다.
-          if (mapping.channelUserId) missingIds.push(mapping.channelUserId);
-          identityNote = "mapping_user_missing";
-          decision = { ...decision, source: "server_lead" };
+          found = await resolveChannelUser(api.getUser, decision.channelUserId);
         }
+        if (found.kind === "live") {
+          channelUserId = found.user.id;
+          useServerLead = false;
+        } else if (found.kind === "missing") {
+          // 매핑의 대표 고객이 실제로 없다(삭제 등). 새로 식별한 고객으로 대표를 바꾼다.
+          if (mapping.channelUserId) missingIds.push(mapping.channelUserId);
+          notes.add("mapping_user_missing");
+        } else if (found.kind === "unified") {
+          unified[found.id] = found.canonicalId;
+          if (isEmailCompatible(found.canonical, ctx.email)) {
+            channelUserId = found.canonicalId;
+            useServerLead = false;
+            notes.add("mapping_user_unified");
+          } else {
+            // 다른 이메일의 고객에 통합됐다(같은 브라우저를 다른 사람이 씀). 그 고객에 기록하지 않는다.
+            notes.add("mapping_user_unified_other_email");
+          }
+        } else if (found.kind === "unified_missing") {
+          unified[found.id] = found.canonicalId;
+          if (mappingIds.has(found.canonicalId)) missingIds.push(found.canonicalId);
+          notes.add("mapping_user_missing");
+        } else {
+          throw new StepError("unified_unresolved");
+        }
+        if (useServerLead) decision = { ...decision, source: "server_lead" };
       }
 
       if (decision.source === "server_lead") {
@@ -176,12 +253,14 @@ async function processSubmission({ source, docId, data: given, deps }) {
       }
 
       const origin = decision.source === "email_mapping" ? (mapping && mapping.channelUserOrigin) || "browser" : decision.source;
-      await store.recordIdentity({ email: ctx.email, channelUserId, origin, missingIds, nowMs: clock() });
-      await save({ "steps.identity": "done", identitySource: decision.source, channelUserId, identityNote });
+      await store.recordIdentity({ email: ctx.email, channelUserId, origin, missingIds, unified, nowMs: clock() });
+      await save({ "steps.identity": "done", identitySource: decision.source, channelUserId, identityNote: topNote(notes) });
     },
 
     async profile() {
       const current = await api.getUser(sync.channelUserId);
+      // 식별 뒤에 Channel이 통합했다. PATCH 전에 다시 식별한다.
+      if (current && current.type === "unified") return reidentify();
       const position = source === "orders" ? await orderPosition(store, ctx.uid, docId) : {};
       const update = buildProfileUpdate({
         kind: source,
@@ -204,6 +283,11 @@ async function processSubmission({ source, docId, data: given, deps }) {
       if (sync.userChatId) {
         await save({ "steps.chat": "done" });
         return;
+      }
+      // 재시도라면 이전 시도 뒤에 통합됐을 수 있다. 상담을 만들기 전에 확인한다(처음 처리에서는 호출을 늘리지 않는다).
+      if (sync.attempts > 1) {
+        const current = await api.getUser(sync.channelUserId);
+        if (current && current.type === "unified") return reidentify();
       }
       const patch = { "steps.chat": "creating", chatCreateStartedAt: sync.chatCreateStartedAt || clock() };
       // 이전 생성 요청의 성공 여부를 확인할 방법이 없다(T1: API로 만든 initial 상담은 목록 API에 나오지 않는다).
@@ -262,38 +346,105 @@ async function processSubmission({ source, docId, data: given, deps }) {
 
     async dupTag() {
       const mapping = ctx.email ? await store.getMapping(ctx.email) : null;
+      const known = (mapping && mapping.unifiedChannelUserIds) || {};
       const ids = new Set([mapping && mapping.channelUserId, ...((mapping && mapping.otherChannelUserIds) || [])].filter(Boolean));
-      if (!mapping || !ids.has(sync.channelUserId) || ids.size < 2) {
+      // 이미 통합으로 기록된 id는 후보가 아니다. 통합 기록의 값(최종 고객)도 후보로 쓰지 않는다.
+      const candidates = [...ids].filter((id) => id !== sync.channelUserId && !(id in known));
+      if (!mapping || !ids.has(sync.channelUserId) || candidates.length === 0) {
         await save({ "steps.dupTag": "skipped" });
-        return;
+        return undefined;
       }
-      for (const other of ids) {
-        if (other === sync.channelUserId) continue;
-        const key = dupPairKey(sync.channelUserId, other);
-        const mine = await api.getUser(sync.channelUserId);
-        const theirs = await api.getUser(other);
-        if (!mine || !theirs) continue;
-        const decision = evaluateDupPair((mapping.dupPairs || {})[key], { [mine.id]: mine.tags, [theirs.id]: theirs.tags });
+      // 회원가입 직후에는 같은 브라우저 리드가 곧 회원에 통합된다(T4·X12). 바로 판정하지 않고 미룬다.
+      if (source === "users" && sync.steps.dupTag === "pending") return DEFER_DUP_CHECK;
+
+      const unified = {};
+      const missingIds = [];
+      const live = {};
+      const pairs = new Map();
+      const myOrigin = sync.identitySource === "email_mapping" ? mapping.channelUserOrigin || "browser" : sync.identitySource;
+
+      const me = await resolveChannelUser(api.getUser, sync.channelUserId);
+      let mine = null;
+      if (me.kind === "live") mine = me.user;
+      if (me.kind === "unified" || me.kind === "unified_missing") unified[me.id] = me.canonicalId;
+      if (me.kind === "unified" && isEmailCompatible(me.canonical, ctx.email)) {
+        mine = me.canonical;
+        pairs.set(dupPairKey(me.id, mine.id), { unified: true });
+      }
+
+      if (mine) {
+        live[mine.id] = myOrigin;
+        for (const id of candidates) {
+          if (id === mine.id) continue;
+          const found = await resolveChannelUser(api.getUser, id);
+          if (found.kind === "missing" || found.kind === "unresolved") continue;
+          if (found.kind === "unified_missing") {
+            unified[id] = found.canonicalId;
+            if (ids.has(found.canonicalId)) missingIds.push(found.canonicalId);
+            continue;
+          }
+          let other = found.user;
+          if (found.kind === "unified") {
+            unified[id] = found.canonicalId;
+            if (found.canonicalId === mine.id) {
+              // Channel이 이미 같은 고객으로 통합했다. 중복이 아니다.
+              pairs.set(dupPairKey(id, mine.id), { unified: true });
+              continue;
+            }
+            if (!isEmailCompatible(found.canonical, ctx.email)) continue;
+            other = found.canonical;
+            live[other.id] = live[other.id] || mapping.channelUserOrigin || "browser";
+          }
+          const key = dupPairKey(mine.id, other.id);
+          if (!pairs.has(key)) pairs.set(key, { other });
+        }
+      }
+
+      if (Object.keys(unified).length || missingIds.length) {
+        await store.recordUnified({ email: ctx.email, unified, missingIds, live, nowMs: clock() });
+      }
+      if (!mine) {
+        await save({ "steps.dupTag": "skipped" });
+        return undefined;
+      }
+
+      for (const [key, pair] of pairs) {
+        const state = ((mapping.dupPairs || {})[key] || {}).state;
+        if (pair.unified) {
+          // 이미 붙은 dup-candidate는 지우지 않는다(담당자가 판단).
+          if (state !== "unified") await store.setDupPairState(ctx.email, key, "unified", clock());
+          continue;
+        }
+        const { other } = pair;
+        const decision = evaluateDupPair((mapping.dupPairs || {})[key], { [mine.id]: mine.tags, [other.id]: other.tags });
         if (decision.action === "mark_dismissed") {
           await store.setDupPairState(ctx.email, key, "dismissed", clock());
         } else if (decision.action === "tag") {
           let limited = false;
-          for (const user of [mine, theirs]) {
+          for (const user of [mine, other]) {
             const merged = mergeTags(user.tags, DUP_TAG);
             if (merged.reason === "limit") limited = true;
-            if (merged.changed) await api.patchUser(user.id, { tags: merged.tags });
+            if (merged.changed) {
+              await api.patchUser(user.id, { tags: merged.tags });
+              user.tags = merged.tags;
+            }
           }
           await store.setDupPairState(ctx.email, key, limited ? "tag_limit" : "tagged", clock());
         }
       }
       await save({ "steps.dupTag": "done" });
+      return undefined;
     },
   };
 
   let step = nextStep(source, sync.steps);
   try {
     while (step) {
-      await steps[step]();
+      const result = await steps[step]();
+      if (result === DEFER_DUP_CHECK) {
+        await save(deferDupCheck(clock()));
+        return { outcome: "deferred" };
+      }
       step = nextStep(source, sync.steps);
     }
   } catch (error) {

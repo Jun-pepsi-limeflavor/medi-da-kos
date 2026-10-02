@@ -23,6 +23,8 @@
 - 회원 여부는 `member === true`·고객 유형·우리 `uid` 매핑으로만 판단한다. **Web SDK 익명 사용자에게도 Channel Talk이 UUID `memberId`를 자동 부여하므로 `memberId` 존재 여부로 판단하지 않는다.** 자동 UUID는 저장하지 않는다.
 - 비회원은 `memberId` 없는 리드다(`POST /open/users`).
 - Channel Talk은 이메일로 자동 병합하지 않고 API로 이메일 검색도 안 된다. 그래서 매핑은 우리가 갖는다.
+- **같은 브라우저 자동 통합(T4·X12 확인).** 리드가 있는 브라우저에서 회원으로 boot하면, 서버가 그 회원을 먼저 만들었어도 Channel이 리드를 회원에 합친다. **이메일이 달라도 합친다.** 옛 리드는 `type: "unified"` + `unifiedId`(회원 id)로 남고 `profile`은 비며, 회원 프로필은 빈 칸만 리드 값으로 채워진다. 태그는 회원 태그 + 리드 태그로 합쳐진다.
+- **통합 처리 원칙.** `unifiedId`를 따라가 최종 고객을 찾되(최대 3단계), 최종 고객의 이메일이 **비어 있거나 같을 때만** 그 고객을 이 이메일의 고객으로 쓴다. 다르면 통합 사실만 `unifiedChannelUserIds`에 기록하고 그 고객에는 PATCH·상담·중복 후보 판정을 하지 않는다. `unifiedId`가 없거나 순환·단계 초과면 진행하지 않고 재시도한다(`unified_unresolved`, 12회째 `failed`).
 
 ### Contact·Landing 식별 순서 (fallback 포함)
 
@@ -34,9 +36,14 @@
 | 3 | 매핑도 없음 | 서버가 `memberId` 없는 리드 생성 | `server_lead` |
 
 - 서버는 브라우저가 보낸 Channel id를 그대로 믿지 않는다. 그 고객의 이메일이 비었거나 제출 이메일과 같을 때만 연결한다(남의 메신저에 메시지를 띄우는 경로 차단).
+- 경로별 통합 처리:
+  - **브라우저:** id가 통합됐으면 최종 고객을 브라우저 고객으로 보고 위 이메일 조건을 그대로 적용한다. 이메일이 다르거나 따라갈 수 없으면 브라우저 id가 없는 것으로 보고 2·3으로 간다.
+  - **매핑:** 대표가 통합됐고 최종 고객 이메일이 맞으면 그 고객을 쓰고 대표를 바꾼다. 다르면 새 서버 리드를 만들어 대표로 바꾸고, 그 고객은 이 이메일의 `otherChannelUserIds`에 넣지 않는다. 통합 대상이 실제 404면 그 id가 매핑에 있을 때만 `missingChannelUserIds`로 옮기고 새 리드로 간다. `memberId` 매핑은 지금처럼 `@uid`로 찾는다.
+  - **회원(uid):** 지금처럼 `@uid` 회원을 쓴다(통합 추론이 아님). upsert 결과가 `unified`면 `member_unified`로 실패해 사람이 확인한다.
+  - **식별 뒤 통합:** 프로필 단계(PATCH 전), 또는 재시도의 상담 단계(생성 전)에서 고객이 `unified`면 식별·프로필부터 다시 한다. 한 실행에 한 번만이고(두 번째면 `user_unified_again`), `attempts`는 늘지 않으며 `reidentified=true`를 남긴다.
 - Channel Talk 처리 실패가 Firestore 저장이나 고객 제출을 실패시키지 않는다. 서버/API 오류는 `channelTalkSync`에 남기고 재시도한다.
 - `server_lead`일 때만 내부대화 3번째 줄에 `[연동 참고] 브라우저 고객 식별 없이 접수된 문의입니다.`
-- 다른 기기 가입 등으로 같은 이메일의 다른 Channel 고객이 발견되면 `dup-candidate`(5장) → 담당자 수동 확인·병합.
+- 다른 기기 가입 등으로 같은 이메일의 다른 Channel 고객이 발견되면 `dup-candidate`(5장) → 담당자 수동 확인·병합. Channel이 이미 같은 고객으로 통합한 쌍은 중복이 아니다.
 
 ## 2. 제출 처리
 
@@ -144,6 +151,8 @@
 ## 5. 태그와 테스트·내부 판정
 
 - 자동화의 고객 태그는 `dup-candidate` 하나. 쓰기 직전 최신 태그 조회 후 merge(PATCH는 리드·회원 모두 전체 교체, A7·T7 확인). 20개 제한이면 추가를 포기하고 동기화 기록에 남긴다. 담당자가 지운 동일 조합에는 다시 붙이지 않는다.
+- **중복 후보 판정.** 이번 고객과 매핑의 다른 고객을 각각 최종 고객까지 따라가 판단한다. 같은 최종 고객으로 이어지면 쌍을 `unified`로 기록하고 태그를 붙이지 않는다(이미 붙은 태그는 지우지 않음). 서로 다른 살아 있는 고객이면 기존 규칙(`tagged`·`dismissed`·`tag_limit`) 그대로다. 최종 고객 이메일이 다르면 후보가 아니다. 이번 고객이 다른 이메일의 회원에 합쳐졌으면(공용 브라우저) 관계만 기록하고 판정을 건너뛴다. `unifiedChannelUserIds`의 키는 후보에서 빼고 값은 후보로 쓰지 않는다. 대표가 살아 있고 이메일이 맞는 최종 고객으로 통합됐으면 이 판정에서 대표를 바로 바꾼다.
+- **회원가입 직후에는 판정을 미룬다.** 웹은 가입 직후 회원 boot를 하고 Channel은 그 순간 같은 브라우저 리드를 합친다. 가입 처리에 후보가 있으면 `steps.dupTag=deferred`, `status=pending`, `pendingReason=dup_check_delayed`, `nextRetryAt=지금+10분`(재시도 주기)으로 두고, `channelTalkRetry`가 그 뒤 첫 실행(가입 후 10~20분)에 판정한다. 그 전에는 같은 이벤트가 다시 와도 처리하지 않는다. 미루기는 실패가 아니어서 `afterFailure`를 거치지 않고, 다시 잡을 때 `attempts`가 1 늘어난다(가입 건은 처리 시도 2회 사용).
 - 상담 태그(`응대상태`: 고객회신대기 / 리마인드필요 / 보류 / 회신필요 / 후속회신필요)는 절대 건드리지 않는다. 문의 출처 표시가 필요하면 상담 description을 우선 검토한다.
 
 ### 판정과 표시
@@ -224,9 +233,10 @@
 | `channelUserOrigin` | string | `member` / `browser` / `server_lead` / `imported` |
 | `uid` | string \| null | 회원이면 Firebase uid |
 | `memberId` | string \| null | 우리가 uid로 boot·upsert한 회원일 때만(= uid) |
-| `otherChannelUserIds` | string[] | 같은 이메일의 다른 Channel 고객 |
-| `missingChannelUserIds` | string[] | Channel 조회에서 없다고 확인된 id(병합·삭제). 대표가 사라졌으면 새로 식별한 고객을 대표로 바꾸고 사라진 id를 여기로 옮긴다. 다음 같은 이메일 문의는 새 대표를 재사용해 리드를 반복 생성하지 않는다 |
-| `dupPairs` | map | `{id1}_{id2}` → `{ state: tagged \| tag_limit \| dismissed, at }` |
+| `otherChannelUserIds` | string[] | 같은 이메일의 다른 Channel 고객. 통합된 id와 사라진 id는 넣지 않는다 |
+| `missingChannelUserIds` | string[] | Channel 조회에서 **실제 404**로 확인된 id(삭제 등). 대표가 사라졌으면 새로 식별한 고객을 대표로 바꾸고 사라진 id를 여기로 옮긴다. 다음 같은 이메일 문의는 새 대표를 재사용해 리드를 반복 생성하지 않는다. 통합된 id는 넣지 않는다 |
+| `unifiedChannelUserIds` | map | `{ 옛 Channel id: 최종 고객 id }`. Channel이 `type: unified`로 통합했다고 확인한 관계. 고객을 찾는 데 쓰지 않는 기록이며(항상 API로 다시 확인), 키는 중복 후보에서 빠진다. 살아 있는 고객으로 다시 확인된 id는 지운다. 없던 문서는 `{}`로 본다 |
+| `dupPairs` | map | `{id1}_{id2}` → `{ state: tagged \| tag_limit \| dismissed \| unified, at }`. `unified`는 Channel이 같은 고객으로 통합한 쌍(태그를 붙이지 않음) |
 | `firstSource` | string \| null | 처음 넣은 `firstSource` |
 | `createdAt`, `updatedAt` | timestamp | |
 
@@ -237,19 +247,20 @@
 | `source`, `docId` | string | `users` / `contact` / `landingRequests` / `orders` |
 | `email`, `uid` | string \| null | |
 | `identitySource` | string | `member` / `browser` / `email_mapping` / `server_lead` |
-| `identityNote` | string \| null | 식별 사유 코드만(고객 원문·개인정보 금지). `mapping_user_missing`(매핑 대표 고객이 사라져 정정) / `browser_email_mismatch`(브라우저 고객 이메일이 폼과 달라 쓰지 않음) / `browser_user_missing`(폼의 브라우저 id 고객이 없음). 겹치면 앞의 것이 우선 |
+| `identityNote` | string \| null | 식별 사유 코드만(고객 원문·개인정보 금지). 겹치면 앞의 것이 우선: `mapping_user_unified_other_email`(매핑 대표가 다른 이메일 고객에 통합돼 새 리드로) / `mapping_user_missing`(매핑 대표 또는 그 통합 대상이 404라 정정) / `mapping_user_unified`(매핑 대표가 통합돼 최종 고객으로) / `browser_email_mismatch`(브라우저 고객 이메일이 폼과 달라 쓰지 않음) / `browser_user_unified_other_email`(브라우저 고객이 다른 이메일 고객에 통합돼 쓰지 않음) / `browser_user_unified`(브라우저 고객이 통합돼 최종 고객으로) / `browser_user_unresolved`(브라우저 고객 통합 대상을 따라갈 수 없음) / `browser_user_missing`(폼의 브라우저 id 고객이 없음) |
 | `channelUserId` | string \| null | |
 | `userChatId` | string \| null | 생성 즉시 기록 |
 | `chatCreateStartedAt` | timestamp \| null | 상담 생성 의도 기록(처음 시도 시각 유지) |
 | `possibleOrphanChat` | bool | 이전 상담 생성 요청의 성공 여부를 확인할 방법이 없어 다시 만든 경우 true. 실제 중복이 확인됐다는 뜻이 아니라, 메시지 없는 빈 `initial` 상담이 남아 있을 **가능성**을 나타낸다. 정상적인 최초 생성은 false |
 | `leadCreateStartedAt` | timestamp \| null | 서버 리드 생성 의도 기록 |
 | `possibleOrphanLead` | bool | 리드 생성 응답 유실 후 재시도로 빈 리드가 남았을 수 있음 |
+| `reidentified` | bool | 식별 뒤 고객이 통합돼 다시 식별했으면 true |
 | `noteMessageIds` | string[] | 내부대화 id(분할 시 순서대로) |
 | `noteParts` | number | |
-| `steps` | map | `identity`, `profile`, `chat`, `note`, `open`, `dupTag` → `pending` / `done` / `skipped` / `error`. `chat`은 `creating`, `identity`는 `creating_lead` 추가 |
+| `steps` | map | `identity`, `profile`, `chat`, `note`, `open`, `dupTag` → `pending` / `done` / `skipped` / `error`. `chat`은 `creating`, `identity`는 `creating_lead`, `dupTag`는 `deferred`(가입 직후 판정 미룸) 추가 |
 | `status` | string | `pending` / `processing` / `success` / `error` / `skipped` / `failed`. `error`는 자동 재시도 대상, `failed`는 자동 재시도 종료·사람 확인 필요(재시도 스캔에서 제외) |
 | `skipReason` | string \| null | 예: `is_test` |
-| `pendingReason` | string \| null | 처리 대기 이유. 스위치가 꺼져 있어 대기 중이면 `intake_disabled`. 처리권을 잡을 때 지운다. `skipped`(영구 제외)와 구분된다 |
+| `pendingReason` | string \| null | 처리 대기 이유. 스위치가 꺼져 있어 대기 중이면 `intake_disabled`, 가입 직후 중복 판정을 미룬 중이면 `dup_check_delayed`. 처리권을 잡을 때 지운다. `skipped`(영구 제외)와 구분된다 |
 | `flags` | map | `{ test, internal }` |
 | `profileResult` | map | `{ applied: string[], skipped: { 필드: 사유 } }` |
 | `attempts` | number | 최초 처리를 포함한 자동 처리 시도 횟수. **12회**에 도달한 시도가 실패하면 `failed`로 바꾸고 `nextRetryAt`을 비운다 |
@@ -261,7 +272,7 @@
 ### 중복 방지
 
 - 처음 처리 시 sync 문서를 없을 때만 생성해 처리 권한을 잡고, 단계마다 `steps`를 갱신한다. `leaseUntil`로 동시 실행을 막는다.
-- 처리권 잡기(트랜잭션): 문서가 없으면 만든다. `success`·`skipped`·`failed`이거나 lease가 유효하면 처리하지 않는다. `attempts >= 12`이면 API를 부르지 않고 `failed`로 바꾼다. 그 밖에는 `processing`, `attempts+1`, `leaseUntil=지금+5분`, `nextRetryAt=지금+10분`(함수가 멈췄을 때의 안전망), `pendingReason=null`.
+- 처리권 잡기(트랜잭션): 문서가 없으면 만든다. `success`·`skipped`·`failed`이거나 lease가 유효하거나, `dup_check_delayed`인데 `nextRetryAt` 전이면 처리하지 않는다. `attempts >= 12`이면 API를 부르지 않고 `failed`로 바꾼다. 그 밖에는 `processing`, `attempts+1`, `leaseUntil=지금+5분`, `nextRetryAt=지금+10분`(함수가 멈췄을 때의 안전망), `pendingReason=null`.
 - 성공: `success`, `leaseUntil`·`nextRetryAt`·`lastError` 비움. 실패: 11회째까지 `error` + `nextRetryAt=지금+10분`, 12회째 `failed` + `nextRetryAt` 비움. 둘 다 `leaseUntil` 비움. 함수가 멈추면 `processing`이 남고 lease 만료 후 안전망 시각에 재시도가 다시 집는다.
 - **오류 처리 경계(2026-10-02 확정).** 처리 기록을 만들기 전(처리권을 잡기 전: 원본·회원 문서 읽기, 설정 읽기, 처리권 잡기 트랜잭션)의 오류만 트리거 밖으로 던져 Firebase 자동 재실행(`retry: true`)을 안전망으로 쓴다. 기록이 없으면 `channelTalkRetry`가 그 제출을 모르기 때문이다. 다시 실행돼도 처리권 잡기 트랜잭션이 중복을 막는다.
 - 처리 기록을 만든 뒤의 오류는 던지지 않고 `channelTalkSync`에 남기며, 재시도는 `channelTalkRetry`만 한다(Firebase 재실행에 의존하지 않음). 마지막 `success` 기록만 실패한 경우도 던지지 않고, lease 만료 후 재시도가 남은 단계 없이 `success`로 마무리한다.
@@ -398,6 +409,14 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - **T7 회원 PATCH:** 같은 회원에게 `PATCH /open/users/{id}` → `profileOnce`의 이름·회사(기존 값과 다른 값)는 바뀌지 않고, 빈 `moq`는 5000으로 채워지고, `profile.briefStep`은 3으로 갱신됐다. 태그 `["zz-t7-a"]` 반영 → 병합 `["zz-t7-a","zz-t7-b"]` → `["zz-t7-b"]`만 보내면 `zz-t7-a`가 지워짐(전체 교체).
 - API 호출 T3 3회 + T7 7회. 상담·메시지 없음.
 
+### 실제 검증 T4·X12 (2026-10-02, 같은 브라우저 리드 → 서버가 먼저 만든 회원으로 boot)
+
+- 방법: Chrome 시크릿 창 `localhost:3000`에서 익명 boot → `updateUser`로 이메일·이름(리드 L). 서버가 `PUT /open/users/@{memberId}`(`firebaseUid`만)로 회원 M을 먼저 만든 뒤, 같은 페이지에서 `shutdown` → memberId·memberHash로 boot. 상담·메시지는 만들지 않았고 숫자 배지·팝업·알림은 없었다.
+- **T4**(M 프로필이 `firebaseUid`뿐): boot 결과는 M. L은 `type: "unified"`, `unifiedId=M`, `memberId: null`, `profile: {}`. L의 자동 UUID 조회는 404. M에 L의 이메일·이름이 옮겨옴. Desk 검색 1명(회원, `[TEST] T4 리드`), 통합 이력 표시 없음.
+- **X12**(L: 이메일 A·태그 `zz-x12-l`, M: PATCH로 넣은 이메일 B·이름·태그 `zz-x12-m`): **이메일이 달라도 통합됐다.** M의 이메일·이름은 B·M 값 그대로이고 **A는 어디에도 남지 않았다**(Desk에서 A 검색 0명). 태그는 M에 `["zz-x12-m", "zz-x12-l"]`로 합쳐지고 L은 `tags: null`. L은 `unified`(`unifiedId=M`), 자동 UUID 404. boot 29초 뒤 첫 조회에서 이미 통합돼 있었다.
+- 반영: 1장 통합 처리 원칙과 이메일 조건, 5장 중복 후보 판정과 가입 직후 지연, 8장 `unifiedChannelUserIds`·`dupPairs.unified`·`reidentified`.
+- API 호출 T4 12회(쓰기 1회), X12 16회(쓰기 3회).
+
 ### 남아 있는 테스트 데이터 (정리 별도 승인)
 
 - B 리드 `6abdefb2a059ac3264bb`, 상담 `6abdfa1c2223f6eff2b8`, 태그 `zz-integration-test`, `marketCountry` 선택지 `테스트국가`
@@ -405,4 +424,8 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - `functions-ingest`가 복사했을 수 있는 Firestore 문서(예상): `threads/channeltalk:main:{상담 id}`, `messages/channeltalk:main:{메시지 id}`, 고객 식별 문서. 미확인
 - T1·T2 리드 `6abf39cb127f2dc6f4f1`(`kimbm+chtest-20261002-t1@techasset.co.kr`), 상담 `6abf39cb47cb0a2dcc7a`(`initial`, 비공개 내부대화 6건)
 - T3·T7 회원 `6abf3cebb40e1034b29d`(`zz-test-member-20261002-t3`, 이메일은 upsert가 덮어써 `kimbm+chtest-20261002-t3-x@techasset.co.kr`), 태그 `zz-t7-b`
+- T6 리드 `6abf3ef5223f5dee06e0`(`kimbm+chtest-20261002-t6@techasset.co.kr`), 상담 `6abf3ef540fea9336064`(열림, `웹 접수` 봇 비공개 내부대화 1건)
+- T4 리드 `6abf40b57e5935a2a90c`(unified), 회원 `6abf4193158d3381f6c9`(`zz-test-member-20261002-t4`, `kimbm+chtest-20261002-t4@techasset.co.kr`)
+- X12 리드 `6abf461c17151786c431`(unified), 회원 `6abf465ebf1733c354f8`(`zz-test-member-20261002-x12`, `kimbm+chtest-20261002-x12b@techasset.co.kr`, 태그 `zz-x12-m`·`zz-x12-l`)
+- 봇 `웹 접수`(763292)는 운영용이라 정리 대상이 아니다
 - 0단계 테스트 API 키(로컬 `.env.local`). 폐기 예정

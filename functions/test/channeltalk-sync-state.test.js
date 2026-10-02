@@ -2,10 +2,12 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const {
+  DUP_CHECK_DELAY_MS,
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
   afterFailure,
   decideClaim,
+  deferDupCheck,
   initialSyncDoc,
   isComplete,
   isLeaseActive,
@@ -35,6 +37,7 @@ test("초기 문서: 제출 종류별 단계와 승인된 필드", () => {
   assert.equal(doc.possibleOrphanChat, false);
   assert.ok(!("extraChatIds" in doc));
   assert.equal(doc.possibleOrphanLead, false);
+  assert.equal(doc.reidentified, false);
   assert.deepEqual(doc.flags, { test: false, internal: true });
 
   const users = initialSyncDoc({ source: "users", docId: "u1", nowMs: NOW });
@@ -168,4 +171,32 @@ test("처리권: 11회까지 실패한 error 건은 12회째로 처리", () => {
   const result = decideClaim({ ...claimBase, existing: { status: "error", attempts: 11, nextRetryAt: NOW - 1 }, classification: syncable, enabled: true });
   assert.equal(result.action, "process");
   assert.equal(result.patch.attempts, 12);
+});
+
+test("가입 판정 미루기: pending + deferred + dup_check_delayed, 재시도 주기(10분) 뒤, lease 없음", () => {
+  assert.equal(DUP_CHECK_DELAY_MS, RETRY_INTERVAL_MS);
+  assert.deepEqual(deferDupCheck(NOW), {
+    "steps.dupTag": "deferred",
+    status: "pending",
+    pendingReason: "dup_check_delayed",
+    nextRetryAt: NOW + 10 * 60 * 1000,
+    leaseUntil: null,
+    lastError: null,
+  });
+  assert.equal(nextStep("users", { identity: "done", profile: "done", dupTag: "deferred" }), "dupTag");
+});
+
+test("처리권: 판정을 미루는 중에는 시각 전 none, 시각이 지나면 process(attempts +1, pendingReason 지움)", () => {
+  const existing = { status: "pending", pendingReason: "dup_check_delayed", attempts: 1, nextRetryAt: NOW + 1000, leaseUntil: null };
+  assert.equal(decideClaim({ existing, classification: syncable, enabled: true, nowMs: NOW }).action, "none");
+  const due = decideClaim({ existing, classification: syncable, enabled: true, nowMs: NOW + 1000 });
+  assert.equal(due.action, "process");
+  assert.equal(due.patch.attempts, 2);
+  assert.equal(due.patch.pendingReason, null);
+});
+
+test("재시도 대상: 미뤄 둔 건은 시각 전 제외, 시각 뒤 포함", () => {
+  const doc = { status: "pending", pendingReason: "dup_check_delayed", nextRetryAt: NOW + 1000, leaseUntil: null };
+  assert.equal(isRetryDue(doc, NOW), false);
+  assert.equal(isRetryDue(doc, NOW + 1000), true);
 });

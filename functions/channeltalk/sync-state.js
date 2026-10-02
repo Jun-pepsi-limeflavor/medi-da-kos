@@ -19,6 +19,10 @@ const LEASE_MS = 5 * 60 * 1000;
 const RETRY_INTERVAL_MS = 10 * 60 * 1000;
 // 최초 처리를 포함한 자동 처리 시도의 최대 횟수. 도달하면 failed로 두고 사람이 확인한다.
 const MAX_ATTEMPTS = 12;
+// 회원가입 직후 중복 판정을 미루는 시간. 웹은 가입 직후 회원 boot를 하고, Channel은 그 순간
+// 같은 브라우저 리드를 회원에 통합한다(T4·X12). 재시도 주기와 같게 두면 다음 channelTalkRetry가 판정한다.
+const DUP_CHECK_DELAY_MS = RETRY_INTERVAL_MS;
+const DUP_CHECK_DELAYED = "dup_check_delayed";
 
 function stepsFor(source) {
   const steps = STEPS_BY_SOURCE[source];
@@ -47,6 +51,7 @@ function initialSyncDoc({ source, docId, email = null, uid = null, flags, skipRe
     possibleOrphanChat: false,
     leadCreateStartedAt: null,
     possibleOrphanLead: false,
+    reidentified: false,
     noteMessageIds: [],
     noteParts: 0,
     steps,
@@ -98,6 +103,18 @@ function afterFailure({ attempts, nowMs, maxAttempts = MAX_ATTEMPTS, intervalMs 
   return { status: "error", nextRetryAt: nextRetryAt(nowMs, intervalMs) };
 }
 
+/** 회원가입의 중복 판정을 미룰 때 저장할 값. 재시도 스캔이 nextRetryAt 뒤에 다시 집는다. */
+function deferDupCheck(nowMs, delayMs = DUP_CHECK_DELAY_MS) {
+  return {
+    "steps.dupTag": "deferred",
+    status: "pending",
+    pendingReason: DUP_CHECK_DELAYED,
+    nextRetryAt: nowMs + delayMs,
+    leaseUntil: null,
+    lastError: null,
+  };
+}
+
 // 처리 중에 함수가 멈추면 status가 pending·processing으로 남는다. 잠금이 풀린 뒤 다시 집는다.
 const RETRYABLE_STATUSES = new Set(["pending", "processing", "error"]);
 
@@ -142,6 +159,11 @@ function decideClaim({ existing, source, docId, email = null, uid = null, classi
 
   if (TERMINAL_STATUSES.has(existing.status)) return { action: "none" };
   if (isLeaseActive(existing.leaseUntil, nowMs)) return { action: "none" };
+  // 중복 판정을 미루는 중에는 같은 이벤트가 다시 와도 시각 전에 처리하지 않는다.
+  const due = toMillis(existing.nextRetryAt);
+  if (existing.status === "pending" && existing.pendingReason === DUP_CHECK_DELAYED && due !== null && due > nowMs) {
+    return { action: "none" };
+  }
   if (!enabled) return { action: "none" };
 
   const attempts = Number.isSafeInteger(existing.attempts) ? existing.attempts : 0;
@@ -170,11 +192,14 @@ function leadRetryFlags(steps) {
 }
 
 module.exports = {
+  DUP_CHECK_DELAYED,
+  DUP_CHECK_DELAY_MS,
   LEASE_MS,
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
   afterFailure,
   decideClaim,
+  deferDupCheck,
   initialSyncDoc,
   isRetryDue,
   isComplete,

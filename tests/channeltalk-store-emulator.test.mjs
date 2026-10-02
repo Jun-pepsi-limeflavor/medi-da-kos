@@ -134,3 +134,65 @@ test("매핑: 사라진 대표는 새 고객으로 교체하고 missingChannelUs
   assert.equal(again.channelUserId, "lead-2");
   assert.deepEqual(again.otherChannelUserIds, ["other-1"]);
 });
+
+test("매핑: 통합된 대표는 이번 고객으로 바꾸고 unifiedChannelUserIds에 남긴다(missing은 그대로)", async () => {
+  const email = `unified-${randomUUID()}@example.com`;
+  track(IDENTITIES, encodeURIComponent(email));
+  await store.recordIdentity({ email, channelUserId: "lead-L", origin: "browser", nowMs: NOW });
+  await store.recordIdentity({ email, channelUserId: "other-O", origin: "browser", nowMs: NOW });
+  await store.recordIdentity({ email, channelUserId: "member-M", origin: "browser", unified: { "lead-L": "member-M" }, nowMs: NOW });
+  const mapping = await store.getMapping(email);
+  assert.equal(mapping.channelUserId, "member-M");
+  assert.deepEqual(mapping.otherChannelUserIds, ["other-O"]);
+  assert.deepEqual(mapping.unifiedChannelUserIds, { "lead-L": "member-M" });
+  assert.deepEqual(mapping.missingChannelUserIds, []);
+});
+
+test("통합 기록: 다른 이메일 고객과의 관계는 기록만, 같은 고객이면 대표를 바로 정리, 기존 관계 유지", async () => {
+  const email = `unified-record-${randomUUID()}@example.com`;
+  track(IDENTITIES, encodeURIComponent(email));
+  await store.recordIdentity({ email, channelUserId: "lead-L", origin: "browser", nowMs: NOW });
+  await store.recordIdentity({ email, channelUserId: "member-M", origin: "member", uid: "uid-M", nowMs: NOW });
+  await store.recordUnified({ email, unified: { "old-Z": "member-B" }, live: { "member-M": "member" }, nowMs: NOW });
+  let mapping = await store.getMapping(email);
+  assert.equal(mapping.channelUserId, "lead-L");
+  assert.deepEqual(mapping.unifiedChannelUserIds, { "old-Z": "member-B" });
+
+  await store.recordUnified({ email, unified: { "lead-L": "member-M" }, live: { "member-M": "member" }, nowMs: NOW });
+  mapping = await store.getMapping(email);
+  assert.equal(mapping.channelUserId, "member-M");
+  assert.equal(mapping.channelUserOrigin, "member");
+  assert.deepEqual(mapping.otherChannelUserIds, []);
+  assert.deepEqual(mapping.unifiedChannelUserIds, { "old-Z": "member-B", "lead-L": "member-M" });
+  assert.equal(mapping.uid, "uid-M");
+});
+
+test("매핑: unifiedChannelUserIds가 없는 기존 문서도 읽고 쓸 수 있다", async () => {
+  const email = `legacy-${randomUUID()}@example.com`;
+  const id = encodeURIComponent(email);
+  track(IDENTITIES, id);
+  await db.collection(IDENTITIES).doc(id).set({
+    email, channelUserId: "lead-L", channelUserOrigin: "browser", uid: null, memberId: null,
+    otherChannelUserIds: [], missingChannelUserIds: [], dupPairs: {}, firstSource: null,
+  });
+  await store.recordIdentity({ email, channelUserId: "lead-2", origin: "browser", nowMs: NOW });
+  let mapping = await store.getMapping(email);
+  assert.deepEqual(mapping.unifiedChannelUserIds, {});
+  assert.deepEqual(mapping.otherChannelUserIds, ["lead-2"]);
+  await store.recordUnified({ email, unified: { "lead-2": "member-M" }, nowMs: NOW });
+  mapping = await store.getMapping(email);
+  assert.deepEqual(mapping.unifiedChannelUserIds, { "lead-2": "member-M" });
+  assert.deepEqual(mapping.otherChannelUserIds, []);
+  await store.setDupPairState(email, "lead-2_member-M", "unified", NOW);
+  assert.equal((await store.getMapping(email)).dupPairs["lead-2_member-M"].state, "unified");
+});
+
+test("재시도 조회: 가입 판정을 미룬 건은 시각 전에는 빠지고 시각 뒤에 나온다", async () => {
+  const docId = `deferred-${randomUUID()}`;
+  track(SYNC, `users_${docId}`);
+  await store.claim({ source: "users", docId, email: "a@example.com", classification: syncable, enabled: true, nowMs: NOW });
+  const farPast = NOW - 400 * 24 * 60 * 60 * 1000; // 다른 문서보다 앞서도록
+  await store.updateSync("users", docId, { "steps.dupTag": "deferred", status: "pending", pendingReason: "dup_check_delayed", nextRetryAt: farPast + 1000, leaseUntil: null }, NOW);
+  assert.ok(!(await store.listRetryDue(farPast, 50)).some((doc) => doc.docId === docId));
+  assert.ok((await store.listRetryDue(farPast + 1000, 50)).some((doc) => doc.docId === docId));
+});

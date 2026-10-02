@@ -6,6 +6,7 @@
  * Timestamp·FieldValue는 호출하는 쪽의 firebase-admin에서 받는다(패키지 사본이 섞이지 않게).
  */
 const { emailKey, normalizeEmail } = require("./email");
+const { applyIdentityRecord, applyUnifiedRecord } = require("./identity");
 const { decideClaim, isRetryDue, syncDocId } = require("./sync-state");
 const { toMillis } = require("./field-types");
 
@@ -101,28 +102,22 @@ function createStore(db, { Timestamp, FieldValue }) {
     },
 
     /**
-     * 식별 결과를 매핑에 남긴다.
-     * - 대표 고객이 없으면 이번 고객을 대표로, 다르면 otherChannelUserIds에 더한다.
-     * - missingIds: 이번 식별에서 Channel에 없다고 확인된 id. 대표가 그중 하나면 이번 고객으로 교체하고
-     *   사라진 id는 missingChannelUserIds로 옮긴다(다음 문의가 사라진 대표 때문에 리드를 또 만들지 않게).
+     * 식별 결과를 매핑에 남긴다. 규칙은 identity.applyIdentityRecord.
+     * - 대표가 없으면 이번 고객을 대표로, 다르면 otherChannelUserIds에 더한다.
+     * - missingIds: 실제 404로 확인된 id. 대표가 그중 하나면 이번 고객으로 교체하고 missingChannelUserIds로 옮긴다.
+     * - unified: { 옛 id: 최종 고객 id }. 대표가 통합된 id여도 이번 고객으로 교체한다.
      * - 우리 uid로 식별한 회원일 때만 uid·memberId를 쓴다.
      */
-    async recordIdentity({ email, channelUserId, origin, uid = null, missingIds = [], nowMs }) {
+    async recordIdentity({ email, channelUserId, origin, uid = null, missingIds = [], unified = {}, nowMs }) {
       const ref = identityRef(email);
       if (!ref || !channelUserId) return null;
-      const missing = [...new Set((missingIds || []).filter((id) => id && id !== channelUserId))];
       return db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         const now = Timestamp.fromMillis(nowMs);
         if (!snap.exists) {
           const doc = {
             email: normalizeEmail(email),
-            channelUserId,
-            channelUserOrigin: origin,
-            uid: uid || null,
-            memberId: uid || null,
-            otherChannelUserIds: [],
-            missingChannelUserIds: missing,
+            ...applyIdentityRecord(null, { channelUserId, origin, uid, missingIds, unified }),
             dupPairs: {},
             firstSource: null,
             createdAt: now,
@@ -132,25 +127,24 @@ function createStore(db, { Timestamp, FieldValue }) {
           return toPlain(doc);
         }
         const data = snap.data();
-        const patch = { updatedAt: now };
-        let primary = data.channelUserId || null;
-        if (!primary || missing.includes(primary)) {
-          primary = channelUserId;
-          patch.channelUserId = channelUserId;
-          patch.channelUserOrigin = origin;
-        }
-        const others = new Set(data.otherChannelUserIds || []);
-        if (channelUserId !== primary) others.add(channelUserId);
-        others.delete(primary);
-        missing.forEach((id) => others.delete(id));
-        patch.otherChannelUserIds = [...others];
-        if (missing.length) {
-          patch.missingChannelUserIds = [...new Set([...(data.missingChannelUserIds || []), ...missing])];
-        }
-        if (uid && !data.uid) {
-          patch.uid = uid;
-          patch.memberId = uid;
-        }
+        const patch = { ...applyIdentityRecord(data, { channelUserId, origin, uid, missingIds, unified }), updatedAt: now };
+        tx.update(ref, patch);
+        return toPlain({ ...data, ...patch });
+      });
+    },
+
+    /**
+     * 중복 판정에서 확인한 통합·사라짐을 매핑에 남긴다. 규칙은 identity.applyUnifiedRecord.
+     * live: 살아 있고 이 이메일과 맞는 고객 { id: origin }. 대표가 그 고객으로 통합됐으면 대표를 바로 바꾼다.
+     */
+    async recordUnified({ email, unified = {}, missingIds = [], live = {}, nowMs }) {
+      const ref = identityRef(email);
+      if (!ref) return null;
+      return db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return null;
+        const data = snap.data();
+        const patch = { ...applyUnifiedRecord(data, { unified, missingIds, live }), updatedAt: Timestamp.fromMillis(nowMs) };
         tx.update(ref, patch);
         return toPlain({ ...data, ...patch });
       });
