@@ -167,7 +167,6 @@ function fakeApi(now) {
       return structuredClone(chat);
     }),
     getUserChat: (chatId) => call("getUserChat", [chatId], async () => structuredClone(chats.get(chatId) || null)),
-    listAllUserChats: ({ state }) => call("listAllUserChats", [state], async () => [...chats.values()].filter((c) => c.state === state).map((c) => structuredClone(c))),
     listAllMessages: (chatId) => call("listAllMessages", [chatId], async () => structuredClone(chats.get(chatId).messages)),
     sendPrivateNote: (chatId, plainText, botName) => call("sendPrivateNote", [chatId, plainText, botName], async () => {
       const message = { id: id("m"), plainText, options: ["private", "silentToUser"], personType: "bot", botName };
@@ -230,6 +229,8 @@ test("Contact 정상: 브라우저 고객 → 프로필 → 상담 → 내부대
   assert.equal(sync.leaseUntil, null);
   assert.equal(sync.nextRetryAt, null);
   assert.equal(sync.noteParts, 1);
+  assert.equal(sync.possibleOrphanChat, false);
+  assert.equal(api.chats.size, 1);
 
   assert.equal(api.users.get(anon.id).profile.email, "buyer@example.com");
   assert.equal(api.users.get(anon.id).profile.firstSource, "contact");
@@ -396,40 +397,62 @@ test("재시도는 오래된 순, 한 번에 최대 limit건", async () => {
   assert.deepEqual(next.processed.map((p) => p.docId), ["q3", "q4"]);
 });
 
-test("상담 생성이 애매하게 실패하면 다음 시도가 만들어진 상담을 찾아 채택한다(중복 생성 없음)", async () => {
+test("상담 생성이 애매하게 실패하면 creating으로 남고, 다음 시도는 목록 조회 없이 새로 만들며 possibleOrphanChat을 남긴다", async () => {
   const { api, store, deps, now } = setup({ sources: { contact: { c7: contact } } });
+  // Channel에서는 상담이 만들어졌지만 응답을 못 받은 경우
   api.failures.createUserChat = ({ run }) => run().then(() => { throw ambiguous(); });
   const first = await processSubmission({ source: "contact", docId: "c7", data: contact, deps });
   assert.equal(first.outcome, "error");
   let sync = syncOf(store, "contact", "c7");
   assert.equal(sync.steps.chat, "creating");
-  assert.ok(sync.chatCreateStartedAt);
-  assert.equal(sync.nextRetryAt, now() + 10 * 60 * 1000);
-  assert.equal(api.chats.size, 1);
+  assert.equal(sync.possibleOrphanChat, false);
+  assert.equal(sync.userChatId, null);
+  const startedAt = sync.chatCreateStartedAt;
+  assert.ok(startedAt);
+  const orphanId = [...api.chats.keys()][0];
 
   delete api.failures.createUserChat;
   now.advance(10 * 60 * 1000);
-  const second = await runRetryBatch({ deps });
-  assert.equal(second.processed[0].outcome, "success");
+  const retried = await runRetryBatch({ deps });
+  assert.equal(retried.processed[0].outcome, "success");
   sync = syncOf(store, "contact", "c7");
-  assert.equal(api.chats.size, 1);
-  assert.equal(sync.userChatId, [...api.chats.keys()][0]);
-  assert.equal(sync.attempts, 2);
+  assert.equal(sync.possibleOrphanChat, true);
+  assert.equal(sync.chatCreateStartedAt, startedAt); // 처음 의도 기록 시각을 유지
+  assert.notEqual(sync.userChatId, orphanId);
+  assert.ok(!api.names().includes("listAllUserChats"));
+
+  // 새 상담에서 내부대화·열기가 정상 진행되고, 남은 상담은 메시지 없는 initial 그대로
+  const chat = api.chats.get(sync.userChatId);
+  assert.equal(chat.state, "opened");
+  assert.ok(chat.messages[0].plainText.endsWith("기록: contact/c7"));
+  assert.deepEqual(sync.steps, { identity: "done", profile: "done", chat: "done", note: "done", open: "done", dupTag: "skipped" });
+  const orphan = api.chats.get(orphanId);
+  assert.equal(orphan.state, "initial");
+  assert.deepEqual(orphan.messages, []);
+  assert.deepEqual(customerVisibleMessages(api), []);
+
+  // 같은 제출이 다시 실행돼도 상담을 더 만들지 않는다
+  const again = await processSubmission({ source: "contact", docId: "c7", data: contact, deps });
+  assert.equal(again.outcome, "none");
+  now.advance(10 * 60 * 1000);
+  assert.deepEqual((await runRetryBatch({ deps })).processed, []);
+  assert.equal(api.chats.size, 2);
 });
 
-test("상담이 실제로는 안 만들어졌으면 복구 조회 후 새로 만든다", async () => {
+test("상담이 실제로는 안 만들어졌어도 결과를 알 수 없으므로 새로 만들고 possibleOrphanChat을 남긴다", async () => {
   const { api, store, deps, now } = setup({ sources: { contact: { c8: contact } } });
   api.failures.createUserChat = () => Promise.reject(ambiguous());
   await processSubmission({ source: "contact", docId: "c8", data: contact, deps });
   delete api.failures.createUserChat;
   now.advance(10 * 60 * 1000);
   await runRetryBatch({ deps });
+  const sync = syncOf(store, "contact", "c8");
   assert.equal(api.chats.size, 1);
-  assert.ok(api.names().includes("listAllUserChats"));
-  assert.equal(syncOf(store, "contact", "c8").status, "success");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.possibleOrphanChat, true);
 });
 
-test("상담 생성이 확실히 거부되면(4xx) 단계는 error, 다음 시도에 바로 다시 만든다", async () => {
+test("상담 생성이 확실히 거부되면(4xx) 단계는 error, 다음 시도에 다시 만들고 possibleOrphanChat은 false", async () => {
   const { api, store, deps, now } = setup({ sources: { contact: { c9: contact } } });
   api.failures.createUserChat = () => Promise.reject(rejected());
   await processSubmission({ source: "contact", docId: "c9", data: contact, deps });
@@ -438,7 +461,7 @@ test("상담 생성이 확실히 거부되면(4xx) 단계는 error, 다음 시�
   now.advance(10 * 60 * 1000);
   await runRetryBatch({ deps });
   assert.equal(api.chats.size, 1);
-  assert.ok(!api.names().includes("listAllUserChats"));
+  assert.equal(syncOf(store, "contact", "c9").possibleOrphanChat, false);
 });
 
 test("내부대화가 일부만 나간 뒤 실패하면, 다음 시도는 나간 부분을 다시 보내지 않는다", async () => {

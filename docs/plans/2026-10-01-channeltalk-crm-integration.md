@@ -60,7 +60,7 @@
 - 템플릿에 없는 필드는 `■ 기타 항목`에 그대로 붙인다(누락 방지).
 - 기술 정보(UTM 5종, 페이지 URL, GA client id, 브라우저)와 링크 미리보기 카드 포함.
 - 마지막 줄 `기록: {collection}/{docId}`는 중복 확인 표식이다.
-- 한 메시지에 다 담을 수 없으면 섹션 경계에서 나누고 각 부분 첫 줄에 `(n/m)`, 각 부분에 `기록:` 줄을 넣어 **같은 상담**에 순서대로 등록한다. 최대 길이는 구현 테스트에서 확인.
+- 한 메시지에 다 담을 수 없으면 섹션 경계에서 나누고 각 부분 첫 줄에 `(n/m)`, 각 부분에 `기록:` 줄을 넣어 **같은 상담**에 순서대로 등록한다. 분할 기준은 Desk 가독성을 위해 **4,000자**(`CHANNELTALK_NOTE_MAX_LENGTH`). T2에서 API는 최소 32,000자까지 저장함을 확인했지만 기준은 올리지 않는다(운영 후 필요하면 설정값으로 조정).
 
 종류별 첫 줄과 고유 섹션:
 
@@ -233,8 +233,8 @@
 | `identityNote` | string \| null | 식별 사유 코드만(고객 원문·개인정보 금지). `mapping_user_missing`(매핑 대표 고객이 사라져 정정) / `browser_email_mismatch`(브라우저 고객 이메일이 폼과 달라 쓰지 않음) / `browser_user_missing`(폼의 브라우저 id 고객이 없음). 겹치면 앞의 것이 우선 |
 | `channelUserId` | string \| null | |
 | `userChatId` | string \| null | 생성 즉시 기록 |
-| `chatCreateStartedAt` | timestamp \| null | 상담 생성 의도 기록 |
-| `extraChatIds` | string[] | 복구 조회에서 2건 이상 발견된 나머지(삭제하지 않음) |
+| `chatCreateStartedAt` | timestamp \| null | 상담 생성 의도 기록(처음 시도 시각 유지) |
+| `possibleOrphanChat` | bool | 이전 상담 생성 요청의 성공 여부를 확인할 방법이 없어 다시 만든 경우 true. 실제 중복이 확인됐다는 뜻이 아니라, 메시지 없는 빈 `initial` 상담이 남아 있을 **가능성**을 나타낸다. 정상적인 최초 생성은 false |
 | `leadCreateStartedAt` | timestamp \| null | 서버 리드 생성 의도 기록 |
 | `possibleOrphanLead` | bool | 리드 생성 응답 유실 후 재시도로 빈 리드가 남았을 수 있음 |
 | `noteMessageIds` | string[] | 내부대화 id(분할 시 순서대로) |
@@ -259,8 +259,10 @@
 - **오류 처리 경계(2026-10-02 확정).** 처리 기록을 만들기 전(처리권을 잡기 전: 원본·회원 문서 읽기, 설정 읽기, 처리권 잡기 트랜잭션)의 오류만 트리거 밖으로 던져 Firebase 자동 재실행(`retry: true`)을 안전망으로 쓴다. 기록이 없으면 `channelTalkRetry`가 그 제출을 모르기 때문이다. 다시 실행돼도 처리권 잡기 트랜잭션이 중복을 막는다.
 - 처리 기록을 만든 뒤의 오류는 던지지 않고 `channelTalkSync`에 남기며, 재시도는 `channelTalkRetry`만 한다(Firebase 재실행에 의존하지 않음). 마지막 `success` 기록만 실패한 경우도 던지지 않고, lease 만료 후 재시도가 남은 단계 없이 `success`로 마무리한다.
 - 재시도 묶음에서 한 건이 처리권 잡기 전에 실패해도 다음 건을 계속 처리하고, 실패한 건은 기록이 그대로라 다음 실행이 다시 집는다.
-- **상담 생성:** `steps.chat=creating`과 `chatCreateStartedAt`을 먼저 기록 → 생성 API 호출 → 성공 응답이면 즉시 `userChatId`. 4xx는 미생성 확정. 시간 초과·5xx·함수 종료로 `creating`이 남으면 재시도는 바로 만들지 않고 `GET /open/user-chats?state=initial`에서 해당 고객의 `chatCreateStartedAt` 이후 상담을 찾는다. 1건이면 채택, 0건이면 생성, 2건 이상이면 가장 먼저 생긴 것을 채택하고 나머지는 `extraChatIds`에 남긴다.
-  - **미검증 전제:** `state=initial` 조회가 API로 만든 상담을 고객 id와 함께 돌려주는지 구현 테스트 첫 항목으로 확인한다. 성립하지 않으면 대체 방식을 임의로 확정하지 않고 대안을 정리해 승인받는다.
+- **상담 생성(대안 A, 2026-10-02 확정):** `steps.chat=creating`과 `chatCreateStartedAt`을 먼저 기록 → 생성 API 호출 → 성공 응답이면 즉시 `userChatId`. 4xx는 미생성 확정이라 단계를 `error`로 두고 다음 시도에 다시 만든다(`possibleOrphanChat=false`). 시간 초과·5xx·함수 종료로 `creating`이 남은 채 다시 들어오면 **조회하지 않고 새로 만들고** `possibleOrphanChat=true`를 남긴다.
+  - 근거(T1 실제 검증): API로 만든 `initial` 상담은 메시지가 0개든 내부대화가 있든 `GET /open/user-chats`(state·기준 시각·기간·정렬 6가지 조건)와 고객별 목록 어디에도 나오지 않았다. 이전 요청의 결과를 확인할 방법이 없다.
+  - 남을 수 있는 상담은 메시지 없는 `initial` 상담이라 받은편지함·고객 메신저에 보이지 않고 고객 프로필 상담 목록에만 `준비중`으로 남는다. 응답이 유실될 때만 생긴다.
+  - 이전 설계의 `initial` 목록 복구, `extraChatIds`, `resolveChatRecovery`, 웹 접수 API 클라이언트의 상담 목록 조회는 제거했다(`functions-ingest`의 별도 클라이언트는 그대로).
 - **내부대화:** 보내기 전에 상담 메시지에서 `기록: {source}/{docId}`(분할 시 `(n/m)` 포함)를 확인한다.
 - **열기:** 이미 열린 상담이면 건너뛴다. 프로필·태그는 같은 값 재전송이 무해하다(태그는 조회 후 merge).
 - **서버 리드 생성:** API에 이메일 검색이 없어 완전한 멱등성을 보장할 수 없다. `steps.identity=creating_lead`와 `leadCreateStartedAt`을 먼저 기록하고, 응답 유실 후 재시도한 경우 `possibleOrphanLead=true`로 남겨 중복 후보 흐름에서 확인한다.
@@ -376,9 +378,17 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - 앱 내장 브라우저에서는 사전 저장소가 비어 있었는데도 다른 사용자(`1b881fba…`)로 연결됐다. 이전에 만들어진 익명 세션일 가능성이 있다는 추정만 기록한다(실제 회원으로 확정하지 않음, 추가 조회 없음).
 - 테스트 도구 이슈: 테스트 페이지의 중복 실행 방지가 페이지 메모리에만 있어 새로고침 후 C2가 한 번 더 실행됐다. 같은 값이라 결과에 영향은 없다. 이후 테스트 도구는 실행 여부를 페이지 밖에 남긴다.
 
+### 실제 API 검증 T1·T2 (2026-10-02, 테스트 리드 1명)
+
+- **T5 리드 생성:** `POST /open/users`(form, `profile` JSON 문자열) → 200, 응답 `user.id`, `type: lead`, `memberId: null`. 구현과 일치.
+- **T1 `initial` 상담 조회: 전제 불성립.** 상담 생성 직후(메시지 0개)와 비공개 내부대화 추가 후 모두 `state=initial`(기본), `state=initial`+`deskUpdatedAt` 기간, `state=initial`+`managedAt` 기간, 상태 생략+`managedAt` 기간, `state=initial`+오래된 순, 고객별 목록에서 나오지 않았다. `state=initial`은 채널 전체 0건. 상담 자체는 생성 직후에도 `deskUpdatedAt`이 채워져 있었고, 내부대화 뒤 `deskUpdatedAt`·`deskMessageId`만 바뀌고 상태는 `initial` 그대로였다. → 대안 A로 변경.
+- **T2 내부대화 길이:** 같은 상담에 `private`+`silentToUser`로 4,000 / 8,000 / 16,000 / 32,000자(한국어, 최대 약 86KB) 모두 200, 잘림 없이 저장(끝 공백만 제거됨). 상한은 확인하지 않았다. 운영 분할 기준은 가독성을 위해 4,000자 유지.
+- API 호출 누적 26회. 고객에게 보이는 메시지·알림 없음. 상담은 열지 않았다.
+
 ### 남아 있는 테스트 데이터 (정리 별도 승인)
 
 - B 리드 `6abdefb2a059ac3264bb`, 상담 `6abdfa1c2223f6eff2b8`, 태그 `zz-integration-test`, `marketCountry` 선택지 `테스트국가`
 - C 회원 `6abe09fe96c07cc647f8`(`zz-test-member-20261001`), 상담 `6abe0c7935aa79cd22c2`
 - `functions-ingest`가 복사했을 수 있는 Firestore 문서(예상): `threads/channeltalk:main:{상담 id}`, `messages/channeltalk:main:{메시지 id}`, 고객 식별 문서. 미확인
+- T1·T2 리드 `6abf39cb127f2dc6f4f1`(`kimbm+chtest-20261002-t1@techasset.co.kr`), 상담 `6abf39cb47cb0a2dcc7a`(`initial`, 비공개 내부대화 6건)
 - 0단계 테스트 API 키(로컬 `.env.local`). 폐기 예정

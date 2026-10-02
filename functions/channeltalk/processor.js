@@ -13,7 +13,7 @@ const { toMillis } = require("./field-types");
 const { DUP_TAG, decideIdentity, dupPairKey, evaluateDupPair, mergeTags } = require("./identity");
 const { buildNotes } = require("./notes");
 const { buildProfileUpdate } = require("./profile");
-const { afterFailure, nextStep, resolveChatRecovery } = require("./sync-state");
+const { afterFailure, nextStep } = require("./sync-state");
 
 // 한 번의 재시도 실행에서 처리할 최대 건수. 실제 처리 시간·호출량을 보고 조정한다.
 const RETRY_BATCH_LIMIT = 50;
@@ -205,19 +205,11 @@ async function processSubmission({ source, docId, data: given, deps }) {
         await save({ "steps.chat": "done" });
         return;
       }
-      if (sync.steps.chat === "creating") {
-        const candidates = await api.listAllUserChats({ state: "initial" });
-        const recovery = resolveChatRecovery({
-          candidates,
-          channelUserId: sync.channelUserId,
-          chatCreateStartedAt: sync.chatCreateStartedAt,
-        });
-        if (recovery.action === "adopt") {
-          await save({ "steps.chat": "done", userChatId: recovery.chatId, extraChatIds: recovery.extraChatIds });
-          return;
-        }
-      }
-      await save({ "steps.chat": "creating", chatCreateStartedAt: sync.chatCreateStartedAt || clock() });
+      const patch = { "steps.chat": "creating", chatCreateStartedAt: sync.chatCreateStartedAt || clock() };
+      // 이전 생성 요청의 성공 여부를 확인할 방법이 없다(T1: API로 만든 initial 상담은 목록 API에 나오지 않는다).
+      // 찾지 않고 새로 만들고, 빈 initial 상담이 남아 있을 가능성만 표시한다(실제 중복이 확인됐다는 뜻은 아니다).
+      if (sync.steps.chat === "creating") patch.possibleOrphanChat = true;
+      await save(patch);
       const chat = await api.createUserChat(sync.channelUserId);
       if (!chat || !chat.id) throw new StepError("no_chat_id");
       await save({ "steps.chat": "done", userChatId: chat.id });

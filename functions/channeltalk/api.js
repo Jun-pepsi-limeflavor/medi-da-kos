@@ -3,7 +3,8 @@
  *
  * - 날짜 버전 API(`/open/...` + `Channel-Version` 헤더)를 쓴다. functions-ingest의 v5 클라이언트와 별개다.
  * - 4xx(429 제외)는 요청이 거부된 것이 확실한 실패, 429·5xx·시간 초과·네트워크 오류는 결과가 애매한 실패다.
- *   애매한 실패 뒤에는 상담·리드가 이미 만들어졌을 수 있으므로 호출하는 쪽이 복구 경로를 탄다.
+ *   애매한 실패 뒤에는 상담·리드가 이미 만들어졌을 수 있다. 확인할 API가 없어 호출하는 쪽이
+ *   다시 만들고 possibleOrphanChat·possibleOrphanLead로 표시한다.
  * - 오류 메시지에 응답 본문·인증값·고객 정보를 넣지 않는다.
  */
 
@@ -110,15 +111,6 @@ function createChannelTalkApi({
 
   const enc = encodeURIComponent;
 
-  async function listUserChatsPage({ state, cursor, limit = PAGE_LIMIT, sortOrder = "desc" } = {}) {
-    const data = await request("GET", "/open/user-chats", { query: { state, cursor, limit, sortOrder } });
-    return {
-      userChats: Array.isArray(data && data.userChats) ? data.userChats : [],
-      nextCursor: (data && data.nextCursor) || null,
-      hasNext: Boolean(data && data.hasNext),
-    };
-  }
-
   return {
     async getUser(userId) {
       return pick(await orNull(request("GET", `/open/users/${enc(userId)}`)), "user");
@@ -143,18 +135,6 @@ function createChannelTalkApi({
     },
     async getUserChat(userChatId) {
       return pick(await orNull(request("GET", `/open/user-chats/${enc(userChatId)}`)), "userChat");
-    },
-    listUserChatsPage,
-    async listAllUserChats({ state, maxPages = MAX_PAGES } = {}) {
-      const all = [];
-      let cursor = null;
-      for (let page = 0; page < maxPages; page += 1) {
-        const result = await listUserChatsPage({ state, cursor });
-        all.push(...result.userChats);
-        if (!result.hasNext || !result.nextCursor || result.nextCursor === cursor) return all;
-        cursor = result.nextCursor;
-      }
-      throw new ChannelTalkApiError("GET /open/user-chats page_limit", { code: "page_limit", ambiguous: true });
     },
     async listAllMessages(userChatId, { maxPages = MAX_PAGES } = {}) {
       const all = [];

@@ -14,7 +14,6 @@ const {
   leaseExpiry,
   nextRetryAt,
   nextStep,
-  resolveChatRecovery,
   syncDocId,
 } = require("../channeltalk/sync-state");
 
@@ -33,7 +32,8 @@ test("초기 문서: 제출 종류별 단계와 승인된 필드", () => {
   for (const field of ["chatCreateStartedAt", "leadCreateStartedAt", "userChatId", "nextRetryAt", "leaseUntil"]) {
     assert.equal(doc[field], null, field);
   }
-  assert.deepEqual(doc.extraChatIds, []);
+  assert.equal(doc.possibleOrphanChat, false);
+  assert.ok(!("extraChatIds" in doc));
   assert.equal(doc.possibleOrphanLead, false);
   assert.deepEqual(doc.flags, { test: false, internal: true });
 
@@ -89,53 +89,6 @@ test("재시도 대상: 시각이 된 error·멈춘 pending/processing만, faile
     assert.equal(isRetryDue({ status, nextRetryAt: due }, NOW), false, status);
   }
   assert.equal(isRetryDue(null, NOW), false);
-});
-
-const started = NOW;
-function chat(id, overrides = {}) {
-  return { id, userId: "ch-user", state: "initial", createdAt: new Date(started + 5000).toISOString(), ...overrides };
-}
-
-test("상담 복구: 찾은 상담이 없으면 새로 만든다", () => {
-  assert.deepEqual(resolveChatRecovery({ candidates: [], channelUserId: "ch-user", chatCreateStartedAt: started }), { action: "create" });
-});
-
-test("상담 복구: 1건이면 채택한다", () => {
-  assert.deepEqual(
-    resolveChatRecovery({ candidates: [chat("c1")], channelUserId: "ch-user", chatCreateStartedAt: started }),
-    { action: "adopt", chatId: "c1", extraChatIds: [] },
-  );
-});
-
-test("상담 복구: 2건 이상이면 가장 먼저 생긴 것을 채택하고 나머지는 extraChatIds", () => {
-  const result = resolveChatRecovery({
-    candidates: [
-      chat("late", { createdAt: started + 30000 }),
-      chat("early", { createdAt: started + 1000 }),
-      chat("mid", { createdAt: started + 2000 }),
-    ],
-    channelUserId: "ch-user",
-    chatCreateStartedAt: started,
-  });
-  assert.deepEqual(result, { action: "adopt", chatId: "early", extraChatIds: ["mid", "late"] });
-});
-
-test("상담 복구: 다른 고객, initial이 아닌 상담, 의도 기록보다 오래된 상담은 제외", () => {
-  const result = resolveChatRecovery({
-    candidates: [
-      chat("other-user", { userId: "someone-else" }),
-      chat("opened", { state: "opened" }),
-      chat("too-old", { createdAt: started - 2 * 60 * 1000 }),
-      chat("within-skew", { createdAt: started - 30 * 1000 }),
-    ],
-    channelUserId: "ch-user",
-    chatCreateStartedAt: started,
-  });
-  assert.deepEqual(result, { action: "adopt", chatId: "within-skew", extraChatIds: [] });
-});
-
-test("상담 복구: 의도 기록 시각이 없으면 새로 만든다", () => {
-  assert.deepEqual(resolveChatRecovery({ candidates: [chat("c1")], channelUserId: "ch-user", chatCreateStartedAt: null }), { action: "create" });
 });
 
 test("서버 리드 생성이 애매하게 끝난 뒤 재시도하면 possibleOrphanLead", () => {

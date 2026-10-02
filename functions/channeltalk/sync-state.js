@@ -19,8 +19,6 @@ const LEASE_MS = 5 * 60 * 1000;
 const RETRY_INTERVAL_MS = 10 * 60 * 1000;
 // 최초 처리를 포함한 자동 처리 시도의 최대 횟수. 도달하면 failed로 두고 사람이 확인한다.
 const MAX_ATTEMPTS = 12;
-// Channel 서버와 우리 서버의 시각 차이를 감안한 여유
-const CLOCK_SKEW_MS = 60 * 1000;
 
 function stepsFor(source) {
   const steps = STEPS_BY_SOURCE[source];
@@ -46,7 +44,7 @@ function initialSyncDoc({ source, docId, email = null, uid = null, flags, skipRe
     channelUserId: null,
     userChatId: null,
     chatCreateStartedAt: null,
-    extraChatIds: [],
+    possibleOrphanChat: false,
     leadCreateStartedAt: null,
     possibleOrphanLead: false,
     noteMessageIds: [],
@@ -164,25 +162,6 @@ function decideClaim({ existing, source, docId, email = null, uid = null, classi
 }
 
 /**
- * 상담 생성 결과가 애매할 때(steps.chat === "creating") 이미 만들어진 상담을 찾는다.
- * candidates는 GET /open/user-chats?state=initial 결과다. 이 고객의 상담 중
- * chatCreateStartedAt(여유 포함) 이후에 생긴 initial 상담만 본다.
- *
- * @returns {{action: "create"} | {action: "adopt", chatId: string, extraChatIds: string[]}}
- */
-function resolveChatRecovery({ candidates, channelUserId, chatCreateStartedAt, skewMs = CLOCK_SKEW_MS }) {
-  const startedAt = toMillis(chatCreateStartedAt);
-  if (startedAt === null) return { action: "create" };
-  const matches = (Array.isArray(candidates) ? candidates : [])
-    .filter((chat) => chat && chat.userId === channelUserId && chat.state === "initial")
-    .map((chat) => ({ id: chat.id, createdAt: toMillis(chat.createdAt) }))
-    .filter((chat) => chat.id && chat.createdAt !== null && chat.createdAt >= startedAt - skewMs)
-    .sort((a, b) => a.createdAt - b.createdAt || String(a.id).localeCompare(String(b.id)));
-  if (!matches.length) return { action: "create" };
-  return { action: "adopt", chatId: matches[0].id, extraChatIds: matches.slice(1).map((chat) => chat.id) };
-}
-
-/**
  * 서버 리드 생성 응답을 못 받은 채(steps.identity === "creating_lead") 다시 시도하는 경우.
  * API에 이메일 검색이 없어 이전 시도의 리드를 찾을 수 없으므로 빈 리드가 남았을 수 있다고 표시한다.
  */
@@ -191,7 +170,6 @@ function leadRetryFlags(steps) {
 }
 
 module.exports = {
-  CLOCK_SKEW_MS,
   LEASE_MS,
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
@@ -205,7 +183,6 @@ module.exports = {
   leaseExpiry,
   nextRetryAt,
   nextStep,
-  resolveChatRecovery,
   stepsFor,
   syncDocId,
 };

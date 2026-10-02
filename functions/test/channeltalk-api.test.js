@@ -83,25 +83,18 @@ test("상담 열기는 PUT과 봇 이름", async () => {
   assert.equal(new URL(calls[0].url).pathname, "/open/user-chats/chat1/open");
 });
 
-test("상담 목록은 다음 페이지가 없을 때까지 읽는다", async () => {
-  const { client, calls } = api([
-    { body: { userChats: [{ id: "a" }], nextCursor: "c1", hasNext: true } },
-    { body: { userChats: [{ id: "b" }], nextCursor: null, hasNext: false } },
-  ]);
-  const chats = await client.listAllUserChats({ state: "initial" });
-  assert.deepEqual(chats.map((chat) => chat.id), ["a", "b"]);
-  const second = new URL(calls[1].url);
-  assert.equal(second.searchParams.get("state"), "initial");
-  assert.equal(second.searchParams.get("cursor"), "c1");
-  assert.equal(second.searchParams.get("limit"), "100");
+test("상담 목록 조회는 제공하지 않는다(initial 상담이 목록에 나오지 않아 복구에 쓸 수 없음)", () => {
+  const { client } = api([]);
+  assert.equal(client.listAllUserChats, undefined);
+  assert.equal(client.listUserChatsPage, undefined);
 });
 
-test("같은 커서가 반복되면 멈춘다", async () => {
+test("메시지 목록: 같은 커서가 반복되면 멈춘다", async () => {
   const { client } = api([
-    { body: { userChats: [{ id: "a" }], nextCursor: "c1", hasNext: true } },
-    { body: { userChats: [{ id: "b" }], nextCursor: "c1", hasNext: true } },
+    { body: { messages: [{ id: "m1" }], nextCursor: "c1", hasNext: true } },
+    { body: { messages: [{ id: "m2" }], nextCursor: "c1", hasNext: true } },
   ]);
-  assert.deepEqual((await client.listAllUserChats({ state: "initial" })).map((chat) => chat.id), ["a", "b"]);
+  assert.deepEqual((await client.listAllMessages("chat1")).map((m) => m.id), ["m1", "m2"]);
 });
 
 test("메시지 목록도 페이지를 따라간다", async () => {
