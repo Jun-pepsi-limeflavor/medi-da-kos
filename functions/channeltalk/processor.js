@@ -167,7 +167,11 @@ async function processSubmission({ source, docId, data: given, deps }) {
       const isMember = source === "users" || source === "orders" || Boolean(ctx.uid);
       if (isMember) {
         if (!ctx.uid) throw new StepError("no_uid");
-        const member = await api.upsertMember(ctx.uid, { profile: { firebaseUid: ctx.uid } });
+        // PUT @memberId는 기존 프로필을 보낸 내용으로 통째로 바꾼다(T8). 이미 있는 회원이면 부르지 않고,
+        // 없을 때만 firebaseUid로 새로 만든다. firebaseUid는 이어지는 프로필 PATCH가 갱신한다.
+        // 같은 회원의 첫 이벤트 두 개가 동시에 "없음"을 보면 둘 다 PUT할 수 있다(설계 문서에 남긴 위험).
+        const member = (await api.getUserByMemberId(ctx.uid))
+          || (await api.upsertMember(ctx.uid, { profile: { firebaseUid: ctx.uid } }));
         if (!member || !member.id) throw new StepError("no_user_id");
         // 회원끼리의 통합은 관찰된 적이 없다. 임의로 고르지 않고 사람이 확인하게 둔다.
         if (member.type === "unified") throw new StepError("member_unified");

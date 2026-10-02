@@ -142,10 +142,11 @@ function fakeApi(now) {
     names: () => calls.map((c) => c.name),
     getUser: (userId) => call("getUser", [userId], async () => structuredClone(users.get(userId) || null)),
     getUserByMemberId: (memberId) => call("getUserByMemberId", [memberId], async () => structuredClone([...users.values()].find((u) => u.memberId === memberId) || null)),
+    // T8 실제 관찰: PUT @memberId는 기존 프로필을 보낸 profile로 통째로 바꾼다(보내지 않은 필드는 지워짐).
     upsertMember: (memberId, body) => call("upsertMember", [memberId, body], async () => {
       let user = [...users.values()].find((u) => u.memberId === memberId);
       if (!user) user = newUser({ memberId, member: true });
-      Object.assign(user.profile, body.profile || {});
+      user.profile = { ...(body.profile || {}) };
       return structuredClone(user);
     }),
     createLead: (profile) => call("createLead", [profile], async () => structuredClone(newUser({ profile: { ...profile }, type: "lead" }))),
@@ -1243,4 +1244,53 @@ test("번호 PATCH의 422가 아닌 거부(400)와 다른 필드 PATCH의 422는
   assert.equal(sync.lastError, "profile: rejected 422");
   assert.equal(sync.steps.profile, "error");
   assert.equal(phonePatches(two.api).length, 0);
+});
+
+// ---- 회원 upsert 보호 (T8: PUT @memberId가 프로필 전체를 교체해 Desk 관리 값과 firstSource 등이 지워짐) ----
+const upserts = (api) => api.calls.filter((c) => c.name === "upsertMember");
+
+test("이미 있는 회원이면 PUT(upsert)을 부르지 않고 그 회원을 그대로 쓴다", async () => {
+  const sources = { users: { "uid-1": user }, orders: { e1: { uid: "uid-1", title: "T", briefSnapshot: brief, isTest: false, createdAt: "2026-10-02T00:59:00.000Z" } } };
+  const { api, store, deps } = setup({ sources });
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-1", profile: { firebaseUid: "uid-1", name: "Jane Doe" } });
+  await processSubmission({ source: "orders", docId: "e1", data: sources.orders.e1, deps });
+  const sync = syncOf(store, "orders", "e1");
+  assert.equal(sync.status, "success");
+  assert.equal(sync.channelUserId, member.id);
+  assert.equal(upserts(api).length, 0);
+  assert.equal(api.chats.get(sync.userChatId).userId, member.id);
+});
+
+test("회원이 없을 때(404)만 firebaseUid만으로 새로 만든다", async () => {
+  const { api, deps } = setup();
+  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  assert.deepEqual(upserts(api).map((c) => c.args), [["uid-1", { profile: { firebaseUid: "uid-1" } }]]);
+  const lookups = api.calls.filter((c) => c.name === "getUserByMemberId");
+  assert.ok(lookups.length >= 1);
+  assert.ok(api.calls.indexOf(lookups[0]) < api.calls.indexOf(upserts(api)[0]), "PUT 전에 GET으로 확인");
+});
+
+test("회원 주문을 처리해도 Desk에서 관리하는 값과 처음 한 번만 넣은 값이 지워지지 않는다", async () => {
+  const sources = { users: { "uid-1": user }, orders: { e2: { uid: "uid-1", title: "T", briefSnapshot: brief, isTest: false, createdAt: "2026-10-02T00:59:00.000Z" } } };
+  const { api, deps } = setup({ sources });
+  const kept = {
+    firebaseUid: "uid-1", name: "담당자가 고친 이름", email: "jane@example.com", firstSource: "contact",
+    businessType: ["Agency"], referralSource: "Events", description: "담당자 메모", nextAction: "샘플 발송", manufacturer: "공장 A",
+  };
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-1", profile: structuredClone(kept) });
+  await processSubmission({ source: "orders", docId: "e2", data: sources.orders.e2, deps });
+  const profile = api.users.get(member.id).profile;
+  for (const [field, value] of Object.entries(kept)) assert.deepEqual(profile[field], value, field);
+  assert.equal(profile.orderCount, 1);
+  assert.equal(profile.lastOrderId, "e2");
+});
+
+test("로그인 회원의 Contact도 이미 있는 회원이면 PUT 없이 Desk 값을 지킨다", async () => {
+  const { api, store, deps } = setup();
+  const member = api.newUser({ type: "member", member: true, memberId: "uid-7", profile: { firebaseUid: "uid-7", description: "담당자 메모", firstSource: "signup" } });
+  await processSubmission({ source: "contact", docId: "cm", data: { ...contact, uid: "uid-7" }, deps });
+  assert.equal(syncOf(store, "contact", "cm").channelUserId, member.id);
+  assert.equal(upserts(api).length, 0);
+  assert.equal(api.users.get(member.id).profile.description, "담당자 메모");
+  assert.equal(api.users.get(member.id).profile.firstSource, "signup");
 });
