@@ -114,7 +114,7 @@
 
 | 기존 선택지 | 입력 |
 |---|---|
-| `미국` | United States, United States of America, USA, U.S.A., US, U.S., America |
+| `미국` | United States, United States of America, USA, U.S.A., US, U.S. (`America` 단독은 불명확한 값으로 넣지 않음) |
 | `캐나다` | Canada |
 | `인도` | India |
 | `프랑스` | France |
@@ -128,7 +128,7 @@
 | `중남미`(권역) | Latin America, LATAM, Central and South America |
 
 - 기존 `독일 (DACH: 독일·오스트리아·스위스 타겟)`은 자동화에서 쓰지 않고 수정·삭제하지 않는다. 입력 `DACH`는 새 선택지 `DACH`.
-- 기존에 없는 국가: 실무에서 쓰는 짧은 한국어 국가명 하나로 고정(한국, 호주, 영국, 일본, 중국, 대만, 홍콩, 베트남, 태국, 싱가포르, 말레이시아, 인도네시아, 독일, 오스트리아, 네덜란드, 이탈리아, 스페인, 스웨덴, 덴마크, 핀란드, 폴란드, 튀르키예, 사우디아라비아, 카타르, 쿠웨이트, 이스라엘, 남아공, 뉴질랜드, 브라질, 멕시코 등). 전체 변환표는 코드 상수로 만들고 배포 전에 검토받는다.
+- 기존에 없는 국가: 실무에서 쓰는 짧은 한국어 국가명 하나로 고정(한국, 호주, 영국, 일본, 중국, 대만, 홍콩, 베트남, 태국, 싱가포르, 말레이시아, 인도네시아, 독일, 오스트리아, 네덜란드, 이탈리아, 스페인, 스웨덴, 덴마크, 핀란드, 폴란드, 튀르키예, 사우디아라비아, 카타르, 쿠웨이트, 이스라엘, 남아공, 뉴질랜드, 브라질, 멕시코 등. `KSA`는 사우디아라비아). 홍콩은 별도 시장 `홍콩`. 전체 변환표는 `functions/channeltalk/market-country.js` 상수이며 2026-10-02 목록 검토 완료.
 - 기존에 없는 명확한 권역: Asia → `아시아`, Southeast Asia·SEA → `동남아시아`, South America → `남미`, East Asia → `동아시아`, Africa → `아프리카`, Oceania → `오세아니아`.
 - 넣지 않음(원문만): Global, Worldwide, International, Online, 빈칸·오타, 범위가 다른 권역(APAC, Asia Pacific, MENA, GCC, Nordics, Scandinavia), 도시·주, `US`·`UK`·`UAE` 외 두 글자 코드.
 - 복수 입력(`,` `/` `&` `and` `;`)은 모든 부분이 명확할 때만 복수 저장, 하나라도 불명확하면 비움.
@@ -232,13 +232,13 @@
 | `noteMessageIds` | string[] | 내부대화 id(분할 시 순서대로) |
 | `noteParts` | number | |
 | `steps` | map | `identity`, `profile`, `chat`, `note`, `open`, `dupTag` → `pending` / `done` / `skipped` / `error`. `chat`은 `creating`, `identity`는 `creating_lead` 추가 |
-| `status` | string | `pending` / `processing` / `success` / `error` / `skipped` |
+| `status` | string | `pending` / `processing` / `success` / `error` / `skipped` / `failed`. `error`는 자동 재시도 대상, `failed`는 자동 재시도 종료·사람 확인 필요(재시도 스캔에서 제외) |
 | `skipReason` | string \| null | 예: `is_test` |
 | `flags` | map | `{ test, internal }` |
 | `profileResult` | map | `{ applied: string[], skipped: { 필드: 사유 } }` |
-| `attempts` | number | |
+| `attempts` | number | 최초 처리를 포함한 자동 처리 시도 횟수. **12회**에 도달한 시도가 실패하면 `failed`로 바꾸고 `nextRetryAt`을 비운다 |
 | `lastError` | string \| null | 비밀값 제외 |
-| `nextRetryAt` | timestamp \| null | 성공 시 null. 재시도 조회는 이 단일 필드로(복합 인덱스 불필요) |
+| `nextRetryAt` | timestamp \| null | 성공·`failed` 시 null. 재시도 조회는 이 단일 필드로(복합 인덱스 불필요). 처리 중 함수가 멈춘 `pending`·`processing` 건도 잠금이 풀리면 다시 집는다 |
 | `leaseUntil` | timestamp \| null | 트리거·재시도 동시 실행 방지 |
 | `createdAt`, `updatedAt` | timestamp | |
 
