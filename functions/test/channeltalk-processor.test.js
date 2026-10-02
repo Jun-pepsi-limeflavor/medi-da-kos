@@ -1162,3 +1162,85 @@ test("통합 기록이 있던 id가 다시 살아 있는 고객으로 식별되�
   assert.deepEqual(mapping.otherChannelUserIds, [revived.id]);
   assert.equal(mapping.dupPairs[[primary.id, revived.id].sort().join("_")].state, "tagged");
 });
+
+// ---- 휴대폰 번호 분리 PATCH (T8: Channel이 번호 자체를 검사해 422 VALIDATION_FAILED로 거부, 같은 요청의 다른 필드도 함께 거부됨) ----
+const validationFailed = () => new ChannelTalkApiError("PATCH 422", { status: 422, code: "rejected" });
+const phonePatches = (api) => api.calls.filter((c) => c.name === "patchUser" && c.args[1].profileOnce && "mobileNumber" in c.args[1].profileOnce);
+const rejectPhone = (make) => ({ args, run }) => ("mobileNumber" in ((args[1] && args[1].profileOnce) || {}) ? Promise.reject(make()) : run());
+
+test("휴대폰 번호는 다른 프로필 필드와 따로 보낸다", async () => {
+  const { api, deps } = setup();
+  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  const patches = api.calls.filter((c) => c.name === "patchUser");
+  assert.equal(patches.length, 2);
+  assert.ok(!("mobileNumber" in patches[0].args[1].profileOnce));
+  assert.deepEqual(patches[1].args[1], { profileOnce: { mobileNumber: "+15550100000" } });
+  const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
+  assert.equal(member.profile.mobileNumber, "+15550100000");
+});
+
+test("가입: Channel이 번호를 422로 거부하면 번호만 포기하고 나머지는 반영, rejected_by_channel 기록", async () => {
+  const { api, store, deps } = setup();
+  api.failures.patchUser = rejectPhone(validationFailed);
+  const result = await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  assert.equal(result.outcome, "success");
+  const sync = syncOf(store, "users", "uid-1");
+  assert.equal(sync.steps.profile, "done");
+  assert.equal(sync.profileResult.skipped.mobileNumber, "rejected_by_channel");
+  assert.ok(!sync.profileResult.applied.includes("mobileNumber"));
+  const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
+  assert.equal(member.profile.name, "Jane Doe");
+  assert.equal(member.profile.email, "jane@example.com");
+  assert.equal(member.profile.brandCompanyName, "Acme Beauty");
+  assert.deepEqual(member.profile.marketCountry, ["미국"]);
+  assert.equal(member.profile.mobileNumber, undefined);
+  assert.equal(phonePatches(api).length, 1); // 다시 보내지 않는다
+});
+
+test("주문: 번호가 거부돼도 상담·내부대화를 만들고 내부대화에 원문 번호와 거부 사유를 남긴다", async () => {
+  const sources = { users: { "uid-1": user }, orders: { op: { uid: "uid-1", title: "T", briefSnapshot: brief, isTest: false, createdAt: "2026-10-02T00:59:00.000Z" } } };
+  const { api, store, deps } = setup({ sources });
+  api.failures.patchUser = rejectPhone(validationFailed);
+  const result = await processSubmission({ source: "orders", docId: "op", data: sources.orders.op, deps });
+  assert.equal(result.outcome, "success");
+  const sync = syncOf(store, "orders", "op");
+  assert.equal(sync.profileResult.skipped.mobileNumber, "rejected_by_channel");
+  const member = [...api.users.values()].find((u) => u.memberId === "uid-1");
+  assert.equal(member.profile.orderCount, 1);
+  assert.equal(member.profile.briefStatus, "제출 완료");
+  assert.equal(member.profile.mobileNumber, undefined);
+  const note = api.chats.get(sync.userChatId).messages[0].plainText;
+  assert.ok(note.includes("전화: +1 555 010 0000"));
+  assert.ok(note.includes("Channel이 번호 거부"));
+  assert.deepEqual(customerVisibleMessages(api), []);
+});
+
+test("번호 PATCH가 애매하게 실패하면(5xx·timeout) 프로필 단계 오류로 재시도하고, 다음 시도에 번호를 반영한다", async () => {
+  const { api, store, deps, now } = setup({ sources: { users: { "uid-1": user } } });
+  api.failures.patchUser = rejectPhone(ambiguous);
+  const first = await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  assert.equal(first.outcome, "error");
+  assert.equal(syncOf(store, "users", "uid-1").lastError, "profile: timeout");
+  delete api.failures.patchUser;
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
+  const sync = syncOf(store, "users", "uid-1");
+  assert.equal(sync.status, "success");
+  assert.ok(sync.profileResult.applied.includes("mobileNumber"));
+  assert.equal([...api.users.values()].find((u) => u.memberId === "uid-1").profile.mobileNumber, "+15550100000");
+});
+
+test("번호 PATCH의 422가 아닌 거부(400)와 다른 필드 PATCH의 422는 무시하지 않는다", async () => {
+  const one = setup();
+  one.api.failures.patchUser = rejectPhone(rejected);
+  assert.equal((await processSubmission({ source: "users", docId: "uid-1", data: user, deps: one.deps })).outcome, "error");
+  assert.equal(syncOf(one.store, "users", "uid-1").lastError, "profile: rejected 400");
+
+  const two = setup();
+  two.api.failures.patchUser = ({ args, run }) => ("name" in ((args[1] && args[1].profileOnce) || {}) ? Promise.reject(validationFailed()) : run());
+  assert.equal((await processSubmission({ source: "users", docId: "uid-1", data: user, deps: two.deps })).outcome, "error");
+  const sync = syncOf(two.store, "users", "uid-1");
+  assert.equal(sync.lastError, "profile: rejected 422");
+  assert.equal(sync.steps.profile, "error");
+  assert.equal(phonePatches(two.api).length, 0);
+});

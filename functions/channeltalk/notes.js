@@ -59,6 +59,7 @@ const SKIP_REASONS = {
   unrecognized: "변환표에 없음",
   same_as_company: "회사명과 같음",
   no_country_code: "국가번호 없음",
+  rejected_by_channel: "Channel이 번호 거부",
 };
 
 const CONTACT_KEYS = [

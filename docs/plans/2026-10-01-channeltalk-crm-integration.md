@@ -108,6 +108,7 @@
 - **처음 한 번만 채우는 값은 `PATCH /open/users/{id}`의 `profileOnce`로만 보낸다.** T7에서 회원 `PATCH`의 `profileOnce`가 기존 이름·회사를 지키고 빈 `moq`만 채웠다(리드는 A2에서 같은 동작 확인). 같은 요청의 `profile`(`briefStep`)은 정상 갱신됐다.
 - **태그는 회원 `PATCH`에서도 전체 교체다(T7).** 반드시 최신 태그 `GET` → 병합 → `PATCH` 원칙을 지킨다.
 - 단위 테스트가 회원가입·주문·로그인 회원 Contact에서 upsert 본문이 `{ profile: { firebaseUid } }`뿐이고 처음 한 번만 값이 `PATCH profileOnce`로만 가는지 확인한다.
+- **`mobileNumber`는 별도 `PATCH`로 보낸다(T8).** Channel은 번호 자체를 검사해 유효하지 않으면 `422 VALIDATION_FAILED`(`profile.mobileNumber: 올바른 휴대폰 번호가 아닙니다`)로 거부하고, 같은 요청의 다른 필드도 함께 거부된다. 그래서 나머지 필드를 먼저 보내고 번호는 `profileOnce: { mobileNumber }`만 담아 따로 보낸다. 번호 요청이 **422**로 거부되면 번호만 포기하고 `profileResult.skipped.mobileNumber = "rejected_by_channel"`로 남긴 뒤 다음 단계로 간다(원문은 주문 내부대화 고객 정보와 Firestore `users`에 남음). 429·5xx·시간 초과와 422가 아닌 거부는 지금처럼 프로필 단계 오류로 재시도한다. 다른 필드의 422는 무시하지 않는다.
 
 ### API 쓰기 경로의 타입 검증 (필수)
 
@@ -417,6 +418,15 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - 반영: 1장 통합 처리 원칙과 이메일 조건, 5장 중복 후보 판정과 가입 직후 지연, 8장 `unifiedChannelUserIds`·`dupPairs.unified`·`reidentified`.
 - API 호출 T4 12회(쓰기 1회), X12 16회(쓰기 3회).
 
+### T8 종합 테스트 (2026-10-02 진행 중, Firestore 에뮬레이터 + 실제 처리 코드 + 새 `웹 접수` 키)
+
+- 방법: `demo-medidakos` 에뮬레이터에 제출 문서를 쓰고 트리거와 같은 처리 함수를 직접 호출. 기존 Functions·운영 Firestore는 쓰지 않음. 쓰기 감시로 T8에서 만든 고객·상담에만 쓰기 허용. 새 키는 첫 쓰기부터 권한 문제 없음.
+- **배치 A(Contact) 통과.** S1 서버 리드, S2 같은 이메일 매핑 재사용·새 상담, S3 실제 브라우저 익명 고객(이메일 없음)에 이메일 채움, S4 브라우저 고객 이메일이 달라 새 리드(`browser_email_mismatch`, 브라우저 고객에는 쓰기 없음). 내부대화는 모두 `웹 접수` 비공개, 고객 노출 0건, 상담 열림. Desk 확인 이상 없음.
+  - S2 분할 판정 기준: 조각 수는 고정하지 않는다. 모든 조각 4,000자 이하, `(n/m)` 순서, 조각마다 `기록:` 줄 1개, 저장 내용이 처리 코드 결과와 일치. 7,409자 입력 → 나누기 전 7,925자 → 섹션 경계 분할로 3개(3,979 / 3,879 / 358자), 누락·중복 없음(문의 내용 끝 공백만 양식이 다듬음).
+  - API로 이메일 없는 리드는 만들 수 없다(`POST /open/users`에 이름만 보내면 422). 처리 코드는 항상 이메일을 보내므로 영향 없음.
+- **배치 B(Landing 3종) 통과.** korea: `businessType` List, `referralSource`, `firstSource=landing-korea`, 범위 물량이라 `moq` 비움, 국가 항목 없음. catalog: `marketCountry=["미국"]`, `product`, `moq=3000`. dashboard: `marketCountry=["캐나다"]`, `product`(브리프 제품명), `moq=5000`.
+- **배치 C(가입·주문) S8에서 발견:** 회원 프로필 `PATCH`가 `422 VALIDATION_FAILED`(`mobileNumber` 유효하지 않음, 테스트 번호 `+1 555 010 0000`)로 거부되고 이름·이메일·회사·국가도 함께 들어가지 않았다. 그대로면 이 회원의 가입은 12회 재시도 후 `failed`, 주문은 프로필 단계에서 막혀 상담·내부대화가 생기지 않는다. → `mobileNumber` 별도 `PATCH`로 수정(4장).
+
 ### 남아 있는 테스트 데이터 (정리 별도 승인)
 
 - B 리드 `6abdefb2a059ac3264bb`, 상담 `6abdfa1c2223f6eff2b8`, 태그 `zz-integration-test`, `marketCountry` 선택지 `테스트국가`
@@ -427,5 +437,7 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - T6 리드 `6abf3ef5223f5dee06e0`(`kimbm+chtest-20261002-t6@techasset.co.kr`), 상담 `6abf3ef540fea9336064`(열림, `웹 접수` 봇 비공개 내부대화 1건)
 - T4 리드 `6abf40b57e5935a2a90c`(unified), 회원 `6abf4193158d3381f6c9`(`zz-test-member-20261002-t4`, `kimbm+chtest-20261002-t4@techasset.co.kr`)
 - X12 리드 `6abf461c17151786c431`(unified), 회원 `6abf465ebf1733c354f8`(`zz-test-member-20261002-x12`, `kimbm+chtest-20261002-x12b@techasset.co.kr`, 태그 `zz-x12-m`·`zz-x12-l`)
+- T8 리드 `6abf538b8575e64ac808`(`t8-c1`, 상담 2), 브라우저 고객 `6abf5577af13436eb813`(`t8-c3`, 상담 1), `6abf6040dd58809279de`(`t8-c4`, 상담 1), `6abf64732e46b2047cac`(`t8-lk`), `6abf647425d8338976b9`(`t8-lc`), `6abf6474c98a36f4bfa4`(`t8-ld`, 랜딩 각 상담 1). 상담은 모두 열림, `웹 접수` 비공개 내부대화
+- T8 회원 `6abf6566d43222ac5413`(`zz-test-member-20261002-t8`, 현재 `firebaseUid`만)
 - 봇 `웹 접수`(763292)는 운영용이라 정리 대상이 아니다
 - 0단계 테스트 API 키(로컬 `.env.local`). 폐기 예정

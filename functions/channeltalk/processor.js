@@ -271,12 +271,28 @@ async function processSubmission({ source, docId, data: given, deps }) {
         user: ctx.user,
         existingProfile: current ? current.profile || {} : undefined,
       });
+      // 휴대폰 번호는 따로 보낸다. Channel이 번호 자체를 검사해 거부하면(422) 같은 요청의 다른 필드까지 함께 거부된다(T8).
+      const { mobileNumber, ...profileOnce } = update.profileOnce;
       const body = {};
-      if (Object.keys(update.profileOnce).length) body.profileOnce = update.profileOnce;
+      if (Object.keys(profileOnce).length) body.profileOnce = profileOnce;
       if (Object.keys(update.profile).length) body.profile = update.profile;
       if (Object.keys(body).length) await api.patchUser(sync.channelUserId, body);
-      if (update.profileOnce.firstSource) await store.setFirstSource(ctx.email, update.profileOnce.firstSource, clock());
-      await save({ "steps.profile": "done", profileResult: update.result });
+      let result = update.result;
+      if (mobileNumber !== undefined) {
+        try {
+          await api.patchUser(sync.channelUserId, { profileOnce: { mobileNumber } });
+        } catch (error) {
+          if (!(error instanceof ChannelTalkApiError && error.status === 422)) throw error;
+          // 번호만 포기한다. 원문은 주문 내부대화의 고객 정보와 Firestore users에 남는다.
+          result = {
+            ...result,
+            applied: result.applied.filter((field) => field !== "mobileNumber"),
+            skipped: { ...result.skipped, mobileNumber: "rejected_by_channel" },
+          };
+        }
+      }
+      if (profileOnce.firstSource) await store.setFirstSource(ctx.email, profileOnce.firstSource, clock());
+      await save({ "steps.profile": "done", profileResult: result });
     },
 
     async chat() {
