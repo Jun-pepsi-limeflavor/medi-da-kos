@@ -739,3 +739,44 @@ test("재시도 묶음에서 한 건이 처리권 잡기 전에 실패해도 다
   const next = await runRetryBatch({ deps });
   assert.deepEqual(next.processed.map((p) => [p.docId, p.outcome]), [["r1", "success"]]);
 });
+
+// T3 실제 검증: 회원 upsert(PUT /open/users/@{memberId})는 profileOnce를 지키지 않고 기존 값을 덮어쓴다.
+// 그래서 upsert에는 항상 관리하는 firebaseUid만 보내고, 처음 한 번만 넣는 값은 PATCH profileOnce로만 보낸다.
+const ONCE_FIELDS = ["name", "email", "brandCompanyName", "mobileNumber", "marketCountry", "product", "moq", "businessType", "referralSource", "firstSource"];
+
+function assertSafeUpserts(api, uid) {
+  const upserts = api.calls.filter((c) => c.name === "upsertMember");
+  assert.ok(upserts.length >= 1, "upsert가 호출돼야 한다");
+  for (const { args: [memberId, body] } of upserts) {
+    assert.equal(memberId, uid);
+    assert.deepEqual(Object.keys(body), ["profile"], "upsert 본문에는 profile만");
+    assert.ok(!("profileOnce" in body), "upsert에 profileOnce 금지");
+    assert.ok(!("tags" in body), "upsert에 tags 금지");
+    assert.deepEqual(body.profile, { firebaseUid: uid });
+    for (const field of ONCE_FIELDS) assert.ok(!(field in body.profile), `upsert profile에 ${field} 금지`);
+  }
+  const patches = api.calls.filter((c) => c.name === "patchUser" && c.args[1].profileOnce);
+  assert.ok(patches.length >= 1, "처음 한 번만 넣는 값은 PATCH profileOnce로 보낸다");
+  for (const { args: [, body] } of patches) {
+    for (const field of Object.keys(body.profile || {})) assert.ok(!ONCE_FIELDS.includes(field), `PATCH profile에 ${field} 금지`);
+  }
+}
+
+test("보호: 회원가입의 upsert에는 firebaseUid만, 처음 한 번만 값은 PATCH profileOnce로", async () => {
+  const { api, deps } = setup();
+  await processSubmission({ source: "users", docId: "uid-1", data: user, deps });
+  assertSafeUpserts(api, "uid-1");
+});
+
+test("보호: 주문의 upsert에는 firebaseUid만, 처음 한 번만 값은 PATCH profileOnce로", async () => {
+  const sources = { users: { "uid-1": user }, orders: { o1: { uid: "uid-1", title: "T", briefSnapshot: brief, isTest: false, createdAt: "2026-10-02T00:59:00.000Z" } } };
+  const { api, deps } = setup({ sources });
+  await processSubmission({ source: "orders", docId: "o1", data: sources.orders.o1, deps });
+  assertSafeUpserts(api, "uid-1");
+});
+
+test("보호: 로그인 회원의 Contact도 upsert에는 firebaseUid만", async () => {
+  const { api, deps } = setup();
+  await processSubmission({ source: "contact", docId: "cu", data: { ...contact, uid: "uid-7" }, deps });
+  assertSafeUpserts(api, "uid-7");
+});

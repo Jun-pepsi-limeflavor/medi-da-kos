@@ -95,6 +95,13 @@
 | `businessType` | List | 폼 영문 원문 6종: `Salon, Spa, Esthetician, MUA` / `Existing Beauty Brand` / `Influencer / Creator` / `Agency` / `New Entrepreneur` / `Other` |
 | `referralSource` | 문자열 | 폼 영문 원문 6종: `Search (Google, Bing, etc.)` / `I saw an ad` / `Social Media` / `A friend` / `Events` / `Other` |
 
+### 어느 요청으로 쓰는가 (T3·T7 실제 검증, 2026-10-02)
+
+- **회원 upsert(`PUT /open/users/@{memberId}`)에는 `profileOnce`를 쓰지 않는다.** T3에서 upsert의 `profileOnce`가 이미 있는 이름·이메일을 덮어썼다(빈 칸 채우기는 됨). 명세 설명과 다르다. 회원 식별 단계의 upsert에는 항상 관리하는 `profile.firebaseUid`만 보낸다.
+- **처음 한 번만 채우는 값은 `PATCH /open/users/{id}`의 `profileOnce`로만 보낸다.** T7에서 회원 `PATCH`의 `profileOnce`가 기존 이름·회사를 지키고 빈 `moq`만 채웠다(리드는 A2에서 같은 동작 확인). 같은 요청의 `profile`(`briefStep`)은 정상 갱신됐다.
+- **태그는 회원 `PATCH`에서도 전체 교체다(T7).** 반드시 최신 태그 `GET` → 병합 → `PATCH` 원칙을 지킨다.
+- 단위 테스트가 회원가입·주문·로그인 회원 Contact에서 upsert 본문이 `{ profile: { firebaseUid } }`뿐이고 처음 한 번만 값이 `PATCH profileOnce`로만 가는지 확인한다.
+
 ### API 쓰기 경로의 타입 검증 (필수)
 
 0단계에서 API가 Desk 필드 타입을 검증하지 않고, 이후 다른 PATCH 때 잘못된 값을 변환한다는 것이 확인됐다(문자열 `moq` → `0`, 날짜시간 → 분 단위).
@@ -136,7 +143,7 @@
 
 ## 5. 태그와 테스트·내부 판정
 
-- 자동화의 고객 태그는 `dup-candidate` 하나. 쓰기 직전 최신 태그 조회 후 merge(PATCH는 전체 교체). 20개 제한이면 추가를 포기하고 동기화 기록에 남긴다. 담당자가 지운 동일 조합에는 다시 붙이지 않는다.
+- 자동화의 고객 태그는 `dup-candidate` 하나. 쓰기 직전 최신 태그 조회 후 merge(PATCH는 리드·회원 모두 전체 교체, A7·T7 확인). 20개 제한이면 추가를 포기하고 동기화 기록에 남긴다. 담당자가 지운 동일 조합에는 다시 붙이지 않는다.
 - 상담 태그(`응대상태`: 고객회신대기 / 리마인드필요 / 보류 / 회신필요 / 후속회신필요)는 절대 건드리지 않는다. 문의 출처 표시가 필요하면 상담 description을 우선 검토한다.
 
 ### 판정과 표시
@@ -385,10 +392,17 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - **T2 내부대화 길이:** 같은 상담에 `private`+`silentToUser`로 4,000 / 8,000 / 16,000 / 32,000자(한국어, 최대 약 86KB) 모두 200, 잘림 없이 저장(끝 공백만 제거됨). 상한은 확인하지 않았다. 운영 분할 기준은 가독성을 위해 4,000자 유지.
 - API 호출 누적 26회. 고객에게 보이는 메시지·알림 없음. 상담은 열지 않았다.
 
+### 실제 API 검증 T3·T7 (2026-10-02, 테스트 회원 1명)
+
+- **T3 회원 upsert:** `PUT /open/users/@zz-test-member-20261002-t3` → 200, `member: true`, `type: member`, `memberId` 일치. 같은 요청을 다시 보내자 **`profileOnce`의 이름·이메일이 기존 값을 덮어썼다**(빈 `brandCompanyName`은 채움, `profile.briefStep`은 갱신). → upsert에는 `profileOnce`를 쓰지 않는다.
+- **T7 회원 PATCH:** 같은 회원에게 `PATCH /open/users/{id}` → `profileOnce`의 이름·회사(기존 값과 다른 값)는 바뀌지 않고, 빈 `moq`는 5000으로 채워지고, `profile.briefStep`은 3으로 갱신됐다. 태그 `["zz-t7-a"]` 반영 → 병합 `["zz-t7-a","zz-t7-b"]` → `["zz-t7-b"]`만 보내면 `zz-t7-a`가 지워짐(전체 교체).
+- API 호출 T3 3회 + T7 7회. 상담·메시지 없음.
+
 ### 남아 있는 테스트 데이터 (정리 별도 승인)
 
 - B 리드 `6abdefb2a059ac3264bb`, 상담 `6abdfa1c2223f6eff2b8`, 태그 `zz-integration-test`, `marketCountry` 선택지 `테스트국가`
 - C 회원 `6abe09fe96c07cc647f8`(`zz-test-member-20261001`), 상담 `6abe0c7935aa79cd22c2`
 - `functions-ingest`가 복사했을 수 있는 Firestore 문서(예상): `threads/channeltalk:main:{상담 id}`, `messages/channeltalk:main:{메시지 id}`, 고객 식별 문서. 미확인
 - T1·T2 리드 `6abf39cb127f2dc6f4f1`(`kimbm+chtest-20261002-t1@techasset.co.kr`), 상담 `6abf39cb47cb0a2dcc7a`(`initial`, 비공개 내부대화 6건)
+- T3·T7 회원 `6abf3cebb40e1034b29d`(`zz-test-member-20261002-t3`, 이메일은 upsert가 덮어써 `kimbm+chtest-20261002-t3-x@techasset.co.kr`), 태그 `zz-t7-b`
 - 0단계 테스트 API 키(로컬 `.env.local`). 폐기 예정
