@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { submitLandingRequest, validateLandingContact } from "@/lib/landing/request";
+import { getChannelTalkUserId } from "@/lib/channel-talk";
+import { channelUserIdField } from "@/lib/channel-talk-intake";
 import { trackLandingEvent } from "@/lib/landing/analytics";
 import type { LandingCatalogItem, LandingRequestInput, LandingVariant } from "@/lib/landing/types";
 import type { CMBrief } from "@/lib/types";
@@ -35,7 +37,7 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
       : { ...fields, landingVariant: "dashboard", dashboardBrief: dashboardBrief! };
     setSending(true);
     try {
-      await submitLandingRequest(input, attribution);
+      await submitLandingRequest(input, { ...attribution, ...channelUserIdField(getChannelTalkUserId()) });
       trackLandingEvent("consultation_submit", variant, {
         expected_volume: fields.expectedVolume,
         utm_source: attribution.utmSource,

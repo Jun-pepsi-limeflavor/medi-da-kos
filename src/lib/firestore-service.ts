@@ -342,6 +342,10 @@ export type ContactFormPayload = {
   pageUrl?: string;
   gaClientId?: string;
   userAgent?: string;
+  /** 로그인 회원의 본인 uid(rules가 uid == auth.uid를 요구). 비로그인이면 넣지 않는다. */
+  uid?: string;
+  /** 제출 브라우저에서 boot된 Channel 고객 id. 얻지 못하면 넣지 않는다(서버가 server_lead로 처리). */
+  channelUserId?: string;
 };
 
 export async function submitContactForm(

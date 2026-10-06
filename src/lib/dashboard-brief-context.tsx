@@ -18,9 +18,10 @@ import { trackBriefStep } from "./analytics";
 import { syncBriefStepToChannelTalk } from "./channel-talk";
 import { LANDING_DASHBOARD_DRAFT_KEY, parseLandingDashboardDraft } from "./landing/dashboard-draft";
 
-function notifyBriefStepChange(step: number): void {
+/** saved: 사용자가 단계를 저장·이동했을 때만 true. 불러오기는 Channel 프로필을 쓰지 않는다. */
+function notifyBriefStepChange(step: number, saved: boolean): void {
   const label = getBriefStepLabel(step);
-  syncBriefStepToChannelTalk(step, label);
+  syncBriefStepToChannelTalk(step, label, { saved });
   trackBriefStep(step, label);
 }
 
@@ -55,7 +56,7 @@ export function DashboardBriefProvider({
     setBrief(data);
     setCurrentStep(data.currentStep);
     setLoading(false);
-    notifyBriefStepChange(data.currentStep);
+    notifyBriefStepChange(data.currentStep, false);
   }, [uid, setCurrentStep]);
 
   useEffect(() => { void Promise.resolve().then(refreshBrief); }, [refreshBrief]);
@@ -72,7 +73,7 @@ export function DashboardBriefProvider({
       await saveCMBrief(updated);
       setBrief(updated);
       setCurrentStep(step);
-      notifyBriefStepChange(step);
+      notifyBriefStepChange(step, true);
     },
     [brief, setCurrentStep],
   );
@@ -90,7 +91,7 @@ export function DashboardBriefProvider({
       await saveCMBrief(updated);
       setBrief(updated);
       setCurrentStep(updated.currentStep);
-      notifyBriefStepChange(updated.currentStep);
+      notifyBriefStepChange(updated.currentStep, true);
       return updated;
     },
     [setCurrentStep],

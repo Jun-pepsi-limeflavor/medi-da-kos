@@ -12,21 +12,24 @@ import {
   type User,
 } from "@channel.io/channel-web-sdk-loader";
 import { getBriefStepLabel, isValidBriefStep } from "./brief-steps";
+import { briefProgressProfile, gaBootProfile } from "./channel-talk-intake";
 import type { UserProfile } from "./types";
 
-export const CHANNEL_TALK_GA_PROFILE_KEY = "gaClientId";
+export { CHANNEL_TALK_GA_PROFILE_KEY } from "./channel-talk-intake";
 
 let bootedMemberId: string | null = null;
 let bootedAnonymous = false;
 let lastBootError: string | null = null;
 let lastBootUser: User | null = null;
-let pendingBriefStep: { step: number; label: string } | null = null;
+let pendingBriefStep: { step: number; label: string; saved: boolean } | null = null;
 
-async function fetchMemberHash(memberId: string): Promise<string | undefined> {
+/** 서버가 ID 토큰의 uid와 memberId가 같을 때만 해시를 준다. 토큰이 없으면 요청하지 않는다. */
+async function fetchMemberHash(memberId: string, idToken: string | null): Promise<string | undefined> {
+  if (!idToken) return undefined;
   try {
     const res = await fetch("/api/channel-talk/member-hash", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({ memberId }),
     });
     if (!res.ok) return undefined;
@@ -38,23 +41,7 @@ async function fetchMemberHash(memberId: string): Promise<string | undefined> {
 }
 
 function baseProfile(gaClientId: string | null): Profile {
-  if (!gaClientId) return {};
-  return {
-    [CHANNEL_TALK_GA_PROFILE_KEY]: gaClientId,
-    analyticsId: gaClientId,
-  };
-}
-
-function memberProfile(user: UserProfile, gaClientId: string | null): Profile {
-  return {
-    ...baseProfile(gaClientId),
-    firebaseUid: user.uid,
-    email: user.email || null,
-    name: user.displayName || null,
-    mobileNumber: user.phone || null,
-    companyName: user.companyName || null,
-    country: user.country || null,
-  };
+  return gaBootProfile(gaClientId);
 }
 
 function runBoot(option: BootOption): Promise<User> {
@@ -91,16 +78,26 @@ function logBootFailure(mode: "member" | "anonymous", error: unknown) {
 
 function flushPendingBriefStep(): void {
   if (!pendingBriefStep || !isChannelTalkBooted()) return;
-  const { step, label } = pendingBriefStep;
+  const { step, label, saved } = pendingBriefStep;
   pendingBriefStep = null;
-  applyBriefStepSync(step, label);
+  applyBriefStepSync(step, label, saved);
 }
 
 export function isChannelTalkBooted(): boolean {
   return Boolean(bootedMemberId || bootedAnonymous) && !lastBootError;
 }
 
-function applyBriefStepSync(step: number, stepLabel: string): void {
+/**
+ * 지금 브라우저에서 boot된 Channel 고객 id. boot가 끝나지 않았거나 실패했으면 null.
+ * 제출을 기다리게 하지 않는다 — 없으면 제출 문서에 넣지 않고 서버가 server_lead로 처리한다.
+ */
+export function getChannelTalkUserId(): string | null {
+  if (!isChannelTalkBooted()) return null;
+  const id = lastBootUser?.id;
+  return typeof id === "string" && id ? id : null;
+}
+
+function applyBriefStepSync(step: number, stepLabel: string, saved: boolean): void {
   const page = `dashboard/brief-step-${step}`;
 
   setPage(page, {
@@ -112,12 +109,11 @@ function applyBriefStepSync(step: number, stepLabel: string): void {
     briefStep: step,
     briefStepLabel: stepLabel,
   });
-  updateUser({
-    profile: {
-      briefStep: String(step),
-      briefStepLabel: stepLabel,
-    },
-  });
+  // 실제로 저장했을 때만 프로필을 쓴다. 불러오기만 한 경우(제출 직후 1단계로 초기화된 초안 포함)
+  // 프로필을 쓰면 서버 주문 처리가 넣은 제출 완료 상태를 덮는다.
+  if (saved) {
+    updateUser({ profile: briefProgressProfile(step, stepLabel, Date.now()) });
+  }
 
   if (process.env.NODE_ENV === "development") {
     console.info("[ChannelTalk] brief step synced", { step, stepLabel, page });
@@ -127,22 +123,32 @@ function applyBriefStepSync(step: number, stepLabel: string): void {
 /**
  * Syncs CM Wizard step to Channel Talk for workflow/campaign branching.
  * Uses virtual page `dashboard/brief-step-N` (SPA URL stays /dashboard).
+ * `saved`: 사용자가 단계를 저장·이동했을 때만 true. 불러오기는 페이지 추적만 한다.
  */
-export function syncBriefStepToChannelTalk(step: number, stepLabel?: string): void {
+export function syncBriefStepToChannelTalk(
+  step: number,
+  stepLabel?: string,
+  options: { saved?: boolean } = {},
+): void {
   if (!isValidBriefStep(step)) return;
 
   const label = stepLabel ?? getBriefStepLabel(step);
+  const saved = options.saved === true;
 
   if (!isChannelTalkBooted()) {
-    pendingBriefStep = { step, label };
+    // 아직 boot 전이면 마지막 요청을 보관한다. 보관 중인 저장 요청은 뒤의 불러오기 요청으로 바꾸지 않는다.
+    if (saved || !pendingBriefStep?.saved) pendingBriefStep = { step, label, saved };
     return;
   }
 
   pendingBriefStep = null;
-  applyBriefStepSync(step, label);
+  applyBriefStepSync(step, label, saved);
 }
 
-/** Clears brief step profile when leaving the wizard (e.g. orders/tracking). */
+/**
+ * 위저드를 벗어날 때(주문·추적 화면 등) 가상 페이지만 정리한다.
+ * Brief 프로필 값은 지우지 않는다 — 제출 완료 상태와 작성 진행은 그대로 남아야 한다.
+ */
 export function clearBriefStepFromChannelTalk(pathname: string): void {
   if (!isChannelTalkBooted()) {
     pendingBriefStep = null;
@@ -150,21 +156,21 @@ export function clearBriefStepFromChannelTalk(pathname: string): void {
   }
 
   pendingBriefStep = null;
-  updateUser({
-    profile: {
-      briefStep: null,
-      briefStepLabel: null,
-    },
-  });
   resetPage();
   setPage(pathname || "/");
   track("PageView");
 }
 
+/**
+ * 회원 boot. 신원(memberId·memberHash)과 GA 식별자만 보낸다. 이름·이메일·전화·회사·국가·firebaseUid는
+ * 보내지 않는다 — 기존 Channel 프로필을 덮지 않고, 프로필은 서버 연동이 관리한다(설계 10장).
+ * idToken: 현재 로그인 사용자의 Firebase ID 토큰. 없으면 memberHash 없이 boot한다.
+ */
 export async function bootChannelTalkAsMember(
   pluginKey: string,
   user: UserProfile,
   gaClientId: string | null,
+  idToken: string | null = null,
 ): Promise<void> {
   if (bootedMemberId === user.uid && !lastBootError) {
     flushPendingBriefStep();
@@ -177,13 +183,13 @@ export async function bootChannelTalkAsMember(
     bootedAnonymous = false;
   }
 
-  const memberHash = await fetchMemberHash(user.uid);
+  const memberHash = await fetchMemberHash(user.uid, idToken);
 
   const option: BootOption = {
     pluginKey,
     memberId: user.uid,
     language: "en",
-    profile: memberProfile(user, gaClientId),
+    profile: baseProfile(gaClientId),
     ...(memberHash ? { memberHash } : {}),
   };
 
