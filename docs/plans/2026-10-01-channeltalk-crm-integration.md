@@ -275,7 +275,7 @@
 - 처음 처리 시 sync 문서를 없을 때만 생성해 처리 권한을 잡고, 단계마다 `steps`를 갱신한다. `leaseUntil`로 동시 실행을 막는다.
 - 처리권 잡기(트랜잭션): 문서가 없으면 만든다. `success`·`skipped`·`failed`이거나 lease가 유효하거나, `dup_check_delayed`인데 `nextRetryAt` 전이면 처리하지 않는다. `attempts >= 12`이면 API를 부르지 않고 `failed`로 바꾼다. 그 밖에는 `processing`, `attempts+1`, `leaseUntil=지금+5분`, `nextRetryAt=지금+10분`(함수가 멈췄을 때의 안전망), `pendingReason=null`.
 - 성공: `success`, `leaseUntil`·`nextRetryAt`·`lastError` 비움. 실패: 11회째까지 `error` + `nextRetryAt=지금+10분`, 12회째 `failed` + `nextRetryAt` 비움. 둘 다 `leaseUntil` 비움. 함수가 멈추면 `processing`이 남고 lease 만료 후 안전망 시각에 재시도가 다시 집는다.
-- **오류 처리 경계(2026-10-02 확정).** 처리 기록을 만들기 전(처리권을 잡기 전: 원본·회원 문서 읽기, 설정 읽기, 처리권 잡기 트랜잭션)의 오류만 트리거 밖으로 던져 Firebase 자동 재실행(`retry: true`)을 안전망으로 쓴다. 기록이 없으면 `channelTalkRetry`가 그 제출을 모르기 때문이다. 다시 실행돼도 처리권 잡기 트랜잭션이 중복을 막는다.
+- **오류 처리 경계(2026-10-02 확정).** 처리 기록을 만들기 전(처리권을 잡기 전: 원본·회원 문서 읽기, 설정 읽기, 처리권 잡기 트랜잭션)의 오류만 트리거 밖으로 던져 Firebase 자동 재실행(`retry: true`)을 안전망으로 쓴다. 기록이 없으면 `channelTalkRetry`가 그 제출을 모르기 때문이다. 다시 실행돼도 처리권 잡기 트랜잭션이 중복을 막는다. 처리 기록을 만들기 전 오류가 24시간(v2 재시도 기간) 넘게 이어지면 그 제출은 Firebase 재시도가 끝나 Channel에 반영되지 않을 수 있다. v1에서는 보완 기능을 두지 않고, 장애 뒤에는 원본 제출과 `channelTalkSync`를 대조해 누락을 확인한다.
 - 처리 기록을 만든 뒤의 오류는 던지지 않고 `channelTalkSync`에 남기며, 재시도는 `channelTalkRetry`만 한다(Firebase 재실행에 의존하지 않음). 마지막 `success` 기록만 실패한 경우도 던지지 않고, lease 만료 후 재시도가 남은 단계 없이 `success`로 마무리한다.
 - 재시도 묶음에서 한 건이 처리권 잡기 전에 실패해도 다음 건을 계속 처리하고, 실패한 건은 기록이 그대로라 다음 실행이 다시 집는다.
 - **상담 생성(대안 A, 2026-10-02 확정):** `steps.chat=creating`과 `chatCreateStartedAt`을 먼저 기록 → 생성 API 호출 → 성공 응답이면 즉시 `userChatId`. 4xx는 미생성 확정이라 단계를 `error`로 두고 다음 시도에 다시 만든다(`possibleOrphanChat=false`). 시간 초과·5xx·함수 종료로 `creating`이 남은 채 다시 들어오면 **조회하지 않고 새로 만들고** `possibleOrphanChat=true`를 남긴다.
@@ -328,7 +328,7 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 
 각 배포, `웹 접수` 봇 생성, 운영 키 발급·Secret 등록, Desk 필드 생성은 그 시점에 따로 승인받는다.
 
-**배포 전 확인:** Firestore 문서 트리거의 `retry: true` 재실행 기간(현재 "최대 7일"로 알고 있음)을 공식 문서로 다시 확인한다. 처리권을 잡기 전 실패의 마지막 안전망이므로 별도 시간 제한은 두지 않는다(2026-10-02 결정).
+**Firestore 문서 트리거의 `retry: true` 재실행 기간:** 2세대(v2) 함수는 공식 문서상 재시도 기간이 24시간(1세대는 7일)이며, 간격은 10~600초로 늘어난다(2026-10-06 확인). 처리권을 잡기 전 실패의 마지막 안전망이므로 별도 시간 제한은 두지 않는다(2026-10-02 결정).
 
 ## 10. 웹 수정
 
