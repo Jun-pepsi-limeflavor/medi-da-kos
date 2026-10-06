@@ -22,7 +22,7 @@
 
 - 회원 여부는 `member === true`·고객 유형·우리 `uid` 매핑으로만 판단한다. **Web SDK 익명 사용자에게도 Channel Talk이 UUID `memberId`를 자동 부여하므로 `memberId` 존재 여부로 판단하지 않는다.** 자동 UUID는 저장하지 않는다.
 - 비회원은 `memberId` 없는 리드다(`POST /open/users`).
-- Channel Talk은 이메일로 자동 병합하지 않고 API로 이메일 검색도 안 된다. 그래서 매핑은 우리가 갖는다.
+- Channel Talk API로는 이메일 검색이 안 된다. 그래서 매핑은 우리가 갖는다. 리드끼리는 통합되지 않는다. **Open API로 회원에게 기존 리드와 같은 이메일을 넣으면 그 리드가 회원에 통합된다**(T8 S8, 채널톡 지원팀 안내와 일치).
 - **같은 브라우저 자동 통합(T4·X12 확인).** 리드가 있는 브라우저에서 회원으로 boot하면, 서버가 그 회원을 먼저 만들었어도 Channel이 리드를 회원에 합친다. **이메일이 달라도 합친다.** 옛 리드는 `type: "unified"` + `unifiedId`(회원 id)로 남고 `profile`은 비며, 회원 프로필은 빈 칸만 리드 값으로 채워진다. 태그는 회원 태그 + 리드 태그로 합쳐진다.
 - **통합 처리 원칙.** `unifiedId`를 따라가 최종 고객을 찾되(최대 3단계), 최종 고객의 이메일이 **비어 있거나 같을 때만** 그 고객을 이 이메일의 고객으로 쓴다. 다르면 통합 사실만 `unifiedChannelUserIds`에 기록하고 그 고객에는 PATCH·상담·중복 후보 판정을 하지 않는다. `unifiedId`가 없거나 순환·단계 초과면 진행하지 않고 재시도한다(`unified_unresolved`, 12회째 `failed`).
 
@@ -30,7 +30,7 @@
 
 | 순서 | 상황 | 사용할 고객 | `identitySource` |
 |---|---|---|---|
-| 0 | 로그인 회원 | `@uid` | `member` |
+| 0 | 로그인 회원 | `@uid`. 이미 있는 회원이면 `PUT @memberId`를 보내지 않고 그대로 쓴다. 없을 때(404)만 `{ profile: { firebaseUid } }`로 만든다 | `member` |
 | 1 | 브라우저 Channel 사용자가 있고(boot 미완료면 최대 1~2초 대기) 그 이메일이 비었거나 폼 이메일과 같음 | 브라우저 사용자(이메일이 비었으면 채움) | `browser` |
 | 2 | 브라우저 id 없음, 또는 브라우저 사용자에 다른 이메일 | 폼 이메일로 매핑 검색. 브라우저 사용자의 이메일은 덮어쓰지 않음 | `email_mapping` |
 | 3 | 매핑도 없음 | 서버가 `memberId` 없는 리드 생성 | `server_lead` |
@@ -104,7 +104,7 @@
 
 ### 어느 요청으로 쓰는가 (T3·T7 실제 검증, 2026-10-02)
 
-- **회원 upsert(`PUT /open/users/@{memberId}`)에는 `profileOnce`를 쓰지 않는다.** T3에서 upsert의 `profileOnce`가 이미 있는 이름·이메일을 덮어썼다(빈 칸 채우기는 됨). 명세 설명과 다르다. 회원 식별 단계의 upsert에는 항상 관리하는 `profile.firebaseUid`만 보낸다.
+- **`PUT /open/users/@{memberId}`는 기존 프로필을 보낸 내용으로 통째로 바꾼다(T8).** T3에서 upsert의 `profileOnce`가 이미 있는 이름·이메일을 덮어쓴 것도 같은 동작이다. T8 S9·S10에서 `{ profile: { firebaseUid } }`만 보낸 PUT 뒤 `firstSource`·`businessType`·`referralSource`가 지워졌다. 그래서 이미 있는 회원에게는 PUT을 보내지 않고, 없을 때(404)만 `{ profile: { firebaseUid } }`로 만든다. `firebaseUid` 갱신은 이어지는 프로필 `PATCH`가 한다.
 - **처음 한 번만 채우는 값은 `PATCH /open/users/{id}`의 `profileOnce`로만 보낸다.** T7에서 회원 `PATCH`의 `profileOnce`가 기존 이름·회사를 지키고 빈 `moq`만 채웠다(리드는 A2에서 같은 동작 확인). 같은 요청의 `profile`(`briefStep`)은 정상 갱신됐다.
 - **태그는 회원 `PATCH`에서도 전체 교체다(T7).** 반드시 최신 태그 `GET` → 병합 → `PATCH` 원칙을 지킨다.
 - 단위 테스트가 회원가입·주문·로그인 회원 Contact에서 upsert 본문이 `{ profile: { firebaseUid } }`뿐이고 처음 한 번만 값이 `PATCH profileOnce`로만 가는지 확인한다.
@@ -418,14 +418,31 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - 반영: 1장 통합 처리 원칙과 이메일 조건, 5장 중복 후보 판정과 가입 직후 지연, 8장 `unifiedChannelUserIds`·`dupPairs.unified`·`reidentified`.
 - API 호출 T4 12회(쓰기 1회), X12 16회(쓰기 3회).
 
-### T8 종합 테스트 (2026-10-02 진행 중, Firestore 에뮬레이터 + 실제 처리 코드 + 새 `웹 접수` 키)
+### T8 종합 테스트 (2026-10-02~10-06 종료, Firestore 에뮬레이터 + 실제 처리 코드 + 새 `웹 접수` 키)
 
 - 방법: `demo-medidakos` 에뮬레이터에 제출 문서를 쓰고 트리거와 같은 처리 함수를 직접 호출. 기존 Functions·운영 Firestore는 쓰지 않음. 쓰기 감시로 T8에서 만든 고객·상담에만 쓰기 허용. 새 키는 첫 쓰기부터 권한 문제 없음.
 - **배치 A(Contact) 통과.** S1 서버 리드, S2 같은 이메일 매핑 재사용·새 상담, S3 실제 브라우저 익명 고객(이메일 없음)에 이메일 채움, S4 브라우저 고객 이메일이 달라 새 리드(`browser_email_mismatch`, 브라우저 고객에는 쓰기 없음). 내부대화는 모두 `웹 접수` 비공개, 고객 노출 0건, 상담 열림. Desk 확인 이상 없음.
   - S2 분할 판정 기준: 조각 수는 고정하지 않는다. 모든 조각 4,000자 이하, `(n/m)` 순서, 조각마다 `기록:` 줄 1개, 저장 내용이 처리 코드 결과와 일치. 7,409자 입력 → 나누기 전 7,925자 → 섹션 경계 분할로 3개(3,979 / 3,879 / 358자), 누락·중복 없음(문의 내용 끝 공백만 양식이 다듬음).
   - API로 이메일 없는 리드는 만들 수 없다(`POST /open/users`에 이름만 보내면 422). 처리 코드는 항상 이메일을 보내므로 영향 없음.
 - **배치 B(Landing 3종) 통과.** korea: `businessType` List, `referralSource`, `firstSource=landing-korea`, 범위 물량이라 `moq` 비움, 국가 항목 없음. catalog: `marketCountry=["미국"]`, `product`, `moq=3000`. dashboard: `marketCountry=["캐나다"]`, `product`(브리프 제품명), `moq=5000`.
-- **배치 C(가입·주문) S8에서 발견:** 회원 프로필 `PATCH`가 `422 VALIDATION_FAILED`(`mobileNumber` 유효하지 않음, 테스트 번호 `+1 555 010 0000`)로 거부되고 이름·이메일·회사·국가도 함께 들어가지 않았다. 그대로면 이 회원의 가입은 12회 재시도 후 `failed`, 주문은 프로필 단계에서 막혀 상담·내부대화가 생기지 않는다. → `mobileNumber` 별도 `PATCH`로 수정(4장).
+- **배치 C(가입·주문).**
+  - **S8 가입, 휴대폰 번호 발견:** 회원 프로필 `PATCH`가 `422 VALIDATION_FAILED`(`mobileNumber` 유효하지 않음, 테스트 번호 `+1 555 010 0000`)로 거부되고 이름·이메일·회사·국가도 함께 들어가지 않았다. 그대로면 이 회원의 가입은 12회 재시도 후 `failed`, 주문은 프로필 단계에서 막혀 상담·내부대화가 생기지 않는다. → `mobileNumber` 별도 `PATCH`로 수정(4장, `85f6e1a`).
+  - **S8 재시도:** 번호만 422 → `rejected_by_channel`, 나머지 프로필 반영. 가입 직후 중복 판정은 `deferred`, 지연 중 같은 이벤트는 `none`. 10분 뒤 판정 시점에 S1 리드가 회원에 통합돼 있어(회원 이메일 `PATCH` 시점에 통합) 쌍을 `unified`로 기록, `dup-candidate` 없음, 대표 고객을 회원으로 바로 정리. 처리 코드는 설계대로 동작했다.
+  - **S9·S10 주문, PUT 덮어쓰기 발견:** 주문마다 보내던 `PUT @memberId`가 회원 프로필을 통째로 바꿔 `firstSource`·`businessType`·`referralSource`가 지워졌다(내부대화 프로필 반영 줄이 이미 있던 값까지 "반영"으로 표시해 발견). → 이미 있는 회원이면 PUT을 보내지 않도록 수정(4장, `8676a35`). 주문 처리 자체는 통과: 회원 상담, `orderCount`·`lastOrderId`·`briefStatus`·`briefStep`·`briefStepLabel`, 두 번째 주문 안내 줄, 번호 거부 표시.
+  - **S10b 수정 확인:** 세 번째 주문에서 `GET @memberId` 1회, PUT 0회, 기존 프로필 필드 13개 그대로, 처음 한 번만 넣는 값은 모두 `이미 값 있음`, `orderCount=3`, 회원 상담 1개.
+- **배치 D 통과.** S11: X12 실제 데이터(이메일 B 회원에 통합된 리드)를 브라우저 id로, 이메일 A로 제출 → `browser_user_unified_other_email`, X12 리드·회원은 조회만 하고 쓰지 않음, 이메일 A로 새 리드. S13: 스위치 꺼짐 → `pending`/`intake_disabled`/`attempts=0`, API 호출 0회 → 켠 뒤 재시도로 1건만 `success`. S14: 성공한 제출의 이벤트 재전달 → `none`, API 호출 0회. S12(기존 T4 회원에 쓰기)는 제외했다.
+- **S15 최종 조회(읽기만).** 고객 11명의 유형·통합 관계, 상담 13개의 연결 고객·열림 상태, 내부대화 수·작성자(`웹 접수`), 고객 노출 메시지 0건, 봇 목록 모두 예상대로.
+- **Desk 확인 1·2·배치 D 모두 통과.** 새 필드 7개도 정한 타입(문자열·숫자·List)으로 보였다.
+- **수동 병합(X3)은 하지 않았다.** 리드끼리는 통합할 수 없고(채널톡 안내), Desk 고객 화면에 병합 메뉴가 없었다.
+- **Channel 측 확인 필요.** Channel 안내상 유니피케이션 시 상담도 통합되어야 하나, 테스트에서는 회원 재 boot 후에도 기존 상담이 최종 회원 고객 화면에 나타나지 않음을 확인하여 Channel 측 확인 필요.
+  - 관찰: S8(Open API 이메일 입력으로 통합)과 별도 확인 (a)(같은 브라우저에서 회원 boot로 통합) 모두, 회원 재 boot 뒤에도 상담 `userId`가 통합 전 고객 id 그대로였고 Desk 회원 화면 상담 목록에 없었다. 상담 화면의 통합 전 이름을 누르면 통합 전 고객 화면으로 이동했다. 상담과 내부대화는 받은편지함·검색에 남아 있다.
+- **후속 확인사항(이번 범위 밖).**
+  - 웹 회원 boot로 먼저 생긴 회원은 가입 처리 전까지 `firebaseUid`가 비어 있을 수 있다(로그인 회원 Contact는 PUT도 `firebaseUid`도 보내지 않음).
+  - 같은 회원의 첫 이벤트 두 개가 동시에 "없음"을 보면 PUT이 두 번 나가 첫 번째 `PATCH` 값이 지워질 수 있다.
+  - 서로 다른 살아 있는 고객에게 실제 `dup-candidate`가 붙는 경로는 T8에서 재현되지 않아 단위 테스트로만 확인됐다.
+  - S10b의 에뮬레이터 기록은 에뮬레이터 복원 때 빠졌다(결과는 실행 기록에 있음).
+- **감수한 부수 효과.** `functions-ingest`가 테스트 상담·비공개 내부대화를 운영 Firestore로 복사했을 수 있고, 열린 테스트 상담으로 팀 대기 알림이 갔을 수 있다.
+- API 호출 누적 약 255회. 실행 스크립트·테스트 페이지·결과 기록은 저장소가 아닌 세션 scratchpad에만 있다.
 
 ### 남아 있는 테스트 데이터 (정리 별도 승인)
 
@@ -437,7 +454,15 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 - T6 리드 `6abf3ef5223f5dee06e0`(`kimbm+chtest-20261002-t6@techasset.co.kr`), 상담 `6abf3ef540fea9336064`(열림, `웹 접수` 봇 비공개 내부대화 1건)
 - T4 리드 `6abf40b57e5935a2a90c`(unified), 회원 `6abf4193158d3381f6c9`(`zz-test-member-20261002-t4`, `kimbm+chtest-20261002-t4@techasset.co.kr`)
 - X12 리드 `6abf461c17151786c431`(unified), 회원 `6abf465ebf1733c354f8`(`zz-test-member-20261002-x12`, `kimbm+chtest-20261002-x12b@techasset.co.kr`, 태그 `zz-x12-m`·`zz-x12-l`)
-- T8 리드 `6abf538b8575e64ac808`(`t8-c1`, 상담 2), 브라우저 고객 `6abf5577af13436eb813`(`t8-c3`, 상담 1), `6abf6040dd58809279de`(`t8-c4`, 상담 1), `6abf64732e46b2047cac`(`t8-lk`), `6abf647425d8338976b9`(`t8-lc`), `6abf6474c98a36f4bfa4`(`t8-ld`, 랜딩 각 상담 1). 상담은 모두 열림, `웹 접수` 비공개 내부대화
-- T8 회원 `6abf6566d43222ac5413`(`zz-test-member-20261002-t8`, 현재 `firebaseUid`만)
+- T8 고객 11명·상담 13개. 상담은 모두 열림, `웹 접수` 비공개 내부대화
+  - S1 리드 `6abf538b8575e64ac808`(unified → S8 회원, Desk 이름 Clover 901), 상담 `6abf538bbff7a8d7108a`(S1)·`6abf538c59964e192a81`(S2)
+  - S3 브라우저 고객 `6abf5577af13436eb813`(`t8-c3`), 상담 `6abf60402e16abef20c6`
+  - S4 리드 `6abf6040dd58809279de`(`t8-c4`), 상담 `6abf6041183ab5b24de9`
+  - 랜딩 리드 `6abf64732e46b2047cac`(`t8-lk`)·`6abf647425d8338976b9`(`t8-lc`)·`6abf6474c98a36f4bfa4`(`t8-ld`), 상담 `6abf64737dbca25f0cce`·`6abf64744d0dd56141e7`·`6abf6474f294673fd9f1`
+  - S8 회원 `6abf6566d43222ac5413`(`zz-test-member-20261002-t8`, 이메일 `t8-c1`), 주문 상담 `6abf7507936120675304`·`6abf75086728e584d393`·`6abf770ea52bbfc87904`. `firstSource`·`businessType`·`referralSource`는 수정 전 PUT으로 지워진 상태
+  - (a) 브라우저 고객 `6abf6dac79de72f8c2e2`(unified → (a) 회원), 상담 `6abf6dc63c0a3b0a3291`
+  - (a) 회원 `6abf6dc70ef55bc28127`(`zz-test-member-20261002-t8u`, 이메일 `t8-ua`)
+  - S11 리드 `6ac45380e890c7f10d70`(X12 이메일 A `kimbm+chtest-20261002-x12a@techasset.co.kr`), 상담 `6ac453813c6966305f3c`
+  - S13 리드 `6ac453820718cc8c8c2c`(`t8-off`), 상담 `6ac4538248634ab1cc1d`
 - 봇 `웹 접수`(763292)는 운영용이라 정리 대상이 아니다
 - 0단계 테스트 API 키(로컬 `.env.local`). 폐기 예정
