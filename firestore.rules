@@ -59,9 +59,14 @@ service cloud.firestore {
     }
 
     // contact/{docId}: 비로그인 문의 폼 — create만 허용
+    // uid는 로그인 상태에서 본인 것만. 허용 필드 목록이 없어 이 검사 없이는 남의 uid로 문의를 붙일 수 있다.
+    // channelUserId는 브라우저 Channel Talk 사용자 id. 서버가 이메일로 다시 검증한다.
     match /contact/{docId} {
       allow create: if
-        request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'status', 'createdAt'])
+        (!('uid' in request.resource.data)
+          || (isSignedIn() && request.resource.data.uid == request.auth.uid))
+        && validLandingOptionalString('channelUserId', 64)
+        && request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'status', 'createdAt'])
         && request.resource.data.companyName is string
         && request.resource.data.companyName.size() > 0
         && request.resource.data.companyName.size() <= 200
@@ -124,19 +129,20 @@ service cloud.firestore {
         && validLandingOptionalString('utmContent', 200)
         && validLandingOptionalString('utmTerm', 200)
         && validLandingOptionalString('gaClientId', 200)
-        && validLandingOptionalString('userAgent', 1000);
+        && validLandingOptionalString('userAgent', 1000)
+        && validLandingOptionalString('channelUserId', 64);
     }
 
     match /landingRequests/{requestId} {
       allow create: if validLandingCommon()
         && ((request.resource.data.landingVariant == 'catalog'
-          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'catalogItems', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'catalogItems', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
           && validCatalogItems(request.resource.data.catalogItems))
           || (request.resource.data.landingVariant == 'dashboard'
-          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'dashboardBrief', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'dashboardBrief', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
           && request.resource.data.dashboardBrief is map)
           || (request.resource.data.landingVariant == 'korea'
-          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'referralSource', 'businessType', 'positioningArm', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])));
+          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'referralSource', 'businessType', 'positioningArm', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])));
       allow read, update, delete: if false;
     }
 
@@ -158,6 +164,10 @@ service cloud.firestore {
     }
     match /intakeReviews/{id} { allow read, write: if false; }
     match /ingestState/{account} { allow read, write: if false; }
+
+    // Channel Talk 연동 장부 — 서버(Admin SDK)만 접근한다.
+    match /channelTalkIdentities/{id} { allow read, write: if false; }
+    match /channelTalkSync/{id}       { allow read, write: if false; }
 
     // 그 외 모든 경로 차단
     match /{document=**} {

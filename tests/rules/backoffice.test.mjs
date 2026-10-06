@@ -5,6 +5,7 @@ import { getTestEnv } from "./helpers.mjs";
 
 const COLLECTIONS = [
   "buyers", "suppliers", "deals", "messages", "threads", "intakeReviews", "ingestState",
+  "channelTalkIdentities", "channelTalkSync",
 ];
 
 for (const col of COLLECTIONS) {

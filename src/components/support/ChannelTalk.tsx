@@ -3,12 +3,23 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { getFirebaseAuth, useMockAuth as isMockAuth } from "@/lib/firebase";
 import { getGaClientId } from "@/lib/ga-client-id";
 import {
   bootChannelTalkAsAnonymous,
   bootChannelTalkAsMember,
   syncChannelTalkRoute,
 } from "@/lib/channel-talk";
+
+/** member-hash 요청용 Firebase ID 토큰. 가짜 로그인 모드이거나 얻지 못하면 null(해시 없이 boot). */
+async function currentIdToken(): Promise<string | null> {
+  if (isMockAuth()) return null;
+  try {
+    return (await getFirebaseAuth().currentUser?.getIdToken()) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 type ChannelTalkProps = {
   pluginKey?: string;
@@ -35,7 +46,9 @@ export function ChannelTalk({ pluginKey, gaId }: ChannelTalkProps) {
         if (cancelled) return;
 
         if (user) {
-          await bootChannelTalkAsMember(key, user, gaClientId);
+          const idToken = await currentIdToken();
+          if (cancelled) return;
+          await bootChannelTalkAsMember(key, user, gaClientId, idToken);
         } else {
           await bootChannelTalkAsAnonymous(key, gaClientId);
         }

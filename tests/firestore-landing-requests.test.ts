@@ -159,6 +159,31 @@ test("rules require the variant payload to match landingVariant", async () => {
   );
 });
 
+test("every variant accepts an optional Channel Talk browser user id", async () => {
+  const channelUserId = "6abe09fe96c07cc647f8";
+  await assertSucceeds(
+    setDoc(await unauthenticatedDoc("catalog-channel"), catalogRequest({ channelUserId })),
+  );
+  await assertSucceeds(
+    setDoc(await unauthenticatedDoc("dashboard-channel"), dashboardRequest({ channelUserId })),
+  );
+  await assertSucceeds(
+    setDoc(await unauthenticatedDoc("korea-channel"), koreaRequest({ channelUserId })),
+  );
+});
+
+test("rules reject oversized or non-string Channel Talk user ids", async () => {
+  await assertFails(
+    setDoc(
+      await unauthenticatedDoc("channel-too-long"),
+      catalogRequest({ channelUserId: "x".repeat(65) }),
+    ),
+  );
+  await assertFails(
+    setDoc(await unauthenticatedDoc("channel-not-string"), koreaRequest({ channelUserId: 42 })),
+  );
+});
+
 test("rules reject spoofed non-timestamp server values", async () => {
   await assertFails(
     setDoc(

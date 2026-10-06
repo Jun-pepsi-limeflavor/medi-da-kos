@@ -9,6 +9,9 @@ import {
 import { trackConversionEvent } from "@/lib/analytics";
 import { getGaClientId } from "@/lib/ga-client-id";
 import { submitContactForm } from "@/lib/firestore-service";
+import { useAuth } from "@/lib/auth-context";
+import { getChannelTalkUserId } from "@/lib/channel-talk";
+import { contactIdentityFields } from "@/lib/channel-talk-intake";
 import { useUtmParams } from "@/hooks/use-utm-params";
 
 const inputClass =
@@ -19,6 +22,7 @@ const textareaClass = `${inputClass} min-h-[8.5rem] resize-y leading-relaxed`;
 const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
 
 export function ContactForm() {
+  const { user } = useAuth();
   const utmParams = useUtmParams();
 
   const [companyName, setCompanyName] = useState("");
@@ -59,6 +63,8 @@ export function ContactForm() {
         pageUrl: window.location.href,
         gaClientId: gaClientId ?? undefined,
         userAgent: navigator.userAgent,
+        // 로그인 회원이면 본인 uid, 브라우저 Channel 고객 id는 바로 얻을 수 있을 때만. 제출을 기다리게 하지 않는다.
+        ...contactIdentityFields({ uid: user?.uid, channelUserId: getChannelTalkUserId() }),
       });
 
       // 이름은 구글 권장명으로 통일한다. /korea 폼과 같은 행동이므로

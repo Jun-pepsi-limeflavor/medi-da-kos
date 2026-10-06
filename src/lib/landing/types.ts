@@ -36,6 +36,8 @@ export interface LandingRequestContext {
   pageUrl: string;
   gaClientId?: string;
   userAgent?: string;
+  /** 제출 브라우저에서 boot된 Channel 고객 id. 얻지 못하면 넣지 않는다(서버가 server_lead로 처리). */
+  channelUserId?: string;
 }
 
 export interface LandingRequestSubmission extends LandingContactFields, LandingRequestContext {
