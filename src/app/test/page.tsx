@@ -35,10 +35,15 @@ export default function TestPage() {
   const testChannelTalkHash = async () => {
     try {
       const auth = getFirebaseAuth();
-      const uid = auth.currentUser?.uid ?? "test-anonymous-uid";
+      const uid = auth.currentUser?.uid;
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!uid || !idToken) {
+        log("MemberHash", "⚠️ 로그인한 사용자만 본인 uid의 hash를 받을 수 있습니다");
+        return;
+      }
       const res = await fetch("/api/channel-talk/member-hash", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ memberId: uid }),
       });
       const data = await res.json();
@@ -46,7 +51,7 @@ export default function TestPage() {
         "MemberHash",
         data.memberHash
           ? `✅ API ok for uid ${uid} — hash ${String(data.memberHash).slice(0, 12)}...`
-          : `⚠️ hash not returned (secret missing?)`,
+          : `⚠️ hash not returned (${res.status} ${data.error ?? "secret missing?"})`,
       );
     } catch (e: unknown) {
       log(

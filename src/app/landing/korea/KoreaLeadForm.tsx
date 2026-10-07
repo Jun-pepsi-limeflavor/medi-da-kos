@@ -10,6 +10,8 @@ import {
 import { trackConversionEvent } from "@/lib/analytics";
 import { getGaClientId } from "@/lib/ga-client-id";
 import { submitLandingRequest } from "@/lib/landing/request";
+import { getChannelTalkUserId } from "@/lib/channel-talk";
+import { channelUserIdField } from "@/lib/channel-talk-intake";
 import { trackFormAbandon, trackFormStart } from "./analytics";
 
 /** 폼이 죽었을 때의 대체 경로. 콜드메일 발신 계정이라 회신 스레드와 같은 곳으로 간다. */
@@ -129,6 +131,7 @@ export function KoreaLeadForm({
           pageUrl: window.location.href,
           gaClientId: gaClientId ?? undefined,
           userAgent: navigator.userAgent,
+          ...channelUserIdField(getChannelTalkUserId()),
         },
       );
 
@@ -138,6 +141,7 @@ export function KoreaLeadForm({
         form_id: "coldmail-landing",
         lead_type: "quote",
         positioning_arm: positioningArm,
+        landing_variant: "korea",
         expected_volume: expectedVolume,
         is_test: lead.isTest,
         utm_source: utm.utmSource,

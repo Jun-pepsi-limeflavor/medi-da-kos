@@ -198,8 +198,9 @@ export function CatalogLanding() {
           <div><strong>{selected.length} item{selected.length === 1 ? "" : "s"} selected</strong>{selected.length > 0 ? <div className="mt-1 flex flex-wrap gap-2">{selected.map((item) => <button type="button" onClick={() => setSelected((items) => items.filter((selectedItem) => selectedItem.id !== item.id))} key={item.id} className="rounded-full bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">{item.name} ×</button>)}</div> : <p className="mt-1 text-sm text-slate-600">Add at least one product to start a consultation.</p>}</div>
           <SpecularButton
             data-catalog-consultation-cta
+            data-cta="request_consultation"
             disabled={selected.length === 0}
-            onClick={() => { setFormItems(selected); setForm(true); }}
+            onClick={() => { trackLandingEvent("cta_click", "catalog", { cta_id: "request_consultation" }); setFormItems(selected); setForm(true); }}
             size="sm"
             radius={8}
             textColor="#f8fafc"
@@ -222,7 +223,7 @@ export function CatalogLanding() {
           <div data-catalog-dialog-panel className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex justify-between gap-4"><div><p className="text-sm capitalize text-sky-700">{detail.category}</p><h2 className="mt-1 text-2xl font-semibold">{detail.name}</h2></div><button type="button" onClick={closeDetail} className="rounded p-2 text-slate-600 hover:bg-slate-100" aria-label="Close product details">×</button></div>
             <div className="mt-5 grid gap-4 text-sm leading-relaxed text-slate-700"><Detail label="Description" value={detail.description} /><Detail label="What makes it different" value={detail.differentiators} /><Detail label="Technology" value={detail.technology} /><Detail label="Key ingredients" value={detail.keyIngredients} /><Detail label="How to use" value={detail.howToUse} /></div>
-            <div className="mt-6 flex gap-3"><button type="button" onClick={() => { const next = selectProduct(detail); if (next) { setFormItems(next); setForm(true); } }} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Discuss this product</button><button type="button" onClick={() => { selectProduct(detail); }} className="rounded-lg border border-slate-300 px-4 py-2 font-semibold">Add to consultation</button></div>
+            <div className="mt-6 flex gap-3"><button type="button" onClick={() => { const next = selectProduct(detail); if (next) { trackLandingEvent("cta_click", "catalog", { cta_id: "discuss_product" }); setFormItems(next); setForm(true); } }} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Discuss this product</button><button type="button" onClick={() => { selectProduct(detail); }} className="rounded-lg border border-slate-300 px-4 py-2 font-semibold">Add to consultation</button></div>
           </div>
         </div>
       )}

@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { submitLandingRequest, validateLandingContact } from "@/lib/landing/request";
+import { getChannelTalkUserId } from "@/lib/channel-talk";
+import { channelUserIdField } from "@/lib/channel-talk-intake";
 import { trackLandingEvent } from "@/lib/landing/analytics";
+import { consultationLeadParams, LANDING_CONSULTATION_FORM_ID } from "@/lib/landing/lead-event";
 import type { LandingCatalogItem, LandingRequestInput, LandingVariant } from "@/lib/landing/types";
 import type { CMBrief } from "@/lib/types";
 import { useLandingAttribution } from "./useLandingAttribution";
@@ -16,6 +19,9 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
   const [fields, setFields] = useState({ companyName: "", contactName: "", email: "", country: "", expectedVolume: "", message: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof fields, string>>>({});
   const [failure, setFailure] = useState(""); const [sending, setSending] = useState(false); const [complete, setComplete] = useState(false);
+  const startedRef = useRef(false);
+  const lastFieldRef = useRef("");
+  const submittedRef = useRef(false);
   useEffect(() => {
     if (shouldReduceLandingMotion() || !formRef.current) return;
     const context = gsap.context(() => {
@@ -25,6 +31,24 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
     }, formRef);
     return () => context.revert();
   }, []);
+  // 폼까지 온 사람. 폼을 열 때마다 1회 — GA 퍼널은 세션 단위로 센다.
+  useEffect(() => {
+    trackLandingEvent("form_view", variant, { form_id: LANDING_CONSULTATION_FORM_ID });
+  }, [variant]);
+  // korea KoreaLeadForm과 같은 이탈 기준. 입력값이 아니라 필드 이름만 보낸다.
+  useEffect(() => {
+    const onLeave = () => {
+      if (!startedRef.current || submittedRef.current) return;
+      startedRef.current = false;
+      trackLandingEvent("form_abandon", variant, {
+        form_id: LANDING_CONSULTATION_FORM_ID,
+        last_field: lastFieldRef.current || "(unknown)",
+        transport_type: "beacon",
+      });
+    };
+    window.addEventListener("pagehide", onLeave);
+    return () => window.removeEventListener("pagehide", onLeave);
+  }, [variant]);
   if (complete) return <ConsultationSuccess />;
   function change(key: keyof typeof fields, value: string) { setFields((current) => ({ ...current, [key]: value })); }
   async function submit(event: React.FormEvent) {
@@ -35,7 +59,7 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
       : { ...fields, landingVariant: "dashboard", dashboardBrief: dashboardBrief! };
     setSending(true);
     try {
-      await submitLandingRequest(input, attribution);
+      await submitLandingRequest(input, { ...attribution, ...channelUserIdField(getChannelTalkUserId()) });
       trackLandingEvent("consultation_submit", variant, {
         expected_volume: fields.expectedVolume,
         utm_source: attribution.utmSource,
@@ -43,6 +67,9 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
         utm_campaign: attribution.utmCampaign,
         utm_content: attribution.utmContent,
       });
+      // 세 랜딩 공통 비교용. 위 consultation_submit은 기존 보고서 때문에 유지한다.
+      trackLandingEvent("generate_lead", variant, consultationLeadParams(fields.expectedVolume, attribution));
+      submittedRef.current = true;
       setComplete(true);
     } catch (error) {
       console.error("[ConsultationForm error]", error);
@@ -52,5 +79,5 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
     }
   }
   const labels: Array<[keyof typeof fields, string, boolean]> = [["companyName", "Company / brand name", true], ["contactName", "Contact name", true], ["email", "Work email", true], ["country", "Country", true], ["expectedVolume", "Expected order quantity", true], ["message", "Message", false]];
-  return <section ref={formRef} className="mx-auto max-w-2xl rounded-2xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8"><div data-consultation-heading className="mb-6">{onBack && <button type="button" onClick={onBack} className="mb-4 text-sm font-medium text-sky-700 underline">Back to brief</button>}<h2 className="text-2xl font-semibold">Talk with our team</h2><p className="mt-2 text-slate-600">Share a few details and we will follow up by email.</p></div><form noValidate onSubmit={submit} className="space-y-5">{labels.map(([key, label, required]) => <label key={key} data-consultation-field className="block text-sm font-medium text-slate-700">{label}{required && " *"}{key === "message" ? <textarea value={fields[key]} onChange={(e) => change(key, e.target.value)} aria-describedby={errors[key] ? `${key}-error` : undefined} className="mt-2 min-h-28 w-full rounded-lg border border-slate-300 px-3 py-2" /> : <input type={key === "email" ? "email" : "text"} value={fields[key]} onChange={(e) => change(key, e.target.value)} aria-describedby={errors[key] ? `${key}-error` : undefined} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2" />}{errors[key] && <span id={`${key}-error`} className="mt-1 block text-sm text-red-700">{errors[key]}</span>}</label>)}{failure && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800" role="alert">{failure}</p>}<button data-consultation-submit disabled={sending} className="w-full rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60">{sending ? "Sending…" : "Send consultation request"}</button></form></section>;
+  return <section ref={formRef} className="mx-auto max-w-2xl rounded-2xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8"><div data-consultation-heading className="mb-6">{onBack && <button type="button" onClick={onBack} className="mb-4 text-sm font-medium text-sky-700 underline">Back to brief</button>}<h2 className="text-2xl font-semibold">Talk with our team</h2><p className="mt-2 text-slate-600">Share a few details and we will follow up by email.</p></div><form noValidate onSubmit={submit} onFocusCapture={(e) => { const field = (e.target as HTMLElement).getAttribute("name"); if (field) lastFieldRef.current = field; if (startedRef.current) return; startedRef.current = true; trackLandingEvent("form_start", variant, { form_id: LANDING_CONSULTATION_FORM_ID }); }} className="space-y-5">{labels.map(([key, label, required]) => <label key={key} data-consultation-field className="block text-sm font-medium text-slate-700">{label}{required && " *"}{key === "message" ? <textarea name={key} value={fields[key]} onChange={(e) => change(key, e.target.value)} aria-describedby={errors[key] ? `${key}-error` : undefined} className="mt-2 min-h-28 w-full rounded-lg border border-slate-300 px-3 py-2" /> : <input name={key} type={key === "email" ? "email" : "text"} value={fields[key]} onChange={(e) => change(key, e.target.value)} aria-describedby={errors[key] ? `${key}-error` : undefined} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2" />}{errors[key] && <span id={`${key}-error`} className="mt-1 block text-sm text-red-700">{errors[key]}</span>}</label>)}{failure && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800" role="alert">{failure}</p>}<button data-consultation-submit disabled={sending} className="w-full rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:opacity-60">{sending ? "Sending…" : "Send consultation request"}</button></form></section>;
 }
