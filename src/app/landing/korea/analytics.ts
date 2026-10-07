@@ -34,8 +34,9 @@ export function setKoreaArm(arm: string) {
   armForSession = arm;
 }
 
+/** `landing_variant`는 catalog·dashboard와 같은 축으로 비교하기 위한 값. 기존 파라미터는 그대로다. */
 function track(event: string, params: Record<string, unknown>) {
-  trackConversionEvent(event, { ...params, positioning_arm: armForSession });
+  trackConversionEvent(event, { ...params, positioning_arm: armForSession, landing_variant: "korea" });
 }
 
 /** 세로 스크롤 도달률. 25/50/75/100 각각 1회씩. */
