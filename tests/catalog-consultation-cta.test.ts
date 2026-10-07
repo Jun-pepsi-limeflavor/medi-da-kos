@@ -16,7 +16,7 @@ test("catalog consultation CTA uses the WebGL specular button without changing i
 
   assert.match(catalogLanding, /import \{ SpecularButton \} from "\.\/SpecularButton";/);
   assert.match(catalogLanding, /<SpecularButton[\s\S]*disabled=\{selected\.length === 0\}/);
-  assert.match(catalogLanding, /<SpecularButton[\s\S]*onClick=\{\(\) => \{ setFormItems\(selected\); setForm\(true\); \}\}/);
+  assert.match(catalogLanding, /<SpecularButton[\s\S]*onClick=\{\(\) => \{ trackLandingEvent\("cta_click", "catalog", \{ cta_id: "request_consultation" \}\); setFormItems\(selected\); setForm\(true\); \}\}/);
   assert.match(catalogLanding, /intensity=\{1\.7\}/);
   assert.match(catalogLanding, /shineSize=\{22\}/);
   assert.match(catalogLanding, /shineFade=\{58\}/);

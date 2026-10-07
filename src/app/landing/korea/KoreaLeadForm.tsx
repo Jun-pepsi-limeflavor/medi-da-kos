@@ -141,6 +141,7 @@ export function KoreaLeadForm({
         form_id: "coldmail-landing",
         lead_type: "quote",
         positioning_arm: positioningArm,
+        landing_variant: "korea",
         expected_volume: expectedVolume,
         is_test: lead.isTest,
         utm_source: utm.utmSource,

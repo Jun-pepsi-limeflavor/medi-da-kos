@@ -1,2 +1,3 @@
 import { CatalogLanding } from "@/components/landing/CatalogLanding";
-export default function CatalogPage() { return <CatalogLanding />; }
+import { LandingSignals } from "@/components/landing/LandingSignals";
+export default function CatalogPage() { return <><LandingSignals variant="catalog" /><CatalogLanding /></>; }
