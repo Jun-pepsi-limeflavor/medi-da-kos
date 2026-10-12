@@ -218,7 +218,9 @@
 - **연동 스위치 `CHANNELTALK_INTAKE_ENABLED`(기본 `false`)**
   - 꺼져 있으면 트리거는 실제 연동 대상 제출을 `status=pending`, `pendingReason=intake_disabled`, `nextRetryAt=제출 시각`, `attempts=0`으로 기록하고 Channel Talk을 호출하지 않는다. 일반 `isTest` 제출은 지금처럼 `skipped`(`skipReason=is_test`)로 확정한다.
   - 꺼져 있으면 `channelTalkRetry`는 아무것도 읽거나 바꾸지 않고 끝난다. 대기 건과 `error` 건의 `attempts`를 소모하지 않는다.
-  - 켜면 다음 재시도부터 기간 제한 없이 `nextRetryAt`이 오래된 순으로 처리한다. 처음 처리권을 잡을 때 `pendingReason`을 지우고 그때부터 `attempts` 1회로 센다.
+  - **꺼져 있는 동안 쌓인 `intake_disabled` 기록은 켠 뒤에도 자동 처리하지 않는다(2026-10-12 변경).** 재시도 대상에서 빠지고, 같은 생성 이벤트가 다시 와도 처리권 판정이 `held`를 돌려주며 기록을 바꾸지 않는다. 기록은 지우지 않고 기존 고객 이관(V2)에서 `pendingReason == "intake_disabled"`로 찾아 따로 다룬다. 켠 뒤의 신규 제출과 그 실패 재시도(`error`, 최대 12회), 가입 중복 판정 지연(`dup_check_delayed`)은 그대로 처리한다.
+  - 켜기 전에 보류 기록의 `nextRetryAt`을 비우고 `heldReason: "pre_activation"`, `heldAt`을 남긴다(별도 승인). 보류 기록이 재시도 조회 상한(`limit×2`)을 채워 신규 재시도가 밀리는 것을 막는다.
+  - 켜는 배포가 퍼지는 동안 아직 꺼진 설정으로 뜬 인스턴스가 받은 제출도 `intake_disabled`로 보류된다. 배포 직후 "배포 시작 시각 이후 `createdAt`인 `intake_disabled` 기록"을 조회해 있으면 건별로 판단한다.
 - 비밀: 웹 접수 전용 키를 새로 발급해 Secret Manager `CHANNELTALK_INTAKE_ACCESS_KEY`, `CHANNELTALK_INTAKE_ACCESS_SECRET`. 발급·등록은 구현 테스트 직전에 담당자가 직접 입력. 기존 `CHANNELTALK_ACCESS_KEY`·`CHANNELTALK_ACCESS_SECRET`(수집기)과 0단계 테스트 키는 쓰지 않는다.
 - 일반 설정(`functions/.env`): API 버전 `2026-06-01`, 봇 이름, 내부 계정 도메인 3개, 테스트 허용 도메인 `techasset.co.kr`(5장).
 - 회원 해시 비밀값은 기존대로 Vercel.
@@ -261,7 +263,7 @@
 | `steps` | map | `identity`, `profile`, `chat`, `note`, `open`, `dupTag` → `pending` / `done` / `skipped` / `error`. `chat`은 `creating`, `identity`는 `creating_lead`, `dupTag`는 `deferred`(가입 직후 판정 미룸) 추가 |
 | `status` | string | `pending` / `processing` / `success` / `error` / `skipped` / `failed`. `error`는 자동 재시도 대상, `failed`는 자동 재시도 종료·사람 확인 필요(재시도 스캔에서 제외) |
 | `skipReason` | string \| null | 예: `is_test` |
-| `pendingReason` | string \| null | 처리 대기 이유. 스위치가 꺼져 있어 대기 중이면 `intake_disabled`, 가입 직후 중복 판정을 미룬 중이면 `dup_check_delayed`. 처리권을 잡을 때 지운다. `skipped`(영구 제외)와 구분된다 |
+| `pendingReason` | string \| null | 처리 대기 이유. 스위치가 꺼져 있어 대기 중이면 `intake_disabled`, 가입 직후 중복 판정을 미룬 중이면 `dup_check_delayed`. 처리권을 잡을 때 지운다. 단 `intake_disabled`는 켠 뒤에도 처리권을 잡지 않으므로 그대로 남는다(7장). `skipped`(영구 제외)와 구분된다 |
 | `flags` | map | `{ test, internal }` |
 | `profileResult` | map | `{ applied: string[], skipped: { 필드: 사유 } }` |
 | `attempts` | number | 최초 처리를 포함한 자동 처리 시도 횟수. **12회**에 도달한 시도가 실패하면 `failed`로 바꾸고 `nextRetryAt`을 비운다 |

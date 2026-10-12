@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const {
   DUP_CHECK_DELAY_MS,
+  INTAKE_DISABLED,
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
   afterFailure,
@@ -10,6 +11,7 @@ const {
   deferDupCheck,
   initialSyncDoc,
   isComplete,
+  isHeldBeforeActivation,
   isLeaseActive,
   isRetryDue,
   leadRetryFlags,
@@ -94,6 +96,18 @@ test("재시도 대상: 시각이 된 error·멈춘 pending/processing만, faile
   assert.equal(isRetryDue(null, NOW), false);
 });
 
+test("재시도 대상: OFF 기간 보류 건은 시각이 지나도, 비워도 제외. 신규 건 실패·가입 판정 지연은 그대로", () => {
+  const due = NOW - 1;
+  assert.equal(isRetryDue({ status: "pending", pendingReason: "intake_disabled", nextRetryAt: due }, NOW), false);
+  assert.equal(isRetryDue({ status: "pending", pendingReason: "intake_disabled", nextRetryAt: null }, NOW), false);
+  assert.equal(isRetryDue({ status: "error", pendingReason: null, nextRetryAt: due }, NOW), true);
+  assert.equal(isRetryDue({ status: "pending", pendingReason: "dup_check_delayed", nextRetryAt: due }, NOW), true);
+  assert.equal(isHeldBeforeActivation({ pendingReason: "intake_disabled" }), true);
+  assert.equal(isHeldBeforeActivation({ pendingReason: "dup_check_delayed" }), false);
+  assert.equal(isHeldBeforeActivation(null), false);
+  assert.equal(INTAKE_DISABLED, "intake_disabled");
+});
+
 test("서버 리드 생성이 애매하게 끝난 뒤 재시도하면 possibleOrphanLead", () => {
   assert.deepEqual(leadRetryFlags({ identity: "creating_lead" }), { possibleOrphanLead: true });
   assert.deepEqual(leadRetryFlags({ identity: "pending" }), { possibleOrphanLead: false });
@@ -137,13 +151,27 @@ test("처리권: 스위치가 꺼져 있으면 pending + intake_disabled, nextRe
   assert.equal(result.create.leaseUntil, null);
 });
 
-test("처리권: 대기 중이던 건은 켜진 뒤 pendingReason을 지우고 1회째로 처리", () => {
+test("처리권: OFF 기간 보류 건(intake_disabled)은 켜진 뒤 다시 와도 held, 기록을 바꾸지 않는다", () => {
   const deferred = decideClaim({ ...claimBase, existing: null, classification: syncable, enabled: false }).create;
-  const result = decideClaim({ ...claimBase, existing: deferred, classification: syncable, enabled: true });
-  assert.equal(result.action, "process");
-  assert.equal(result.patch.attempts, 1);
-  assert.equal(result.patch.pendingReason, null);
-  assert.equal(result.patch.status, "processing");
+  for (const enabled of [true, false]) {
+    const result = decideClaim({ ...claimBase, existing: deferred, classification: syncable, enabled, nowMs: NOW + 60 * 60 * 1000 });
+    assert.deepEqual(result, { action: "held" }, `enabled=${enabled}`);
+  }
+  // ② 보류 표시로 nextRetryAt을 비워도 같다
+  const marked = { ...deferred, nextRetryAt: null, heldReason: "pre_activation" };
+  assert.deepEqual(decideClaim({ ...claimBase, existing: marked, classification: syncable, enabled: true }), { action: "held" });
+});
+
+test("처리권: 켜진 뒤 신규 건의 실패(error)·멈춘 pending은 그대로 다시 처리한다", () => {
+  for (const existing of [
+    { status: "error", attempts: 2, pendingReason: null },
+    { status: "pending", attempts: 1, pendingReason: null },
+    { status: "processing", attempts: 1, pendingReason: null, leaseUntil: NOW - 1 },
+  ]) {
+    const result = decideClaim({ ...claimBase, existing, classification: syncable, enabled: true });
+    assert.equal(result.action, "process", existing.status);
+    assert.equal(result.patch.attempts, existing.attempts + 1);
+  }
 });
 
 test("처리권: 꺼져 있으면 기존 건(pending·error)을 건드리지 않는다", () => {

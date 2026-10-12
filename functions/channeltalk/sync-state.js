@@ -23,6 +23,9 @@ const MAX_ATTEMPTS = 12;
 // 같은 브라우저 리드를 회원에 통합한다(T4·X12). 재시도 주기와 같게 두면 다음 channelTalkRetry가 판정한다.
 const DUP_CHECK_DELAY_MS = RETRY_INTERVAL_MS;
 const DUP_CHECK_DELAYED = "dup_check_delayed";
+// 스위치가 꺼져 있는 동안 만든 기록의 pendingReason. 켜진 뒤에도 자동 처리하지 않는다.
+// 기록은 지우지 않고 남겨 기존 고객 이관(V2)에서 따로 다룬다.
+const INTAKE_DISABLED = "intake_disabled";
 
 function stepsFor(source) {
   const steps = STEPS_BY_SOURCE[source];
@@ -118,9 +121,15 @@ function deferDupCheck(nowMs, delayMs = DUP_CHECK_DELAY_MS) {
 // 처리 중에 함수가 멈추면 status가 pending·processing으로 남는다. 잠금이 풀린 뒤 다시 집는다.
 const RETRYABLE_STATUSES = new Set(["pending", "processing", "error"]);
 
-/** 재시도 스캔이 집을 건인가. failed·success·skipped와 잠금 중인 건은 제외한다. */
+/** 스위치가 꺼져 있던 동안 보류한 기록인가. 상태와 무관하게 pendingReason으로만 판단한다. */
+function isHeldBeforeActivation(doc) {
+  return Boolean(doc) && doc.pendingReason === INTAKE_DISABLED;
+}
+
+/** 재시도 스캔이 집을 건인가. failed·success·skipped, OFF 기간 보류 건, 잠금 중인 건은 제외한다. */
 function isRetryDue(doc, nowMs) {
   if (!doc || !RETRYABLE_STATUSES.has(doc.status)) return false;
+  if (isHeldBeforeActivation(doc)) return false;
   const due = toMillis(doc.nextRetryAt);
   if (due === null || due > nowMs) return false;
   return !isLeaseActive(doc.leaseUntil, nowMs);
@@ -148,7 +157,7 @@ function decideClaim({ existing, source, docId, email = null, uid = null, classi
     if (!enabled) {
       return {
         action: "defer",
-        create: { ...base, pendingReason: "intake_disabled", nextRetryAt: Number.isFinite(submittedAtMs) ? submittedAtMs : nowMs },
+        create: { ...base, pendingReason: INTAKE_DISABLED, nextRetryAt: Number.isFinite(submittedAtMs) ? submittedAtMs : nowMs },
       };
     }
     return {
@@ -158,6 +167,8 @@ function decideClaim({ existing, source, docId, email = null, uid = null, classi
   }
 
   if (TERMINAL_STATUSES.has(existing.status)) return { action: "none" };
+  // OFF 기간 기록은 켜진 뒤 트리거가 다시 와도 처리하지 않는다. 기록도 바꾸지 않는다.
+  if (isHeldBeforeActivation(existing)) return { action: "held" };
   if (isLeaseActive(existing.leaseUntil, nowMs)) return { action: "none" };
   // 중복 판정을 미루는 중에는 같은 이벤트가 다시 와도 시각 전에 처리하지 않는다.
   const due = toMillis(existing.nextRetryAt);
@@ -194,6 +205,7 @@ function leadRetryFlags(steps) {
 module.exports = {
   DUP_CHECK_DELAYED,
   DUP_CHECK_DELAY_MS,
+  INTAKE_DISABLED,
   LEASE_MS,
   MAX_ATTEMPTS,
   RETRY_INTERVAL_MS,
@@ -201,6 +213,7 @@ module.exports = {
   decideClaim,
   deferDupCheck,
   initialSyncDoc,
+  isHeldBeforeActivation,
   isRetryDue,
   isComplete,
   isLeaseActive,
