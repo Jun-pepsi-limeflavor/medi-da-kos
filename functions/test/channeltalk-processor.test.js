@@ -5,7 +5,7 @@ const { ChannelTalkApiError } = require("../channeltalk/api");
 const { emailKey, normalizeEmail } = require("../channeltalk/email");
 const { applyIdentityRecord, applyUnifiedRecord } = require("../channeltalk/identity");
 const { PreClaimError, handleTriggerEvent, processSubmission, runRetryBatch } = require("../channeltalk/processor");
-const { decideClaim, isRetryDue, syncDocId } = require("../channeltalk/sync-state");
+const { decideClaim, initialSyncDoc, isRetryDue, syncDocId } = require("../channeltalk/sync-state");
 
 const T0 = Date.parse("2026-10-02T01:00:00.000Z");
 const CONFIG = {
@@ -356,7 +356,7 @@ test("허용 테스트 이메일은 isTest여도 연동하고 [TEST]를 붙인�
   assert.ok(api.chats.get(sync.userChatId).messages[0].plainText.startsWith("[TEST] [Contact 문의]"));
 });
 
-test("스위치가 꺼져 있으면 pending(intake_disabled)으로 기록하고, 켜진 뒤 재시도가 처리한다", async () => {
+test("스위치가 꺼져 있으면 pending(intake_disabled)으로 기록하고, 켜진 뒤에도 재시도·트리거 재실행이 처리하지 않는다", async () => {
   const off = setup({ config: { ...CONFIG, enabled: false } });
   off.deps.api = null; // 꺼져 있으면 API를 만들지 않는다
   const result = await processSubmission({ source: "contact", docId: "d1", data: contact, deps: off.deps });
@@ -372,21 +372,53 @@ test("스위치가 꺼져 있으면 pending(intake_disabled)으로 기록하고,
   assert.deepEqual(off.store.calls, []); // 꺼져 있으면 재시도 대상도 읽지 않는다
 
   off.store.sources.contact = { d1: contact };
-  const on = { ...off.deps, api: fakeApi(off.now), config: CONFIG };
+  const before = structuredClone(syncOf(off.store, "contact", "d1"));
+  const onApi = fakeApi(off.now);
+  const on = { ...off.deps, api: onApi, config: CONFIG };
+  off.now.advance(60 * 60 * 1000);
   const batch = await runRetryBatch({ deps: on });
-  assert.deepEqual(batch.processed, [{ source: "contact", docId: "d1", outcome: "success" }]);
-  const done = syncOf(off.store, "contact", "d1");
-  assert.equal(done.pendingReason, null);
-  assert.equal(done.attempts, 1);
+  assert.deepEqual(batch.processed, []);
+
+  // Firebase가 예전 생성 이벤트를 다시 보내도 처리하지 않고 기록도 그대로다.
+  const rerun = await handleTriggerEvent({ source: "contact", docId: "d1", data: contact, deps: on, log: { log() {}, error() {} } });
+  assert.equal(rerun.outcome, "held");
+  assert.deepEqual(onApi.calls, []);
+  assert.deepEqual(syncOf(off.store, "contact", "d1"), before);
 });
+
+test("켜진 뒤 신규 건은 바로 처리하고, 실패하면 재시도가 처리한다. 옆의 OFF 보류 건은 그대로", async () => {
+  const { api, store, deps, now } = setup({ sources: { contact: { old: contact, fresh: contact } } });
+  await processSubmission({ source: "contact", docId: "old", data: contact, deps: { ...deps, config: { ...CONFIG, enabled: false }, api: null } });
+  const held = structuredClone(syncOf(store, "contact", "old"));
+
+  api.failures.createUserChat = () => { throw rejected(); };
+  const first = await processSubmission({ source: "contact", docId: "fresh", data: contact, deps });
+  assert.equal(first.outcome, "error");
+  assert.equal(syncOf(store, "contact", "fresh").status, "error");
+  delete api.failures.createUserChat;
+
+  now.advance(10 * 60 * 1000);
+  const batch = await runRetryBatch({ deps });
+  assert.deepEqual(batch.processed, [{ source: "contact", docId: "fresh", outcome: "success" }]);
+  assert.equal(syncOf(store, "contact", "fresh").attempts, 2);
+  assert.deepEqual(syncOf(store, "contact", "old"), held);
+});
+
+/** 켜진 뒤 처리하다 실패해 재시도를 기다리는 기록. */
+function seedError(store, docId, nextRetryAtMs) {
+  store.sync.set(syncDocId("contact", docId), {
+    ...initialSyncDoc({ source: "contact", docId, email: contact.email, nowMs: T0 }),
+    status: "error",
+    attempts: 1,
+    nextRetryAt: nextRetryAtMs,
+  });
+}
 
 test("재시도는 오래된 순, 한 번에 최대 limit건", async () => {
   const { store, deps, now } = setup({ sources: { contact: {} } });
-  const offDeps = { ...deps, config: { ...CONFIG, enabled: false }, api: null };
   for (let i = 0; i < 5; i += 1) {
-    const data = { ...contact, createdAt: new Date(T0 - (5 - i) * 60000).toISOString() };
-    store.sources.contact[`q${i}`] = data;
-    await processSubmission({ source: "contact", docId: `q${i}`, data, deps: offDeps });
+    store.sources.contact[`q${i}`] = contact;
+    seedError(store, `q${i}`, T0 - (5 - i) * 60000);
   }
   now.advance(1000);
   const batch = await runRetryBatch({ deps, limit: 3 });
@@ -734,14 +766,13 @@ test("마지막 success 기록만 실패하면 던지지 않고, 재시도가 AP
 
 test("재시도 묶음에서 한 건이 처리권 잡기 전에 실패해도 다음 건은 계속 처리한다", async () => {
   const { store, deps, now } = setup({ sources: { contact: { r1: contact, r2: contact } } });
-  const offDeps = { ...deps, config: { ...CONFIG, enabled: false }, api: null };
-  await processSubmission({ source: "contact", docId: "r1", data: contact, deps: offDeps });
-  await processSubmission({ source: "contact", docId: "r2", data: { ...contact, createdAt: "2026-10-02T00:59:30.000Z" }, deps: offDeps });
+  seedError(store, "r1", T0 - 60000);
+  seedError(store, "r2", T0 - 30000);
   store.failures.claim = once();
   now.advance(1000);
   const batch = await runRetryBatch({ deps });
   assert.deepEqual(batch.processed.map((p) => p.outcome), ["pre_claim_error", "success"]);
-  assert.equal(syncOf(store, "contact", "r1").status, "pending"); // 다음 실행이 다시 집는다
+  assert.equal(syncOf(store, "contact", "r1").status, "error"); // 다음 실행이 다시 집는다
   const next = await runRetryBatch({ deps });
   assert.deepEqual(next.processed.map((p) => [p.docId, p.outcome]), [["r1", "success"]]);
 });

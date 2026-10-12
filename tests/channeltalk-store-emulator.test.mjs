@@ -87,21 +87,71 @@ test("매핑: 첫 고객은 대표, 다른 고객은 otherChannelUserIds, 회원
   assert.equal(updated.firstSource, "contact");
 });
 
-test("재시도 조회: nextRetryAt이 지난 건만 오래된 순, failed·lease 중은 제외", async () => {
+/** 켜진 뒤 처리하다 실패해 재시도를 기다리는 기록을 만든다. */
+async function seedRetry(docId, patch) {
+  track(SYNC, `contact_${docId}`);
+  await store.claim({ source: "contact", docId, email: "a@example.com", classification: syncable, enabled: true, nowMs: NOW });
+  await store.updateSync("contact", docId, { status: "error", leaseUntil: null, ...patch }, NOW);
+}
+
+/** 스위치가 꺼져 있던 동안의 보류 기록을 만든다. */
+async function seedHeld(docId, submittedAtMs) {
+  track(SYNC, `contact_${docId}`);
+  await store.claim({ source: "contact", docId, email: "a@example.com", classification: syncable, enabled: false, nowMs: NOW, submittedAtMs });
+}
+
+test("재시도 조회: nextRetryAt이 지난 건만 오래된 순, failed·lease 중·OFF 보류 건은 제외", async () => {
   const base = `r-${randomUUID()}`;
-  const ids = [`${base}-old`, `${base}-new`, `${base}-failed`, `${base}-leased`, `${base}-future`];
-  ids.forEach((id) => track(SYNC, `contact_${id}`));
+  const ids = [`${base}-old`, `${base}-new`, `${base}-failed`, `${base}-leased`, `${base}-future`, `${base}-held`];
   const far = NOW - 365 * 24 * 60 * 60 * 1000; // 다른 테스트 문서보다 앞서도록 아주 오래된 시각
-  await store.claim({ source: "contact", docId: ids[0], email: "a@example.com", classification: syncable, enabled: false, nowMs: NOW, submittedAtMs: far });
-  await store.claim({ source: "contact", docId: ids[1], email: "a@example.com", classification: syncable, enabled: false, nowMs: NOW, submittedAtMs: far + 1000 });
-  await store.claim({ source: "contact", docId: ids[2], email: "a@example.com", classification: syncable, enabled: false, nowMs: NOW, submittedAtMs: far });
-  await store.updateSync("contact", ids[2], { status: "failed", nextRetryAt: null }, NOW);
-  await store.claim({ source: "contact", docId: ids[3], email: "a@example.com", classification: syncable, enabled: false, nowMs: NOW, submittedAtMs: far });
-  await store.updateSync("contact", ids[3], { status: "processing", leaseUntil: NOW + 60000 }, NOW);
-  await store.claim({ source: "contact", docId: ids[4], email: "a@example.com", classification: syncable, enabled: false, nowMs: NOW, submittedAtMs: NOW + 60000 });
+  await seedRetry(ids[0], { nextRetryAt: far + 1000 });
+  await seedRetry(ids[1], { nextRetryAt: far + 2000 });
+  await seedRetry(ids[2], { status: "failed", nextRetryAt: null });
+  await seedRetry(ids[3], { status: "processing", leaseUntil: NOW + 60000, nextRetryAt: far });
+  await seedRetry(ids[4], { nextRetryAt: NOW + 60000 });
+  await seedHeld(ids[5], far);
 
   const due = (await store.listRetryDue(NOW, 50)).map((doc) => doc.docId).filter((id) => id.startsWith(base));
   assert.deepEqual(due, [ids[0], ids[1]]);
+});
+
+test("OFF 보류 건: 켜진 뒤 처리권을 다시 잡아도 held, 문서는 한 글자도 바뀌지 않는다", async () => {
+  const docId = `held-${randomUUID()}`;
+  await seedHeld(docId, NOW - 1000);
+  const ref = db.collection(SYNC).doc(`contact_${docId}`);
+  const before = (await ref.get()).data();
+  const result = await store.claim({ source: "contact", docId, email: "a@example.com", classification: syncable, enabled: true, nowMs: NOW + 60 * 60 * 1000 });
+  assert.equal(result.action, "held");
+  assert.deepEqual((await ref.get()).data(), before);
+});
+
+test("OFF 보류 건이 조회 상한(limit×2)을 채우면 신규 재시도가 밀린다. nextRetryAt을 비우면(② 보류 표시) 다시 나온다", async () => {
+  const base = `starve-${randomUUID()}`;
+  const oldest = NOW - 600 * 24 * 60 * 60 * 1000; // 다른 테스트 문서보다 앞서도록
+  const limit = 5; // 조회 상한 10건
+  const heldIds = Array.from({ length: limit * 2 }, (_, i) => `${base}-held-${i}`);
+  for (const [i, id] of heldIds.entries()) await seedHeld(id, oldest + i);
+  const retryId = `${base}-retry`;
+  await seedRetry(retryId, { nextRetryAt: oldest + 1000 });
+
+  const blocked = (await store.listRetryDue(NOW, limit)).map((doc) => doc.docId);
+  assert.ok(!blocked.includes(retryId), "보류 건만으로 조회 상한이 차서 신규 재시도 건이 빠진다");
+
+  // ② 보류 표시: nextRetryAt만 비우고 상태·pendingReason은 그대로 둔다.
+  for (const id of heldIds) {
+    await db.collection(SYNC).doc(`contact_${id}`).update({ nextRetryAt: null, heldReason: "pre_activation", heldAt: Timestamp.fromMillis(NOW) });
+  }
+  const freed = (await store.listRetryDue(NOW, limit)).map((doc) => doc.docId);
+  assert.ok(freed.includes(retryId));
+  assert.ok(!freed.some((id) => id.startsWith(`${base}-held`)));
+
+  // V2 이관용 식별 값과 상태는 남아 있다.
+  const kept = await store.getSync("contact", heldIds[0]);
+  assert.equal(kept.status, "pending");
+  assert.equal(kept.pendingReason, "intake_disabled");
+  assert.equal(kept.attempts, 0);
+  const heldClaim = await store.claim({ source: "contact", docId: heldIds[0], email: "a@example.com", classification: syncable, enabled: true, nowMs: NOW });
+  assert.equal(heldClaim.action, "held");
 });
 
 test("주문 목록: 같은 uid의 주문과 isTest", async () => {
