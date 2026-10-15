@@ -52,6 +52,30 @@ function wrapBase64(value) {
   return encoded.match(/.{1,76}/g)?.join("\r\n") || "";
 }
 
+/**
+ * RFC 2047 B-encoding for non-ASCII header values. Raw 8-bit UTF-8 in Subject
+ * is read as Latin-1 by Gmail and arrives as mojibake (`[Ã«Â¬Â¸...]`).
+ * Each encoded-word stays within 75 chars and splits on code points so a
+ * Korean character is never cut across two words.
+ */
+function encodeHeaderValue(value) {
+  if (/^[\x20-\x7e]*$/.test(value)) return value;
+  const MAX_WORD_BYTES = 45; // 45 bytes -> 60 base64 chars + 12 for =?UTF-8?B??=
+  const words = [];
+  let chunk = "";
+  for (const char of value) {
+    if (chunk && Buffer.byteLength(chunk + char, "utf8") > MAX_WORD_BYTES) {
+      words.push(chunk);
+      chunk = "";
+    }
+    chunk += char;
+  }
+  if (chunk) words.push(chunk);
+  return words
+    .map((word) => `=?UTF-8?B?${Buffer.from(word, "utf8").toString("base64")}?=`)
+    .join("\r\n ");
+}
+
 function fallbackText(html) {
   return String(html)
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -99,9 +123,7 @@ function buildNotificationMime({ from, to, subject, text, html, boundary }) {
   const headers = [
     `From: ${sender}`,
     `To: ${toLine}`,
-    // Gmail API re-encodes RFC 2047 encoded-words and clients then show
-    // `=?UTF-8?B?...?=` as the literal subject. Pass UTF-8; Gmail encodes for SMTP.
-    `Subject: ${title}`,
+    `Subject: ${encodeHeaderValue(title)}`,
     "MIME-Version: 1.0",
   ];
 
@@ -313,6 +335,7 @@ module.exports = {
   GMAIL_SEND_SCOPE,
   MAX_NOTIFY_BYTES,
   buildNotificationMime,
+  encodeHeaderValue,
   encodeRawMessage,
   getNotifyToken,
   normalizeNotifyRecipients,

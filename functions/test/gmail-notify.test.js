@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const {
   buildNotificationMime,
+  encodeHeaderValue,
   encodeRawMessage,
   getNotifyToken,
   normalizeNotifyRecipients,
@@ -80,7 +81,30 @@ test("MIME builder rejects header injection in subject and recipients", () => {
   );
 });
 
-test("MIME builder keeps Korean subject as UTF-8 and builds multipart html", () => {
+function decodeEncodedWords(header) {
+  return header
+    .split(/\r\n /)
+    .map((word) => {
+      const m = /^=\?UTF-8\?B\?([A-Za-z0-9+/=]+)\?=$/.exec(word);
+      assert.ok(m, `not an encoded-word: ${word}`);
+      assert.ok(word.length <= 75, `encoded-word too long: ${word.length}`);
+      return Buffer.from(m[1], "base64").toString("utf8");
+    })
+    .join("");
+}
+
+test("encodeHeaderValue leaves ASCII subjects untouched", () => {
+  assert.equal(encodeHeaderValue("New order - abc123"), "New order - abc123");
+});
+
+test("encodeHeaderValue round-trips long Korean subjects within 75-char words", () => {
+  const subject = "[육성 트랙] 접촉 대기 72명 — 2026. 10. 15. 오전 9:00:04 한국기술자산 테스트 문의";
+  const encoded = encodeHeaderValue(subject);
+  assert.ok(encoded.includes("\r\n "), "long subject should fold into several words");
+  assert.equal(decodeEncodedWords(encoded), subject);
+});
+
+test("MIME builder RFC 2047-encodes Korean subject and builds multipart html", () => {
   const raw = buildNotificationMime({
     from: "support@medidakos.com",
     to: ["songjh@techasset.co.kr", "parkjy@techasset.co.kr"],
@@ -89,8 +113,10 @@ test("MIME builder keeps Korean subject as UTF-8 and builds multipart html", () 
     html: "<p>html</p>",
     boundary: "test-boundary",
   });
-  assert.match(raw, /Subject: \[문의\] 신규 주문/);
-  assert.doesNotMatch(raw, /=\?UTF-8\?B\?/);
+  const subjectLine = /^Subject: (.*(?:\r\n .*)*)$/m.exec(raw);
+  assert.ok(subjectLine, "Subject header missing");
+  assert.equal(decodeEncodedWords(subjectLine[1]), "[문의] 신규 주문");
+  assert.doesNotMatch(raw, /Subject: \[문의\]/);
   assert.match(raw, /To: songjh@techasset\.co\.kr, parkjy@techasset\.co\.kr/);
   assert.match(raw, /multipart\/alternative; boundary="test-boundary"/);
   assert.match(raw, /text\/plain; charset=UTF-8/);
