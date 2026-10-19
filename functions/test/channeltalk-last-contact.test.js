@@ -192,9 +192,9 @@ test("API 오류는 재시도하지 않고 200으로 기록만 한다", async ()
   assert.deepEqual([h.logs[0].outcome, h.logs[0].skipReason], ["error", "server_error"]);
 });
 
-test("수신 함수는 아직 index.js에서 내보내지 않고, 단일 인스턴스·공개 호출·기본 off로 설정돼 있다", () => {
+test("수신 함수는 index.js에서 내보내고, 단일 인스턴스·공개 호출·기본 off로 설정돼 있다", () => {
   const index = readFileSync(path.join(__dirname, "../index.js"), "utf8");
-  assert.doesNotMatch(index, /last-contact/);
+  assert.match(index, /require\("\.\/channeltalk\/last-contact-trigger"\)/);
   const trigger = readFileSync(path.join(__dirname, "../channeltalk/last-contact-trigger.js"), "utf8");
   assert.match(trigger, /maxInstances: 1/);
   assert.match(trigger, /concurrency: 1/);
