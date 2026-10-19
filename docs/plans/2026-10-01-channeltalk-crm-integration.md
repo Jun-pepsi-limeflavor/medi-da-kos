@@ -2,9 +2,11 @@
 
 **목표:** 웹사이트 고객 정보와 제출(Contact·Landing·Order/Brief)을 Channel Talk 고객 프로필과 상담으로 연결해, Channel Talk을 메인 고객 관리 창구로 쓴다.
 
-**상태:** 설계 승인 완료(2026-10-01). 구현 전. 0단계 운영 채널 검증(A·B·C) 완료.
+**상태(2026-10-19):** V1 구현·운영 배포 완료. 2026-10-12에 연동 스위치를 켰다(PR #24). Functions는 Node 22로 운영 배포를 마쳤다. Contact는 실제 신규 문의로 검증했고, Landing·Order 실제 접수 검증은 남아 있다. 2차(V2) 계획은 [`2026-10-19-channeltalk-v2.md`](2026-10-19-channeltalk-v2.md)에 있다.
 
-**브랜치:** `feat/channeltalk-crm-integration` 하나에서 기능별 커밋 → `dev` 검증 → `main`.
+- 이력: 설계 승인(2026-10-01) → 0단계 운영 채널 검증(A·B·C) 완료 → V1 구현.
+
+**브랜치:** V1은 `feat/channeltalk-crm-integration`에서 기능별로 커밋한 뒤 `dev` 검증을 거쳐 `main`에 병합했다. V2는 `feature/channeltalk-v2`에서 작업한다.
 
 **배경:** 백오피스(`/admin`)와 Notion은 앞으로 거의 쓰지 않는다. 다만 이번 작업에서 기존 기능(`functions-ingest`, 백오피스, 관리자 알림 메일, Notion)은 삭제·변경·재배포하지 않는다. 새 연동이 운영에서 안정된 뒤 기능별로 다시 판단한다.
 
@@ -320,7 +322,7 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 4. `landingRequests` 세 variant 모두 `channelUserId` 허용, 다른 새 필드는 거부 유지.
 5. 기존 규칙 테스트 전부 통과.
 
-저장하지 않는 것: Channel 자동 UUID `memberId`, Channel 프로필 사본, 고객별 주문 수(매번 `orders`에서 계산), `lastContactAt` 캐시(2차에서 설계).
+저장하지 않는 것: Channel 자동 UUID `memberId`, Channel 프로필 사본, 고객별 주문 수(매번 `orders`에서 계산), `lastContactAt` 캐시(2차에서 설계, V2 계획 문서 참조).
 
 ## 9. 배포 순서와 제약
 
@@ -340,7 +342,8 @@ match /channelTalkSync/{id}       { allow read, write: if false; }
 
 ## 11. 2차·후속 과제
 
-- **`lastContactAt` (2차):** 자동 관리 필드. 갱신 대상은 고객의 채팅·연동 이메일, 담당자의 고객응대·연동 이메일, Contact·Landing·Brief 제출. 내부대화·봇·시스템 로그·팀챗은 제외(Webhook `messageCreatedUserChat`의 `personType`, `options`, `log`로 판정). 연동되지 않은 별도 Gmail은 제외. 기존 고객 이관은 상담 기록의 마지막 실제 연락 시점으로 **비어 있을 때만** 채운다. 구현 직전 C6(고객 직접 메시지) 테스트 계획을 따로 세운다. 수신 함수 위치·HMAC 검증도 그때 확정.
+- **`lastContactAt` (2차, 2026-10-13 확정):** 자동 관리 필드. 갱신 대상은 Channel Talk 상담에서 고객과 담당자가 실제로 주고받은 메시지(고객 메시지·담당자 응답 모두)와 Channel Talk에 연동된 이메일이다. **제외:** 내부대화·봇·시스템 로그·팀챗, Contact·Landing·Brief·Order 제출 이벤트, Channel에 연동되지 않은 별도 Gmail. 판정은 Webhook `messageCreatedUserChat`의 `personType`, `options`, `log`로 하는 방향이다(구현 전 검증). 기존 고객은 상담 기록의 마지막 실제 연락 시점으로 **비어 있을 때만** 채운다. 구현 직전 C6(고객 직접 메시지) 테스트 계획을 따로 세운다. 수신 함수 위치·서명 검증도 그때 확정한다. 상세는 V2 계획 문서.
+  - 이력: 2026-10-01 초안은 Contact·Landing·Brief 제출도 갱신 대상에 넣었으나 2026-10-13에 제외로 바꿨다.
 - **C5(수동 병합)**는 하지 않는다. 다른 기기 중복은 `dup-candidate` 예외 흐름.
 - **폼 개선:** `Target market(s)` 항목 추가 시 `marketCountry` 재검토.
 - **기존 시스템 정리(새 연동 안정 후 판단):** `functions-ingest` 채널톡 수집(현재 내부대화까지 백오피스로 복사. 유지/내부대화 제외/종료), Gmail·Outlook 수집, `web-message-materializer`, 백오피스 답장 경로, Notion 동기화, 관리자 알림 메일, `lifecycleScan`.
