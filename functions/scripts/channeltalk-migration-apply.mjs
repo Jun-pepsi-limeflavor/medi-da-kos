@@ -11,6 +11,7 @@
 //   5) --mode create-lead: 리드를 POST로 만든다. --desk-checked-at(12시간 이내 Desk 이메일 검색 시각)이 필요하다.
 //      둘 다 --allow-keys(사람이 확인한 고객 키 JSON 배열, 비공개 폴더)가 필요하고, --pilot이면 최대 2명이다.
 //      생성 요청 전 intent를 로그에 남기며, 결과를 알 수 없는 고객은 다음 실행에서 자동으로 다시 만들지 않는다.
+//   모든 모드에 --policy-exclude <V2 이관 제외 정책 JSON(비공개)>이 필요하다. 정책 고객은 판정과 상관없이 처리하지 않는다.
 //
 //   gcloud auth application-default login            # Firestore 쓰기 권한이 있는 계정
 //   export CHANNELTALK_MIGRATION_ACCESS_KEY=...       # 셸 프로세스에서만. 파일·저장소에 두지 않는다
@@ -35,7 +36,7 @@ const require = createRequire(import.meta.url);
 const { createChannelTalkApi } = require("../channeltalk/api.js");
 const { assertOutsideRepo, normalizeExclusion, redactError } = require("../channeltalk/migration-collect.js");
 const {
-  createCustomer, readLogState, runApply, selectCreateTargets, selectTargets,
+  createCustomer, loadPolicy, policyKeys, readLogState, runApply, selectCreateTargets, selectTargets,
 } = require("../channeltalk/migration-apply.js");
 const { createStore } = require("../channeltalk/store.js");
 
@@ -57,6 +58,7 @@ const { values: args } = parseArgs({
     "allow-keys": { type: "string" },
     "desk-checked-at": { type: "string" },
     "member-email": { type: "boolean", default: false },
+    "policy-exclude": { type: "string" },
     "confirm-write-production": { type: "boolean", default: false },
   },
 });
@@ -67,6 +69,7 @@ function fail(message) {
 }
 
 if (!args["plan-dir"] || !args.exclusion) fail("--plan-dir 와 --exclusion 이 필요합니다.");
+if (!args["policy-exclude"]) fail("--policy-exclude <V2 이관 제외 정책 JSON> 이 필요합니다. 없으면 실행하지 않습니다.");
 const CREATE_MODES = { "create-member": "member", "create-lead": "lead" };
 const createKind = CREATE_MODES[args.mode] || null;
 if (!["pilot", "full"].includes(args.mode) && !createKind) fail("--mode pilot | full | create-member | create-lead 를 지정하세요.");
@@ -86,6 +89,8 @@ if (!(planAgeHours <= Number(args["max-plan-age-hours"]))) {
 }
 
 const ex = normalizeExclusion(JSON.parse(readFileSync(home(args.exclusion), "utf8")));
+const policy = loadPolicy(JSON.parse(readFileSync(home(args["policy-exclude"]), "utf8")));
+const policyMatch = policyKeys(plan, policy);
 const logEntries = args["done-log"].flatMap((file) => readFileSync(home(file), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l)));
 const { doneKeys, uncertainKeys } = readLogState(logEntries);
 
@@ -98,12 +103,15 @@ const { targets, eligible, excluded } = createKind
     uncertainKeys,
     pilot: args.pilot,
     limit,
+    policyKeys: policyMatch.keys,
   })
-  : selectTargets(plan, { mode: args.mode, limit, doneKeys, testChannelIds: new Set(ex.exclusion.channelUserIds) });
+  : selectTargets(plan, { mode: args.mode, limit, doneKeys, testChannelIds: new Set(ex.exclusion.channelUserIds), policyKeys: policyMatch.keys });
 const fieldsPlanned = targets.reduce((n, c) => n + Object.keys(c.profile.profileOnce).length, 0);
 console.log(JSON.stringify({
   mode: args.mode, pilot: args.pilot, eligible, selected: targets.length, fieldsPlanned, excluded, doneFromLogs: doneKeys.size, uncertainFromLogs: uncertainKeys.size,
+  policy: { version: policy.version, customers: policy.customers, matchedCustomers: policyMatch.keys.size, unmatchedRecordIds: policyMatch.unmatchedRecordIds, buyers: policy.buyerIds.size },
 }, null, 2));
+if (targets.some((c) => policyMatch.keys.has(c.key))) fail("정책 제외 고객이 실행 대상에 들어 있어 멈춥니다.");
 if (args.preview) process.exit(0);
 
 const accessKey = process.env.CHANNELTALK_MIGRATION_ACCESS_KEY;

@@ -5,7 +5,7 @@ const path = require("node:path");
 const { test } = require("node:test");
 const { ChannelTalkApiError } = require("../channeltalk/api");
 const {
-  applyCustomer, createCustomer, readLogState, runApply, selectCreateTargets, selectTargets,
+  applyCustomer, createCustomer, loadPolicy, policyKeys, readLogState, runApply, selectCreateTargets, selectTargets,
 } = require("../channeltalk/migration-apply");
 
 // 모두 가상 데이터다.
@@ -358,4 +358,49 @@ test("생성 실행은 완료 고객을 created로 세고, 같은 로그로 다�
   const state = readLogState(lines);
   assert.deepEqual([...state.doneKeys].sort(), ["l1", "m1"]);
   assert.equal(state.uncertainKeys.size, 0);
+});
+
+// ── V2 이관 제외 정책 ───────────────────────────────────────────────────────
+
+test("정책 파일 형식이 틀리면 거부하고, 문서 ID가 겹치는 고객과 buyer를 찾는다", () => {
+  assert.throws(() => loadPolicy(null), /형식/);
+  assert.throws(() => loadPolicy({ version: 1, customers: [{ recordIds: [] }], buyerIds: [] }), /형식/);
+  const policy = loadPolicy({ version: 1, customers: [{ recordIds: ["contact_a1", "users_u9"], reason: "x" }], buyerIds: ["b1"] });
+  const plan = {
+    customers: [customer("a", { records: ["contact_a1", "orders_o1"] }), customer("b", { records: ["contact_b1"] })],
+    buyers: [{ buyerId: "b1" }, { buyerId: "b2" }],
+  };
+  const match = policyKeys(plan, policy);
+  assert.deepEqual([...match.keys], ["a"]);
+  assert.equal(match.unmatchedRecordIds, 1);
+  assert.equal(match.buyersInPlan, 1);
+});
+
+test("정책 고객은 판정이 link로 바뀌어도 이관 대상에서 빠지고, 허용 목록에 있어도 생성되지 않는다", () => {
+  const plan = {
+    customers: [
+      customer("a", { records: ["contact_a1"] }),
+      customer("b", { records: ["contact_b1"] }),
+      candidate("l1", { records: ["contact_l1"] }),
+      candidate("l2", { records: ["contact_l2"] }),
+    ],
+  };
+  const keys = policyKeys(plan, loadPolicy({ version: 1, customers: [{ recordIds: ["contact_a1"] }, { recordIds: ["contact_l1"] }], buyerIds: [] })).keys;
+
+  const full = selectTargets(plan, { mode: "full", policyKeys: keys });
+  assert.deepEqual(full.targets.map((c) => c.key), ["b"]);
+  // 정책 확인이 다른 판정보다 먼저라, 정책에 든 생성 후보도 policy_excluded로 센다.
+  assert.equal(full.excluded.policy_excluded, 2);
+  const pilot = selectTargets(plan, { mode: "pilot", policyKeys: keys });
+  assert.ok(!pilot.targets.some((c) => c.key === "a"));
+
+  const create = selectCreateTargets(plan, { kind: "lead", allowKeys: new Set(["l1", "l2"]), policyKeys: keys });
+  assert.deepEqual(create.targets.map((c) => c.key), ["l2"]);
+  assert.equal(create.excluded.policy_excluded, 1);
+});
+
+test("실행 스크립트는 정책 파일 없이는 실행하지 않는다", () => {
+  const source = readFileSync(path.join(__dirname, "../scripts/channeltalk-migration-apply.mjs"), "utf8");
+  assert.match(source, /if \(!args\["policy-exclude"\]\) fail\(/);
+  assert.match(source, /policyKeys: policyMatch\.keys/);
 });

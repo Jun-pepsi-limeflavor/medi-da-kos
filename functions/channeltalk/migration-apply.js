@@ -40,6 +40,36 @@ function eligibility(customer, { testChannelIds }) {
 }
 
 /**
+ * V2 이관 제외 정책(비공개 파일)을 읽는다. 사람이 결정한 고객은 판정 결과와 상관없이 이관·생성하지 않는다.
+ * 이 정책은 로컬 V2 스크립트에만 적용되고 V1 실시간 연동(Functions)은 읽지 않는다.
+ * @param {object} raw  { version, customers: [{ recordIds: ["{source}_{docId}"], reason }], buyerIds: [] }
+ */
+function loadPolicy(raw) {
+  const valid = raw && Number.isInteger(raw.version) && Array.isArray(raw.customers) && Array.isArray(raw.buyerIds)
+    && raw.customers.every((c) => c && Array.isArray(c.recordIds) && c.recordIds.length > 0 && c.recordIds.every((id) => typeof id === "string" && id));
+  if (!valid) throw new Error("V2 이관 제외 정책 파일 형식이 올바르지 않습니다");
+  return {
+    version: raw.version,
+    recordIds: new Set(raw.customers.flatMap((c) => c.recordIds)),
+    buyerIds: new Set(raw.buyerIds),
+    customers: raw.customers.length,
+  };
+}
+
+/** 정책의 문서 ID가 하나라도 들어 있는 고객의 키. 매칭되지 않은 정책 문서 ID 수도 함께 돌려준다. */
+function policyKeys(plan, policy) {
+  const keys = new Set();
+  const seen = new Set();
+  for (const c of plan.customers) {
+    const hit = c.records.filter((id) => policy.recordIds.has(id));
+    hit.forEach((id) => seen.add(id));
+    if (hit.length > 0) keys.add(c.key);
+  }
+  const buyersInPlan = (plan.buyers || []).filter((b) => policy.buyerIds.has(b.buyerId)).length;
+  return { keys, unmatchedRecordIds: policy.recordIds.size - seen.size, buyersInPlan };
+}
+
+/**
  * 실행 대상 목록. 키 순으로 정렬해 매번 같은 순서로 처리한다.
  * @param {object} plan  dry-run plan.json
  * @param {object} options
@@ -48,12 +78,13 @@ function eligibility(customer, { testChannelIds }) {
  * @param {number} [options.limit]
  * @param {Set<string>} [options.doneKeys]  이전 실행 로그에서 끝난 고객(건너뜀)
  */
-function selectTargets(plan, { mode, limit, doneKeys = new Set(), testChannelIds = new Set() }) {
+function selectTargets(plan, { mode, limit, doneKeys = new Set(), testChannelIds = new Set(), policyKeys: excludedKeys = new Set() }) {
   if (mode !== "pilot" && mode !== "full") throw new Error(`알 수 없는 실행 모드: ${mode}`);
   const excluded = {};
   const targets = [];
   for (const customer of [...plan.customers].sort((a, b) => a.key.localeCompare(b.key))) {
-    const reason = eligibility(customer, { testChannelIds })
+    const reason = (excludedKeys.has(customer.key) ? "policy_excluded" : null)
+      || eligibility(customer, { testChannelIds })
       || (doneKeys.has(customer.key) ? "already_done" : null)
       || (mode === "pilot" && customer.held ? "pilot_skips_held" : null)
       || (mode === "pilot" && Object.keys(customer.profile.profileOnce).length === 0 ? "pilot_nothing_to_fill" : null);
@@ -165,14 +196,17 @@ function readLogState(entries) {
  * 생성 대상. 허용 목록(사람이 확인한 키)에 있고, 이번 dry-run에서도 같은 사유의 create_candidate인 고객만.
  * @param {"member"|"lead"} options.kind
  */
-function selectCreateTargets(plan, { kind, allowKeys, doneKeys = new Set(), uncertainKeys = new Set(), pilot = false, limit }) {
+function selectCreateTargets(plan, {
+  kind, allowKeys, doneKeys = new Set(), uncertainKeys = new Set(), pilot = false, limit, policyKeys: excludedKeys = new Set(),
+}) {
   if (!CREATE_REASON[kind]) throw new Error(`알 수 없는 생성 종류: ${kind}`);
   if (!(allowKeys instanceof Set) || allowKeys.size === 0) throw new Error("생성 허용 목록이 필요합니다");
   const excluded = {};
   const targets = [];
   for (const c of [...plan.customers].sort((a, b) => a.key.localeCompare(b.key))) {
     if (c.decision !== "create_candidate" || (kind === "member") !== Boolean(c.uid)) continue;
-    const reason = !allowKeys.has(c.key) ? "not_allowed"
+    const reason = excludedKeys.has(c.key) ? "policy_excluded"
+      : !allowKeys.has(c.key) ? "not_allowed"
       : c.reasons.length !== 1 || c.reasons[0] !== CREATE_REASON[kind] ? "unexpected_reason"
         : !c.email ? "no_email"
           : doneKeys.has(c.key) ? "already_done"
@@ -294,6 +328,8 @@ module.exports = {
   PILOT_QUOTA,
   applyCustomer,
   createCustomer,
+  loadPolicy,
+  policyKeys,
   readLogState,
   runApply,
   selectCreateTargets,

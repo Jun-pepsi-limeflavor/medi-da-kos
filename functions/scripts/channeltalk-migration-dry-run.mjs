@@ -13,6 +13,7 @@
 //     [--reuse-snapshot <이전 결과 폴더>] [--estimate-only] \
 //     [--interval-ms 250] [--max-requests 3000] --confirm-read-production
 //
+// --policy-exclude: V2 이관 제외 정책(비공개)에 든 고객·buyer를 결과에 policyExcluded로 표시한다(판정은 그대로).
 // --estimate-only: Firestore만 읽고 예상 Channel 요청 수를 출력한다(Channel 키 불필요, Channel 호출 없음).
 // --reuse-snapshot: 이전 실행의 snapshot.json에 있는 Firestore·Channel 값은 다시 읽지 않는다.
 // 예상 요청 수가 --max-requests를 넘으면 Channel을 호출하기 전에 멈춘다.
@@ -36,6 +37,7 @@ const {
   readOnlyFetch,
   redactError,
 } = require("../channeltalk/migration-collect.js");
+const { loadPolicy, policyKeys } = require("../channeltalk/migration-apply.js");
 
 const PROJECT_ID = "medidakos";
 const PAGE_SIZE = 300;
@@ -51,6 +53,7 @@ const { values: args } = parseArgs({
     "include-thread-ids": { type: "boolean", default: false },
     "reuse-snapshot": { type: "string" },
     "estimate-only": { type: "boolean", default: false },
+    "policy-exclude": { type: "string" },
     "interval-ms": { type: "string", default: "250" },
     "max-requests": { type: "string", default: "3000" },
     "test-domain": { type: "string", default: "techasset.co.kr" },
@@ -150,6 +153,21 @@ try {
   if (estimateOnly) {
     console.log(JSON.stringify({ counts: meta.counts, estimate: meta.estimate, maxRequests }, null, 2));
   } else {
+    let policySummary = null;
+    if (args["policy-exclude"]) {
+      const policy = loadPolicy(JSON.parse(readFileSync(path.resolve(args["policy-exclude"].replace(/^~(?=$|\/)/, homedir())), "utf8")));
+      const match = policyKeys(plan, policy);
+      for (const c of plan.customers) if (match.keys.has(c.key)) c.policyExcluded = true;
+      for (const b of plan.buyers) if (policy.buyerIds.has(b.buyerId)) b.policyExcluded = true;
+      policySummary = {
+        version: policy.version,
+        customers: match.keys.size,
+        decisions: plan.customers.filter((c) => c.policyExcluded).reduce((o, c) => ({ ...o, [c.decision]: (o[c.decision] || 0) + 1 }), {}),
+        buyers: plan.buyers.filter((b) => b.policyExcluded).length,
+        unmatchedRecordIds: match.unmatchedRecordIds,
+      };
+      plan.summary.policyExcluded = policySummary;
+    }
     write("plan.json", plan);
     write("snapshot.json", nextSnapshot);
     console.log(JSON.stringify({ summary: plan.summary, channelIndexComplete: meta.channelIndexComplete, estimate: meta.estimate, channelRequests: meta.channelRequests }, null, 2));
