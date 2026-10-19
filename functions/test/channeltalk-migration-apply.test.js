@@ -4,7 +4,9 @@ const { readFileSync } = require("node:fs");
 const path = require("node:path");
 const { test } = require("node:test");
 const { ChannelTalkApiError } = require("../channeltalk/api");
-const { applyCustomer, runApply, selectTargets } = require("../channeltalk/migration-apply");
+const {
+  applyCustomer, createCustomer, readLogState, runApply, selectCreateTargets, selectTargets,
+} = require("../channeltalk/migration-apply");
 
 // 모두 가상 데이터다.
 function customer(key, extra = {}) {
@@ -209,12 +211,151 @@ test("API 오류는 재시도 없이 실행을 멈추고, 신원 건너뜀·PATC
   assert.equal(capped.applied, 1);
 });
 
-test("실행 코드는 PATCH profileOnce와 매핑 기록 외의 쓰기를 쓰지 않는다", () => {
+test("이관 경로는 생성 호출이 없고, 모듈 전체에 상담·내부대화·태그·덮어쓰기 호출이 없다", () => {
   const code = (file) => readFileSync(path.join(__dirname, file), "utf8")
     .split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
+  assert.doesNotMatch(applyCustomer.toString(), /upsertMember|createLead/);
   for (const file of ["../channeltalk/migration-apply.js", "../scripts/channeltalk-migration-apply.mjs"]) {
     const source = code(file);
-    assert.doesNotMatch(source, /\b(upsertMember|createLead|createUserChat|sendPrivateNote|openUserChat|recordUnified|setDupPairState|claim|updateSync)\b/, file);
-    assert.doesNotMatch(source, /\bprofile:\s*\{|\btags\s*:/, file);
+    assert.doesNotMatch(source, /\b(createUserChat|sendPrivateNote|openUserChat|recordUnified|setDupPairState|claim|updateSync)\b/, file);
+    assert.doesNotMatch(source, /\btags\s*:/, file);
+    // profile(덮어쓰기)은 회원 생성 본문 { profile: { firebaseUid } } 하나뿐이다.
+    const profileBodies = source.match(/\bprofile:\s*\{[^}]*\}/g) || [];
+    assert.ok(profileBodies.every((body) => /^profile:\s*\{\s*firebaseUid: customer\.uid\s*\}$/.test(body)), file);
   }
+});
+
+// ── 신규 생성 ────────────────────────────────────────────────────────────────
+
+function createChannel({ members = {}, failCreate = null, noId = false } = {}) {
+  const base = fakeChannel({});
+  let seq = 0;
+  return {
+    ...base,
+    async getUserByMemberId(uid) {
+      base.calls.push(["GET@", uid]);
+      return members[uid] || null;
+    },
+    async upsertMember(uid, body) {
+      base.calls.push(["PUT@", uid, body]);
+      if (failCreate) throw failCreate;
+      const user = { id: `new-${(seq += 1)}`, type: "member", member: true, memberId: uid, profile: { ...body.profile } };
+      if (!noId) base.state[user.id] = user;
+      return noId ? {} : structuredClone(user);
+    },
+    async createLead(profile) {
+      base.calls.push(["POST", profile]);
+      if (failCreate) throw failCreate;
+      const user = { id: `new-${(seq += 1)}`, type: "lead", member: false, profile: { ...profile } };
+      base.state[user.id] = user;
+      return structuredClone(user);
+    },
+  };
+}
+
+function candidate(key, extra = {}) {
+  return customer(key, {
+    decision: "create_candidate",
+    reasons: ["no_channel_match"],
+    channelUserId: null,
+    profile: { profileOnce: { email: `${key}@buyer.test`, brandCompanyName: "Brand", firstSource: "contact" }, fields: {} },
+    ...extra,
+  });
+}
+const memberCandidate = (key) => candidate(key, {
+  uid: `u-${key}`,
+  reasons: ["member_404"],
+  profile: { profileOnce: { email: `${key}@buyer.test`, name: "Kim", firstSource: "signup" }, fields: {} },
+});
+
+test("생성 대상은 허용 목록·같은 사유의 create_candidate만이고, 회원·리드를 나누며 pilot은 최대 2명이다", () => {
+  const plan = {
+    customers: [
+      memberCandidate("m1"), memberCandidate("m2"), memberCandidate("m3"), memberCandidate("m4"),
+      candidate("l1"), candidate("l2"), candidate("l3", { reasons: ["no_channel_match", "x"] }),
+      customer("done-link"),
+    ],
+  };
+  const allowKeys = new Set(["m1", "m2", "m3", "l1", "l2", "l3"]);
+  const members = selectCreateTargets(plan, { kind: "member", allowKeys, doneKeys: new Set(["m1"]), uncertainKeys: new Set(["m2"]), pilot: true });
+  assert.deepEqual(members.targets.map((c) => c.key), ["m3"]);
+  assert.deepEqual(members.excluded, { already_done: 1, uncertain_previous_attempt: 1, not_allowed: 1 });
+  const leads = selectCreateTargets(plan, { kind: "lead", allowKeys, pilot: true });
+  assert.deepEqual(leads.targets.map((c) => c.key), ["l1", "l2"]);
+  assert.equal(leads.excluded.unexpected_reason, 1);
+  assert.throws(() => selectCreateTargets(plan, { kind: "lead", allowKeys: new Set() }), /허용 목록/);
+});
+
+test("회원은 @uid가 지금도 없을 때만 PUT { profile: { firebaseUid } }로 만들고, 생성 전 intent를 남긴 뒤 빈 칸만 채운다", async () => {
+  const channel = createChannel();
+  const store = fakeStore();
+  const lines = [];
+  const entry = await createCustomer(memberCandidate("m1"), { api: channel, store, nowMs: 1, intent: (l) => lines.push(l) });
+
+  assert.equal(entry.outcome, "created");
+  assert.deepEqual(lines.map((l) => l.outcome), ["intent", "created_pending"]);
+  const kinds = channel.calls.map(([k]) => k);
+  assert.deepEqual(kinds, ["GET@", "PUT@", "PATCH"]);
+  assert.deepEqual(channel.calls[1][2], { profile: { firebaseUid: "u-m1" } });
+  assert.deepEqual(channel.calls[2][2], { profileOnce: { firstSource: "signup", name: "Kim" } });
+  assert.equal(entry.dropped.email, "never_send");
+  assert.deepEqual(store.calls[0], ["recordIdentity", "m1@buyer.test", "member", "u-m1"]);
+
+  const withEmail = createChannel();
+  await createCustomer(memberCandidate("m2"), { api: withEmail, store: fakeStore(), nowMs: 1, intent: () => {}, memberEmail: true });
+  assert.equal(withEmail.calls[2][2].profileOnce.email, "m2@buyer.test");
+});
+
+test("리드는 POST { email }로 만들고 server_lead 매핑을 남기며, 직전 재확인에서 이미 있으면 만들지 않는다", async () => {
+  const channel = createChannel();
+  const store = fakeStore();
+  const entry = await createCustomer(candidate("l1"), { api: channel, store, nowMs: 1, intent: () => {} });
+  assert.equal(entry.outcome, "created");
+  assert.deepEqual(channel.calls[0], ["POST", { email: "l1@buyer.test" }]);
+  assert.deepEqual(channel.calls[1][2], { profileOnce: { brandCompanyName: "Brand", firstSource: "contact" } });
+  assert.equal(entry.dropped.email, "already_set_now");
+  assert.deepEqual(store.calls[0], ["recordIdentity", "l1@buyer.test", "server_lead", null]);
+
+  const mapped = createChannel();
+  const skip = await createCustomer(candidate("l2"), { api: mapped, store: fakeStore({ "l2@buyer.test": { channelUserId: "x" } }), nowMs: 1, intent: () => {} });
+  assert.deepEqual([skip.outcome, skip.reason], ["skip", "mapping_exists_now"]);
+  assert.deepEqual(mapped.calls, []);
+
+  const existing = createChannel({ members: { "u-m1": { id: "m", type: "member", member: true, memberId: "u-m1" } } });
+  const skipMember = await createCustomer(memberCandidate("m1"), { api: existing, store: fakeStore(), nowMs: 1, intent: () => {} });
+  assert.deepEqual([skipMember.outcome, skipMember.reason], ["skip", "member_exists_now"]);
+  assert.ok(!existing.calls.some(([k]) => k === "PUT@"));
+});
+
+test("생성 응답이 불확실하면 재시도 없이 멈추고, 그 고객은 다음 실행에서 다시 만들지 않는다", async () => {
+  const lines = [];
+  const timeout = new ChannelTalkApiError("POST timeout", { code: "timeout", ambiguous: true });
+  const channel = createChannel({ failCreate: timeout });
+  const summary = await runApply([candidate("l1"), candidate("l2")], {
+    api: channel, store: fakeStore(), handler: createCustomer, maxSkips: 1, onEntry: (l) => lines.push(l),
+  });
+  assert.equal(summary.stopped, "channel_timeout");
+  assert.equal(channel.calls.filter(([k]) => k === "POST").length, 1);
+  assert.deepEqual(lines.map((l) => [l.outcome, l.uncertain || false]), [["intent", false], ["error", true]]);
+
+  const state = readLogState(lines);
+  assert.ok(state.uncertainKeys.has("l1"));
+  const again = selectCreateTargets({ customers: [candidate("l1"), candidate("l2")] }, { kind: "lead", allowKeys: new Set(["l1", "l2"]), ...state });
+  assert.deepEqual(again.targets.map((c) => c.key), ["l2"]);
+
+  const noId = await runApply([memberCandidate("m1")], { api: createChannel({ noId: true }), store: fakeStore(), handler: createCustomer });
+  assert.equal(noId.stopped, "created_without_id");
+});
+
+test("생성 실행은 완료 고객을 created로 세고, 같은 로그로 다시 고르면 대상에서 빠진다", async () => {
+  const lines = [];
+  const summary = await runApply([candidate("l1"), memberCandidate("m1")], {
+    api: createChannel(), store: fakeStore(), handler: createCustomer, onEntry: (l) => lines.push(l),
+  });
+  assert.equal(summary.created, 2);
+  assert.equal(summary.creates, 2);
+  assert.equal(summary.mappingsCreated, 2);
+  const state = readLogState(lines);
+  assert.deepEqual([...state.doneKeys].sort(), ["l1", "m1"]);
+  assert.equal(state.uncertainKeys.size, 0);
 });

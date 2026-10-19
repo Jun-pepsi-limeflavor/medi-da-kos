@@ -6,6 +6,11 @@
 //   1) --preview: API·Firestore 호출 없이 대상 건수만 본다(키 불필요).
 //   2) --mode pilot: 보류 고객을 뺀 최대 5명. 끝나면 Desk에서 결과를 확인한다.
 //   3) --mode full: 나머지 전체. 이전 실행 로그를 --done-log로 넘겨 끝난 고객을 건너뛴다.
+//   신규 생성(이관과 별도 승인):
+//   4) --mode create-member: @uid가 지금도 없는 회원만 PUT @uid { profile: { firebaseUid } }로 만든다.
+//   5) --mode create-lead: 리드를 POST로 만든다. --desk-checked-at(12시간 이내 Desk 이메일 검색 시각)이 필요하다.
+//      둘 다 --allow-keys(사람이 확인한 고객 키 JSON 배열, 비공개 폴더)가 필요하고, --pilot이면 최대 2명이다.
+//      생성 요청 전 intent를 로그에 남기며, 결과를 알 수 없는 고객은 다음 실행에서 자동으로 다시 만들지 않는다.
 //
 //   gcloud auth application-default login            # Firestore 쓰기 권한이 있는 계정
 //   export CHANNELTALK_MIGRATION_ACCESS_KEY=...       # 셸 프로세스에서만. 파일·저장소에 두지 않는다
@@ -29,7 +34,9 @@ import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 const require = createRequire(import.meta.url);
 const { createChannelTalkApi } = require("../channeltalk/api.js");
 const { assertOutsideRepo, normalizeExclusion, redactError } = require("../channeltalk/migration-collect.js");
-const { runApply, selectTargets } = require("../channeltalk/migration-apply.js");
+const {
+  createCustomer, readLogState, runApply, selectCreateTargets, selectTargets,
+} = require("../channeltalk/migration-apply.js");
 const { createStore } = require("../channeltalk/store.js");
 
 const PROJECT_ID = "medidakos";
@@ -46,6 +53,10 @@ const { values: args } = parseArgs({
     "max-plan-age-hours": { type: "string", default: "24" },
     out: { type: "string", default: path.join(homedir(), "medidakos-private", "channeltalk-v2-apply") },
     preview: { type: "boolean", default: false },
+    pilot: { type: "boolean", default: false },
+    "allow-keys": { type: "string" },
+    "desk-checked-at": { type: "string" },
+    "member-email": { type: "boolean", default: false },
     "confirm-write-production": { type: "boolean", default: false },
   },
 });
@@ -56,7 +67,14 @@ function fail(message) {
 }
 
 if (!args["plan-dir"] || !args.exclusion) fail("--plan-dir 와 --exclusion 이 필요합니다.");
-if (args.mode !== "pilot" && args.mode !== "full") fail("--mode pilot 또는 --mode full 을 지정하세요.");
+const CREATE_MODES = { "create-member": "member", "create-lead": "lead" };
+const createKind = CREATE_MODES[args.mode] || null;
+if (!["pilot", "full"].includes(args.mode) && !createKind) fail("--mode pilot | full | create-member | create-lead 를 지정하세요.");
+if (createKind && !args["allow-keys"]) fail("생성 모드는 --allow-keys <확인한 고객 키 JSON> 이 필요합니다.");
+if (createKind === "lead") {
+  const checkedHours = (Date.now() - Date.parse(args["desk-checked-at"] || "")) / 3600000;
+  if (!(checkedHours >= 0 && checkedHours <= 12)) fail("리드 생성은 12시간 이내 Desk 이메일 검색 시각을 --desk-checked-at (ISO) 으로 넘기세요.");
+}
 if (!args.preview && !args["confirm-write-production"]) fail("운영 데이터에 쓰는 실행입니다. 승인 후 --confirm-write-production 을 붙이세요.");
 
 const planDir = home(args["plan-dir"]);
@@ -68,23 +86,24 @@ if (!(planAgeHours <= Number(args["max-plan-age-hours"]))) {
 }
 
 const ex = normalizeExclusion(JSON.parse(readFileSync(home(args.exclusion), "utf8")));
-const doneKeys = new Set();
-for (const file of args["done-log"]) {
-  for (const line of readFileSync(home(file), "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    const entry = JSON.parse(line);
-    if (entry.outcome === "applied" || entry.outcome === "already_done") doneKeys.add(entry.key);
-  }
-}
+const logEntries = args["done-log"].flatMap((file) => readFileSync(home(file), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l)));
+const { doneKeys, uncertainKeys } = readLogState(logEntries);
 
-const { targets, eligible, excluded } = selectTargets(plan, {
-  mode: args.mode,
-  limit: args.limit ? Number(args.limit) : undefined,
-  doneKeys,
-  testChannelIds: new Set(ex.exclusion.channelUserIds),
-});
+const limit = args.limit ? Number(args.limit) : undefined;
+const { targets, eligible, excluded } = createKind
+  ? selectCreateTargets(plan, {
+    kind: createKind,
+    allowKeys: new Set(JSON.parse(readFileSync(home(args["allow-keys"]), "utf8"))),
+    doneKeys,
+    uncertainKeys,
+    pilot: args.pilot,
+    limit,
+  })
+  : selectTargets(plan, { mode: args.mode, limit, doneKeys, testChannelIds: new Set(ex.exclusion.channelUserIds) });
 const fieldsPlanned = targets.reduce((n, c) => n + Object.keys(c.profile.profileOnce).length, 0);
-console.log(JSON.stringify({ mode: args.mode, eligible, selected: targets.length, fieldsPlanned, excluded, doneFromLogs: doneKeys.size }, null, 2));
+console.log(JSON.stringify({
+  mode: args.mode, pilot: args.pilot, eligible, selected: targets.length, fieldsPlanned, excluded, doneFromLogs: doneKeys.size, uncertainFromLogs: uncertainKeys.size,
+}, null, 2));
 if (args.preview) process.exit(0);
 
 const accessKey = process.env.CHANNELTALK_MIGRATION_ACCESS_KEY;
@@ -95,7 +114,7 @@ const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { encodin
 const outRoot = home(args.out);
 assertOutsideRepo(outRoot, repoRoot);
 const startedAt = new Date();
-const runDir = path.join(outRoot, `${startedAt.toISOString().replace(/[:.]/g, "-")}-${args.mode}`);
+const runDir = path.join(outRoot, `${startedAt.toISOString().replace(/[:.]/g, "-")}-${args.mode}${args.pilot ? "-trial" : ""}`);
 mkdirSync(runDir, { recursive: true, mode: 0o700 });
 const logFile = path.join(runDir, "apply-log.jsonl");
 writeFileSync(logFile, "", { mode: 0o600 });
@@ -111,8 +130,11 @@ const api = createChannelTalkApi({
 const summary = await runApply(targets, {
   api,
   store,
-  maxSkips: Number(args["max-skips"] || (args.mode === "pilot" ? 1 : 3)),
-  maxWrites: targets.length * 2,
+  maxSkips: Number(args["max-skips"] || (args.mode === "full" ? 3 : 1)),
+  // 고객당 생성 1 + 프로필 PATCH 1 + 휴대폰 번호 PATCH 1
+  maxWrites: targets.length * (createKind ? 3 : 2),
+  handler: createKind ? createCustomer : undefined,
+  memberEmail: args["member-email"],
   onEntry: (entry) => appendFileSync(logFile, `${JSON.stringify({ ...entry, at: new Date().toISOString() })}\n`),
 });
 const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
