@@ -44,7 +44,7 @@ const channelTalkLastContactWebhook = onRequest(
     timeoutSeconds: 30,
     maxInstances: 1,
     concurrency: 1,
-    invoker: "public",
+    serviceAccount: "webhook-sa@medidakos.iam.gserviceaccount.com",
     secrets: [WEBHOOK_TOKEN, ACCESS_KEY, ACCESS_SECRET],
   },
   async (req, res) => {
