@@ -62,12 +62,31 @@ Channel Talk V1:
 - [ ] Firebase CLI 로그인 계정과 대상 프로젝트 ID 확인
 - [ ] 운영 중인 Functions 목록과 런타임 확인
 - [ ] .env 파일의 필수 설정 및 Firebase Secret 접근 상태 확인
+- [ ] lastContactAt 웹훅 설정 점검 통과: `node functions/scripts/check-last-contact-config.mjs --compare-deployed` (아래 3-1)
 - [ ] 기존 Notion·메일·Channel Talk 기능의 현재 정상 상태 확인
 - [ ] npm audit의 High/Critical 취약점 영향 검토
 - [ ] 배포 대상, 순서, 작업 시간 및 담당자 승인
 - [ ] 문제 발생 시 복구에 사용할 이전 정상 커밋 확보
 
 API 키, Secret 값, 고객 개인정보를 터미널 출력이나 문서에 기록하지 않는다.
+
+### 3-1. lastContactAt 웹훅 운영 설정
+
+`channelTalkLastContactWebhook`의 운영값은 **`functions/.env`(Git 추적) 한 곳**에서 관리한다. 비밀이 아닌 배포 파라미터라 클론만으로 같은 설정이 배포돼야 한다.
+
+| 키 | 운영값 | 의미 |
+|---|---|---|
+| `CHANNELTALK_LAST_CONTACT_MODE` | `on` | `off`(아무것도 안 함) · `observe`(판정만 로그) · `on`(쓰기) |
+| `CHANNELTALK_LAST_CONTACT_ALLOW_USER_IDS` | `*` | `""`(쓰기 없음) · `*`(전체 고객) · 쉼표 구분 고객 id |
+
+- `functions/.env.medidakos`(추적 안 함)에는 이 두 키를 넣지 않는다. 넣으면 저장소 값보다 우선해 사람마다 배포 결과가 달라진다.
+- 에뮬레이터·로컬 실험은 `functions/.env.local`(추적 안 함)에 `CHANNELTALK_LAST_CONTACT_MODE=off`를 둔다. 에뮬레이터에는 웹훅 토큰 Secret이 없어 인증이 모두 거부되므로, 실수로 켜도 고객 정보는 바뀌지 않는다.
+- 운영을 잠시 멈추려면 `MODE=observe`로 바꿔 커밋하고 이 함수만 다시 배포한다. 이상이 감지돼 멈춘 경우의 확인·해제는 `node functions/scripts/channeltalk-last-contact-control.mjs`(관리자 수동 해제만 가능)로 한다.
+- 배포 전 점검 스크립트는 다음 경우 실패한다.
+  - 값 형식 오류
+  - 로컬 파일이 운영값을 덮어씀
+  - 운영 함수 설정과 다름(`--compare-deployed`)
+  - `functions/.env`에 커밋하지 않은 변경이 있으면 경고한다.
 
 ## 4. 배포 명령어 원칙
 
@@ -123,6 +142,7 @@ dry-run 성공만으로 운영 배포의 안전성이 보장되지는 않는다.
 - [ ] Firestore 신규 문의 → Channel Talk 연동 정상
 - [ ] 대시보드 주문 → Channel Talk 연동 정상
 - [ ] Channel Talk 재시도 스케줄 정상
+- [ ] lastContactAt 웹훅: 설정 점검(`--compare-deployed`)이 통과하고, 로그(`channelTalkLastContact`)에 `alert`·`halt_check_failed`가 없음
 - [ ] 기존 이메일 발송 및 Notion 관련 기능 정상
 - [ ] ingestGmail 스케줄 정상
 - [ ] 함수 실행 로그에 새로운 오류 없음
