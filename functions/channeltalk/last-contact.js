@@ -1,0 +1,347 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/**
+ * lastContactAt 자동 갱신: 웹훅 메시지 판정과 프로필 보호 (순수 함수 + 요청 처리기).
+ *
+ * 규칙 원본: docs/plans/2026-10-19-channeltalk-v2.md 6장.
+ * - 판정 근거: 공식 문서(type·event·chatType·personType), 0단계 관찰(내부대화 options, log.action),
+ *   2026-10-21 실제 상담 조회(연동 이메일은 writingType=email, 일괄 발송은 broadcastedMsg).
+ *   확인되지 않은 형태(다른 writingType 등)는 갱신하지 않는다(hold).
+ * - 인증은 우리가 정한 수신 URL 토큰(query `auth`)만 쓴다. Channel 쪽 서명 방식은 확인 전이라 쓰지 않는다.
+ * - 모드: off(아무것도 안 함) / observe(판정·형태만 로그, 쓰기 없음) / on(PATCH). 알 수 없는 값은 off.
+ * - on에서도 다른 프로필 값 보호를 위해: 보내는 값은 { profile: { lastContactAt } } 하나, 쓰기 전 타입 검사,
+ *   쓰기 후 다른 필드 변화 감지 시 이 인스턴스는 observe로 내려가고, Firestore 중단 플래그를 기록한다.
+ * - on 모드는 매 요청 중단 플래그를 확인한다. 플래그를 읽지 못하면 쓰지 않는다(fail-closed).
+ * - 로그에는 형태와 사유만 남긴다(본문·이메일·이름·Secret 금지).
+ */
+const crypto = require("node:crypto");
+const { floorToMinute } = require("./field-types");
+
+const MODES = new Set(["off", "observe", "on"]);
+const FIELD = "lastContactAt";
+// Desk 타입이 정해진 필드(V1 4장). 여기에 타입이 틀린 값이 있으면 PATCH가 그 값을 강제 변환할 수 있다(0단계).
+const TYPED_FIELDS = {
+  moq: "number",
+  orderCount: "number",
+  briefUpdatedAt: "datetime",
+  lastCheckoutCompletedAt: "datetime",
+  lastContactAt: "datetime",
+  businessType: "list",
+  marketCountry: "list",
+};
+// 2020-01-01 이후, 지금+1일 이전의 밀리초만 받는다. 단위가 다르면(마이크로초 등) 갱신하지 않는다.
+const MIN_MS = Date.UTC(2020, 0, 1);
+const MAX_FUTURE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * on 모드에서 실제로 쓸 고객 범위. 비어 있으면 아무에게도 쓰지 않고(안전 기본값), "*"면 전체 고객.
+ * 그 밖에는 쉼표로 구분한 Channel 고객 id 목록.
+ */
+function parseAllowList(value) {
+  const raw = String(value || "").trim();
+  if (raw === "*") return { all: true, ids: new Set() };
+  return { all: false, ids: new Set(raw.split(",").map((id) => id.trim()).filter(Boolean)) };
+}
+
+function normalizeMode(value) {
+  const mode = String(value || "").trim().toLowerCase();
+  return MODES.has(mode) ? mode : "off";
+}
+
+/** 상수 시간 비교. 기대값이 비어 있으면 항상 거부한다. */
+function verifyAuth(provided, expected) {
+  if (typeof expected !== "string" || expected.length < 16) return false;
+  if (typeof provided !== "string" || !provided) return false;
+  const a = crypto.createHash("sha256").update(provided).digest();
+  const b = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+function lower(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+/**
+ * 메시지 이벤트를 판정한다.
+ * @returns {{ action: "update"|"ignore"|"hold", reason: string, userId?: string, atMs?: number }}
+ *   update: 실제 고객·담당자 메시지. ignore: 확실히 제외. hold: 근거가 부족해 갱신하지 않음.
+ */
+function classifyEvent(payload, { nowMs = Date.now() } = {}) {
+  if (!payload || typeof payload !== "object") return { action: "hold", reason: "no_payload" };
+  if (lower(payload.type) !== "message") return { action: "ignore", reason: "not_message_type" };
+  if (lower(payload.event) !== "push") return { action: "hold", reason: "unknown_event" };
+  const entity = payload.entity;
+  if (!entity || typeof entity !== "object") return { action: "hold", reason: "no_entity" };
+
+  const chatType = lower(entity.chatType);
+  if (chatType === "group") return { action: "ignore", reason: "team_chat" };
+  if (chatType !== "userchat") return { action: "hold", reason: "unknown_chat_type" };
+  if (entity.log) return { action: "ignore", reason: "system_log" };
+
+  const options = Array.isArray(entity.options) ? entity.options.map(lower) : [];
+  if (options.includes("private")) return { action: "ignore", reason: "private_note" };
+  if (options.includes("silenttouser")) return { action: "ignore", reason: "silent_to_user" };
+
+  const personType = lower(entity.personType);
+  if (personType === "bot") return { action: "ignore", reason: "bot" };
+  if (personType !== "user" && personType !== "manager") return { action: "hold", reason: "unknown_person_type" };
+
+  // 일괄·자동 발송은 실제 연락이 아니다.
+  if (entity.broadcastedMsg) return { action: "ignore", reason: "broadcast" };
+  // 작성 유형: standard(일반)·email(Channel 연동 이메일, 2026-10-21 실제 상담 구조 확인)만 인정한다.
+  // 다른 값은 형태를 확인하지 못했으므로 갱신하지 않는다.
+  const writingType = lower(entity.writingType);
+  if (writingType && writingType !== "standard" && writingType !== "email") return { action: "hold", reason: "unknown_writing_type" };
+  const viaEmail = writingType === "email";
+
+  const refers = payload.refers && typeof payload.refers === "object" ? payload.refers : {};
+  const fromUser = refers.user && typeof refers.user.id === "string" ? refers.user.id : null;
+  const fromChat = refers.userChat && typeof refers.userChat.userId === "string" ? refers.userChat.userId : null;
+  if (fromUser && fromChat && fromUser !== fromChat) return { action: "hold", reason: "user_ref_mismatch" };
+  const userId = fromUser || fromChat || (personType === "user" && typeof entity.personId === "string" ? entity.personId : null);
+  if (!userId) return { action: "hold", reason: "no_user_id" };
+
+  const createdAt = entity.createdAt;
+  if (!Number.isSafeInteger(createdAt) || createdAt < MIN_MS || createdAt > nowMs + MAX_FUTURE_MS) {
+    return { action: "hold", reason: "invalid_created_at" };
+  }
+  const reason = `${personType === "user" ? "customer" : "manager"}_${viaEmail ? "email" : "message"}`;
+  return { action: "update", reason, userId, atMs: floorToMinute(createdAt) };
+}
+
+/** 로그용 형태 요약. 값(본문·이메일·이름·id)은 넣지 않는다. */
+function describeShape(payload, headers = {}) {
+  const entity = (payload && payload.entity) || {};
+  return {
+    type: typeof payload?.type === "string" ? payload.type : null,
+    event: typeof payload?.event === "string" ? payload.event : null,
+    chatType: typeof entity.chatType === "string" ? entity.chatType : null,
+    personType: typeof entity.personType === "string" ? entity.personType : null,
+    options: Array.isArray(entity.options) ? entity.options.filter((o) => typeof o === "string").slice(0, 10) : null,
+    logAction: entity.log && typeof entity.log.action === "string" ? entity.log.action : entity.log ? "present" : null,
+    createdAtDigits: Number.isFinite(entity.createdAt) ? String(Math.trunc(entity.createdAt)).length : null,
+    entityKeys: Object.keys(entity).sort(),
+    refersKeys: payload && payload.refers && typeof payload.refers === "object" ? Object.keys(payload.refers).sort() : [],
+    headerNames: Object.keys(headers || {}).map((h) => h.toLowerCase()).sort(),
+  };
+}
+
+function isValidType(kind, value) {
+  if (value === null || value === undefined || value === "") return true;
+  if (kind === "number" || kind === "datetime") return typeof value === "number" && Number.isFinite(value);
+  if (kind === "list") return Array.isArray(value) && value.every((v) => typeof v === "string");
+  return true;
+}
+
+/** 타입이 틀린 필드 이름. 하나라도 있으면 PATCH하지 않는다. */
+function findTypeRisks(profile) {
+  const p = profile || {};
+  return Object.keys(TYPED_FIELDS).filter((field) => !isValidType(TYPED_FIELDS[field], p[field])).sort();
+}
+
+// 고객 정보로 보는 최상위 필드. 바뀌면 이상이다.
+const CORE_TOP_FIELDS = [
+  "id", "type", "member", "memberId", "unifiedId", "name", "email", "mobileNumber", "tags",
+  "blocked", "unsubscribeEmail", "unsubscribeTexting", "language", "country", "avatarUrl",
+];
+// 고객의 웹 방문·메신저 활동으로 Channel이 스스로 바꾸는 필드(2026-10-21 운영 테스트 관찰).
+// 같은 타입으로 값만 바뀌거나 새로 생긴 경우만 정상으로 보고, 지워지거나 타입이 바뀌면 이상이다.
+// - city·latitude·longitude: 방문 IP 기반 위치. 방문 세션 필드(lastSeenAt·sessionsCount)와 함께 바뀜
+// - popUpChatId: 메신저 팝업 상담 표시. 상담 활동 뒤 새로 생김
+// - profile.analyticsId·profile.gaClientId: 웹 SDK 분석 식별자. 우리 코드는 쓰지 않고, 방문 때 함께 바뀜
+// managedKey는 의미를 확인하지 못해 계속 이상으로 본다.
+const AUTO_TOP_FIELDS = { city: "string", latitude: "number", longitude: "number", popUpChatId: "string" };
+const AUTO_PROFILE_FIELDS = { analyticsId: "string", gaClientId: "string" };
+// web(브라우저 세션 객체)은 관찰된 하위 키만 정상으로 본다. 그 밖의 하위 키 변화는 이상이다.
+const AUTO_WEB_KEYS = new Set(["browser", "lastSeenAt", "sessionsCount"]);
+// 서버가 스스로 바꾸는 메타데이터·시각 필드. 바뀌어도 이상으로 보지 않고 이름만 기록한다.
+const METADATA_TOP_FIELDS = new Set([
+  "updatedAt", "version", "lastSeenAt", "alert", "unread", "sessionsCount", "managed", "hasChat", "hasPushToken",
+]);
+
+function same(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * 쓰기 전후 고객 전체 비교. profile은 lastContactAt 외 전부, 최상위는 고객 정보 필드와 나머지를 나눈다.
+ * - core: 고객 정보 최상위 필드 변화(이상)
+ * - unknownTop: 목록에 없는 최상위 필드 변화(이상으로 본다. 확인 후 메타데이터 목록에 넣을지 정한다)
+ * - metadata: 서버 메타데이터 변화(정상, 이름만 기록)
+ */
+/** 값이 바뀌었어도 정해진 타입을 유지(또는 새로 생김)하면 자동 갱신으로 본다. 지워지면 아니다. */
+function isAutoChange(kind, after) {
+  return after !== undefined && after !== null && (kind === "number" ? typeof after === "number" && Number.isFinite(after) : typeof after === kind);
+}
+
+function compareUsers(before, after) {
+  const b = before || {};
+  const a = after || {};
+  const auto = [];
+  const profile = changedOtherFields(b.profile, a.profile).filter((key) => {
+    if (AUTO_PROFILE_FIELDS[key] && isAutoChange(AUTO_PROFILE_FIELDS[key], (a.profile || {})[key])) {
+      auto.push(`profile.${key}`);
+      return false;
+    }
+    return true;
+  });
+  const tagsSame = same([...(Array.isArray(b.tags) ? b.tags : [])].sort(), [...(Array.isArray(a.tags) ? a.tags : [])].sort());
+  const core = CORE_TOP_FIELDS.filter((key) => (key === "tags" ? !tagsSame : !same(b[key], a[key])));
+  const others = [...new Set([...Object.keys(b), ...Object.keys(a)])]
+    .filter((key) => key !== "profile" && !CORE_TOP_FIELDS.includes(key) && !same(b[key], a[key]));
+  const metadata = others.filter((key) => METADATA_TOP_FIELDS.has(key)).sort();
+  const unknownTop = [];
+  for (const key of others.filter((k) => !METADATA_TOP_FIELDS.has(k))) {
+    if (AUTO_TOP_FIELDS[key] && isAutoChange(AUTO_TOP_FIELDS[key], a[key])) auto.push(key);
+    else if (key === "web" && isPlainObject(b.web) && isPlainObject(a.web)) {
+      const changed = [...new Set([...Object.keys(b.web), ...Object.keys(a.web)])].filter((k) => !same(b.web[k], a.web[k]));
+      changed.forEach((k) => (AUTO_WEB_KEYS.has(k) && a.web[k] !== undefined ? auto : unknownTop).push(`web.${k}`));
+    } else unknownTop.push(key);
+  }
+  unknownTop.sort();
+  auto.sort();
+  return { profile, core, unknownTop, metadata, auto, unexpected: [...profile.map((k) => `profile.${k}`), ...core, ...unknownTop] };
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/** 쓰기 전후 프로필에서 lastContactAt 외에 바뀐 필드 이름. */
+function changedOtherFields(before, after) {
+  const a = before || {};
+  const b = after || {};
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])]
+    .filter((key) => key !== FIELD && JSON.stringify(a[key]) !== JSON.stringify(b[key]))
+    .sort();
+}
+
+/**
+ * 웹훅 요청 처리기. 의존성을 주입받아 단위 테스트한다.
+ * @param {object} deps
+ * @param {() => string} deps.getMode
+ * @param {() => string} deps.getToken          수신 URL 토큰(Secret)
+ * @param {() => {getUser: Function, patchUser: Function}} deps.getApi  on 모드에서만 만든다
+ * @param {(entry: object) => void} deps.log
+ * @param {() => string} [deps.getAllowList]  on 모드 쓰기 범위("" = 없음, "*" = 전체, 아니면 고객 id 목록)
+ * @param {() => {isHalted: Function, halt: Function}} [deps.getControl]  중단 플래그. 없으면 쓰지 않는다
+ */
+function createWebhookHandler({
+  getMode, getToken, getApi, log, now = () => Date.now(), getAllowList = () => "", getControl = () => null,
+}) {
+  let tripped = false;
+  // 같은 인스턴스 안의 쓰기 구간(중단 확인 → 조회 → 비교 → PATCH → 재조회)을 한 줄로 세운다.
+  // 동시 처리 설정이 바뀌어도 같은 고객의 날짜가 역행하지 않게 한다. 인스턴스 사이는 최대 인스턴스 1로 막는다.
+  let queue = Promise.resolve();
+  const serialize = (task) => {
+    const run = queue.then(task, task);
+    queue = run.catch(() => {});
+    return run;
+  };
+
+  return async function handleWebhook(req) {
+    if (req.method !== "POST") return { status: 405, body: "method_not_allowed" };
+    // 인증을 먼저 본다. 인증되지 않은 요청은 어떤 모드에서도 처리하지 않는다.
+    if (!verifyAuth(req.query && req.query.auth, getToken())) {
+      log({ outcome: "rejected", reason: "auth" });
+      return { status: 401, body: "unauthorized" };
+    }
+    const configured = normalizeMode(getMode());
+    const mode = configured === "on" && tripped ? "observe" : configured;
+    if (mode === "off") return { status: 200, body: "off" };
+
+    const payload = req.body;
+    const decision = classifyEvent(payload, { nowMs: now() });
+    const base = { mode, action: decision.action, reason: decision.reason };
+    if (mode === "observe" || decision.action !== "update") {
+      log({ ...base, outcome: "observed", shape: describeShape(payload, req.headers) });
+      return { status: 200, body: "ok" };
+    }
+
+    const allow = parseAllowList(getAllowList());
+    if (!allow.all && !allow.ids.has(decision.userId)) {
+      // 허용 목록 밖 고객은 Channel을 호출하지 않고 판정만 남긴다(observe와 같다).
+      log({ ...base, outcome: "observed", skipReason: "not_allowlisted" });
+      return { status: 200, body: "ok" };
+    }
+    return serialize(async () => {
+      // 앞선 요청이 이상을 감지했으면 대기 중이던 요청도 쓰지 않는다.
+      if (tripped) return done(log, { ...base, mode: "observe" }, "skip", "tripped");
+      let control;
+      try {
+        control = getControl();
+        if (!control) return done(log, base, "skip", "no_halt_control", { level: "error" });
+        if (await control.isHalted()) return done(log, base, "skip", "halted");
+      } catch {
+        return done(log, base, "skip", "halt_check_failed", { level: "error" });
+      }
+      try {
+        return await applyUpdate(getApi(), decision, base, control);
+      } catch (error) {
+        // API 오류는 재시도하지 않는다(재전송 동작 미확인). 다음 메시지나 과거 기록 채우기에서 보완된다.
+        return done(log, base, "error", error && (error.code || error.name) ? String(error.code || error.name) : "unknown", { level: "error" });
+      }
+    });
+  };
+
+  async function recordHalt(control, decision, base, reason, fields) {
+    tripped = true;
+    try {
+      await control.halt({ reason, fields, channelUserId: decision.userId, nowMs: now() });
+    } catch {
+      log({ ...base, outcome: "alert", skipReason: "halt_record_failed", level: "error" });
+    }
+  }
+
+  async function applyUpdate(api, decision, base, control) {
+    const user = await api.getUser(decision.userId);
+    if (!user) return done(log, base, "skip", "user_missing");
+    if (user.type === "unified") return done(log, base, "skip", "user_unified");
+    const before = user.profile || {};
+    const risks = findTypeRisks(before);
+    if (risks.length > 0) return done(log, base, "skip", "type_risk", { fields: risks });
+    const current = Number.isFinite(before[FIELD]) ? floorToMinute(before[FIELD]) : null;
+    if (current !== null && current >= decision.atMs) return done(log, base, "skip", "not_newer");
+
+    await api.patchUser(decision.userId, { profile: { [FIELD]: decision.atMs } });
+    // PATCH 응답이 아니라 다시 읽은 값으로 비교한다(응답이 변환 전 상태일 수 있다).
+    const reread = await api.getUser(decision.userId);
+    if (!reread) {
+      await recordHalt(control, decision, base, "user_missing_after_patch", []);
+      return done(log, base, "alert", "user_missing_after_patch", { level: "error" });
+    }
+    const diff = compareUsers(user, reread);
+    if (diff.unexpected.length > 0) {
+      await recordHalt(control, decision, base, "other_fields_changed", diff.unexpected);
+      return done(log, base, "alert", "other_fields_changed", { fields: diff.unexpected, auto: diff.auto, metadata: diff.metadata, level: "error" });
+    }
+    const after = reread.profile || {};
+    if (!Number.isFinite(after[FIELD]) || floorToMinute(after[FIELD]) !== decision.atMs) {
+      return done(log, base, "warn", "value_not_applied", { level: "warn" });
+    }
+    // 정상 자동 갱신은 중단 사유가 아니지만, 이름은 로그로 남긴다.
+    return done(log, base, "updated", null, diff.auto.length > 0 ? { auto: diff.auto } : {});
+  }
+}
+
+function done(log, base, outcome, reason, extra = {}) {
+  log({ ...base, outcome, ...(reason ? { skipReason: reason } : {}), ...extra });
+  return { status: 200, body: "ok" };
+}
+
+module.exports = {
+  AUTO_PROFILE_FIELDS,
+  AUTO_TOP_FIELDS,
+  AUTO_WEB_KEYS,
+  CORE_TOP_FIELDS,
+  METADATA_TOP_FIELDS,
+  TYPED_FIELDS,
+  changedOtherFields,
+  compareUsers,
+  classifyEvent,
+  createWebhookHandler,
+  describeShape,
+  findTypeRisks,
+  normalizeMode,
+  parseAllowList,
+  verifyAuth,
+};
