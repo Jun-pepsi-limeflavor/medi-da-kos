@@ -502,3 +502,111 @@ test("이상 감지 뒤 대기 중이던 다른 상담방 이벤트도 쓰지 �
   assert.deepEqual(h.logs.map((l) => l.skipReason), ["other_fields_changed", "tripped"]);
   assert.equal(control.state.halted, true);
 });
+
+// ── 정상 자동 갱신(방문·메신저 활동)과 실제 손상 구분 ─────────────────────────
+
+const visitorUser = () => ({
+  id: "u1",
+  city: "Seoul",
+  latitude: 37.5,
+  longitude: 127,
+  managedKey: 10,
+  sessionsCount: 3,
+  web: { browser: "Chrome", lastSeenAt: 1, sessionsCount: 3, os: "macOS" },
+  profile: { moq: 500, marketCountry: ["미국"], orderCount: 2, analyticsId: "a1", gaClientId: "g1" },
+});
+/** 쓰기 직후 다시 읽을 때 visit(state)로 값을 바꾸는 가짜 Channel. */
+function visitingApi(visit) {
+  const api = fakeApi({ u1: visitorUser() });
+  return {
+    api,
+    client: {
+      ...api,
+      async patchUser(id, body) {
+        const user = await api.patchUser(id, body);
+        visit(api.state[id]);
+        return user;
+      },
+    },
+  };
+}
+
+test("방문·팝업으로 자동 갱신된 필드는 중단하지 않고 updated와 함께 이름만 로그에 남긴다", async () => {
+  const { client } = visitingApi((u) => {
+    Object.assign(u, { city: "Busan", latitude: 35.1, longitude: 129, popUpChatId: "chat9", sessionsCount: 4, lastSeenAt: 2 });
+    Object.assign(u.web, { browser: "Safari", lastSeenAt: 2, sessionsCount: 4 });
+    Object.assign(u.profile, { analyticsId: "a2", gaClientId: "g2" });
+  });
+  const control = fakeControl();
+  const h = handler({ api: client, control });
+  await h.handle(req(message()));
+  const entry = h.logs.at(-1);
+  assert.equal(entry.outcome, "updated");
+  assert.deepEqual(entry.auto, ["city", "latitude", "longitude", "popUpChatId", "profile.analyticsId", "profile.gaClientId", "web.browser", "web.lastSeenAt", "web.sessionsCount"]);
+  assert.equal(control.state.halted, false);
+  assert.ok(!JSON.stringify(h.logs).includes("Busan") && !JSON.stringify(h.logs).includes("a2"));
+});
+
+test("자동 갱신 필드라도 타입이 바뀌거나 지워지면 손상으로 보고 중단한다", async () => {
+  const cases = [
+    [(u) => { u.latitude = "35.1"; }, ["latitude"]],
+    [(u) => { delete u.profile.analyticsId; }, ["profile.analyticsId"]],
+    [(u) => { u.city = null; }, ["city"]],
+    [(u) => { u.web.os = "Windows"; }, ["web.os"]],
+    [(u) => { u.web = "gone"; }, ["web"]],
+  ];
+  for (const [visit, fields] of cases) {
+    const { client } = visitingApi(visit);
+    const control = fakeControl();
+    const h = handler({ api: client, control });
+    await h.handle(req(message()));
+    assert.equal(h.logs.at(-1).outcome, "alert", fields.join());
+    assert.deepEqual(h.logs.at(-1).fields, fields);
+    assert.equal(control.state.halted, true);
+  }
+});
+
+test("의미를 확인하지 못한 managedKey와 업무 필드(moq·marketCountry·orderCount) 변화는 계속 손상으로 본다", async () => {
+  const cases = [
+    [(u) => { u.managedKey = 11; }, ["managedKey"]],
+    [(u) => { u.profile.moq = 0; }, ["profile.moq"]],
+    [(u) => { u.profile.marketCountry = []; }, ["profile.marketCountry"]],
+    [(u) => { u.profile.orderCount = "2"; }, ["profile.orderCount"]],
+  ];
+  for (const [visit, fields] of cases) {
+    const { client } = visitingApi(visit);
+    const h = handler({ api: client });
+    await h.handle(req(message()));
+    assert.equal(h.logs.at(-1).outcome, "alert", fields.join());
+    assert.deepEqual(h.logs.at(-1).fields, fields);
+  }
+});
+
+test("자동 갱신과 실제 손상이 함께 생기면 손상만 이상으로, 자동 갱신은 따로 남긴다", async () => {
+  const { client } = visitingApi((u) => {
+    u.city = "Busan";
+    u.profile.gaClientId = "g2";
+    u.profile.moq = 0;
+  });
+  const control = fakeControl();
+  const h = handler({ api: client, control });
+  await h.handle(req(message()));
+  const entry = h.logs.at(-1);
+  assert.equal(entry.outcome, "alert");
+  assert.deepEqual(entry.fields, ["profile.moq"]);
+  assert.deepEqual(entry.auto, ["city", "profile.gaClientId"]);
+  assert.deepEqual(control.state.halts[0].fields, ["profile.moq"]);
+});
+
+test("compareUsers: 자동 갱신 분류 규칙", () => {
+  const before = visitorUser();
+  const after = structuredClone(before);
+  Object.assign(after, { popUpChatId: "c1", longitude: 128 });
+  after.web.lastSeenAt = 9;
+  after.profile.lastContactAt = 5;
+  const diff = compareUsers(before, after);
+  assert.deepEqual(diff.unexpected, []);
+  assert.deepEqual(diff.auto, ["longitude", "popUpChatId", "web.lastSeenAt"]);
+  delete after.web.browser;
+  assert.deepEqual(compareUsers(before, after).unexpected, ["web.browser"]);
+});

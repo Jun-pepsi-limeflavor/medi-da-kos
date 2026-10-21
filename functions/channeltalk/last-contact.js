@@ -136,8 +136,18 @@ function findTypeRisks(profile) {
 // 고객 정보로 보는 최상위 필드. 바뀌면 이상이다.
 const CORE_TOP_FIELDS = [
   "id", "type", "member", "memberId", "unifiedId", "name", "email", "mobileNumber", "tags",
-  "blocked", "unsubscribeEmail", "unsubscribeTexting", "language", "country", "city", "avatarUrl",
+  "blocked", "unsubscribeEmail", "unsubscribeTexting", "language", "country", "avatarUrl",
 ];
+// 고객의 웹 방문·메신저 활동으로 Channel이 스스로 바꾸는 필드(2026-10-21 운영 테스트 관찰).
+// 같은 타입으로 값만 바뀌거나 새로 생긴 경우만 정상으로 보고, 지워지거나 타입이 바뀌면 이상이다.
+// - city·latitude·longitude: 방문 IP 기반 위치. 방문 세션 필드(lastSeenAt·sessionsCount)와 함께 바뀜
+// - popUpChatId: 메신저 팝업 상담 표시. 상담 활동 뒤 새로 생김
+// - profile.analyticsId·profile.gaClientId: 웹 SDK 분석 식별자. 우리 코드는 쓰지 않고, 방문 때 함께 바뀜
+// managedKey는 의미를 확인하지 못해 계속 이상으로 본다.
+const AUTO_TOP_FIELDS = { city: "string", latitude: "number", longitude: "number", popUpChatId: "string" };
+const AUTO_PROFILE_FIELDS = { analyticsId: "string", gaClientId: "string" };
+// web(브라우저 세션 객체)은 관찰된 하위 키만 정상으로 본다. 그 밖의 하위 키 변화는 이상이다.
+const AUTO_WEB_KEYS = new Set(["browser", "lastSeenAt", "sessionsCount"]);
 // 서버가 스스로 바꾸는 메타데이터·시각 필드. 바뀌어도 이상으로 보지 않고 이름만 기록한다.
 const METADATA_TOP_FIELDS = new Set([
   "updatedAt", "version", "lastSeenAt", "alert", "unread", "sessionsCount", "managed", "hasChat", "hasPushToken",
@@ -153,17 +163,42 @@ function same(a, b) {
  * - unknownTop: 목록에 없는 최상위 필드 변화(이상으로 본다. 확인 후 메타데이터 목록에 넣을지 정한다)
  * - metadata: 서버 메타데이터 변화(정상, 이름만 기록)
  */
+/** 값이 바뀌었어도 정해진 타입을 유지(또는 새로 생김)하면 자동 갱신으로 본다. 지워지면 아니다. */
+function isAutoChange(kind, after) {
+  return after !== undefined && after !== null && (kind === "number" ? typeof after === "number" && Number.isFinite(after) : typeof after === kind);
+}
+
 function compareUsers(before, after) {
   const b = before || {};
   const a = after || {};
-  const profile = changedOtherFields(b.profile, a.profile);
+  const auto = [];
+  const profile = changedOtherFields(b.profile, a.profile).filter((key) => {
+    if (AUTO_PROFILE_FIELDS[key] && isAutoChange(AUTO_PROFILE_FIELDS[key], (a.profile || {})[key])) {
+      auto.push(`profile.${key}`);
+      return false;
+    }
+    return true;
+  });
   const tagsSame = same([...(Array.isArray(b.tags) ? b.tags : [])].sort(), [...(Array.isArray(a.tags) ? a.tags : [])].sort());
   const core = CORE_TOP_FIELDS.filter((key) => (key === "tags" ? !tagsSame : !same(b[key], a[key])));
   const others = [...new Set([...Object.keys(b), ...Object.keys(a)])]
     .filter((key) => key !== "profile" && !CORE_TOP_FIELDS.includes(key) && !same(b[key], a[key]));
   const metadata = others.filter((key) => METADATA_TOP_FIELDS.has(key)).sort();
-  const unknownTop = others.filter((key) => !METADATA_TOP_FIELDS.has(key)).sort();
-  return { profile, core, unknownTop, metadata, unexpected: [...profile.map((k) => `profile.${k}`), ...core, ...unknownTop] };
+  const unknownTop = [];
+  for (const key of others.filter((k) => !METADATA_TOP_FIELDS.has(k))) {
+    if (AUTO_TOP_FIELDS[key] && isAutoChange(AUTO_TOP_FIELDS[key], a[key])) auto.push(key);
+    else if (key === "web" && isPlainObject(b.web) && isPlainObject(a.web)) {
+      const changed = [...new Set([...Object.keys(b.web), ...Object.keys(a.web)])].filter((k) => !same(b.web[k], a.web[k]));
+      changed.forEach((k) => (AUTO_WEB_KEYS.has(k) && a.web[k] !== undefined ? auto : unknownTop).push(`web.${k}`));
+    } else unknownTop.push(key);
+  }
+  unknownTop.sort();
+  auto.sort();
+  return { profile, core, unknownTop, metadata, auto, unexpected: [...profile.map((k) => `profile.${k}`), ...core, ...unknownTop] };
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 /** 쓰기 전후 프로필에서 lastContactAt 외에 바뀐 필드 이름. */
@@ -272,13 +307,14 @@ function createWebhookHandler({
     const diff = compareUsers(user, reread);
     if (diff.unexpected.length > 0) {
       await recordHalt(control, decision, base, "other_fields_changed", diff.unexpected);
-      return done(log, base, "alert", "other_fields_changed", { fields: diff.unexpected, metadata: diff.metadata, level: "error" });
+      return done(log, base, "alert", "other_fields_changed", { fields: diff.unexpected, auto: diff.auto, metadata: diff.metadata, level: "error" });
     }
     const after = reread.profile || {};
     if (!Number.isFinite(after[FIELD]) || floorToMinute(after[FIELD]) !== decision.atMs) {
       return done(log, base, "warn", "value_not_applied", { level: "warn" });
     }
-    return done(log, base, "updated", null);
+    // 정상 자동 갱신은 중단 사유가 아니지만, 이름은 로그로 남긴다.
+    return done(log, base, "updated", null, diff.auto.length > 0 ? { auto: diff.auto } : {});
   }
 }
 
@@ -288,6 +324,9 @@ function done(log, base, outcome, reason, extra = {}) {
 }
 
 module.exports = {
+  AUTO_PROFILE_FIELDS,
+  AUTO_TOP_FIELDS,
+  AUTO_WEB_KEYS,
   CORE_TOP_FIELDS,
   METADATA_TOP_FIELDS,
   TYPED_FIELDS,
