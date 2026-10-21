@@ -527,3 +527,6 @@ exports.notionEmailHistorySync = onSchedule(
 
 // Channel Talk 웹 접수 연동 — 기존 함수와 별개로 같은 문서 이벤트에 반응한다 (functions/channeltalk/triggers.js).
 Object.assign(exports, require("./channeltalk/triggers"));
+
+// Channel Talk lastContactAt 웹훅 수신 (functions/channeltalk/last-contact-trigger.js). 기본 off, 선택 배포만.
+Object.assign(exports, require("./channeltalk/last-contact-trigger"));
