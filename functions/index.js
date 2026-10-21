@@ -529,5 +529,4 @@ exports.notionEmailHistorySync = onSchedule(
 Object.assign(exports, require("./channeltalk/triggers"));
 
 // Channel Talk lastContactAt 웹훅 수신 (functions/channeltalk/last-contact-trigger.js). 기본 off, 선택 배포만.
-exports.channeltalklastcontactwebhook =
-  require("./channeltalk/last-contact-trigger").channelTalkLastContactWebhook;
+Object.assign(exports, require("./channeltalk/last-contact-trigger"));
