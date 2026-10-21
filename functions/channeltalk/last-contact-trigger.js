@@ -6,26 +6,38 @@
  * 배포 전에 Secret CHANNELTALK_WEBHOOK_TOKEN이 있어야 한다. Desk 웹훅 등록은 observe 배포 뒤에 한다
  * (docs/plans/2026-10-19-channeltalk-v2.md 6장).
  * - 기본 모드 off. 모드는 functions/.env의 CHANNELTALK_LAST_CONTACT_MODE(off|observe|on).
+ * - on 모드 쓰기 범위는 CHANNELTALK_LAST_CONTACT_ALLOW_USER_IDS. 기본 ""(아무에게도 쓰지 않음),
+ *   "*"(전체 고객), 아니면 쉼표로 구분한 Channel 고객 id. Firebase 매핑 여부와 상관없이 Channel 고객 id로 판정한다.
  * - 최대 인스턴스 1·동시 처리 1: 한 번에 하나씩 처리해 날짜가 과거로 되돌아가지 않게 한다.
  * - PATCH는 V1과 같은 웹 접수 키를 쓰고, on 모드에서만 클라이언트를 만든다.
+ * - on 모드는 Firestore channelTalkControl/lastContact 중단 플래그를 매 요청 확인한다(서비스 계정에 Firestore 읽기·쓰기 필요).
  */
 const { onRequest } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const { defineSecret, defineString } = require("firebase-functions/params");
+const { FieldValue, Timestamp, getFirestore } = require("firebase-admin/firestore");
 const { createChannelTalkApi } = require("./api");
+const { createLastContactControl } = require("./last-contact-control");
 const { createWebhookHandler } = require("./last-contact");
 
 const REGION = "asia-northeast3";
 const MODE = defineString("CHANNELTALK_LAST_CONTACT_MODE", { default: "off" });
+const ALLOW_USER_IDS = defineString("CHANNELTALK_LAST_CONTACT_ALLOW_USER_IDS", { default: "" });
 const API_VERSION = defineString("CHANNELTALK_INTAKE_API_VERSION", { default: "2026-06-01" });
 const WEBHOOK_TOKEN = defineSecret("CHANNELTALK_WEBHOOK_TOKEN");
 const ACCESS_KEY = defineSecret("CHANNELTALK_INTAKE_ACCESS_KEY");
 const ACCESS_SECRET = defineSecret("CHANNELTALK_INTAKE_ACCESS_SECRET");
 
 let api = null;
+let control = null;
 const handler = createWebhookHandler({
   getMode: () => MODE.value(),
   getToken: () => WEBHOOK_TOKEN.value(),
+  getAllowList: () => ALLOW_USER_IDS.value(),
+  getControl: () => {
+    control = control || createLastContactControl(getFirestore(), { Timestamp, FieldValue });
+    return control;
+  },
   getApi: () => {
     api = api || createChannelTalkApi({ accessKey: ACCESS_KEY.value(), accessSecret: ACCESS_SECRET.value(), version: API_VERSION.value() });
     return api;

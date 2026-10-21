@@ -168,6 +168,8 @@ service cloud.firestore {
     // Channel Talk 연동 장부 — 서버(Admin SDK)만 접근한다.
     match /channelTalkIdentities/{id} { allow read, write: if false; }
     match /channelTalkSync/{id}       { allow read, write: if false; }
+    // lastContactAt 쓰기 중단 플래그 — 서버(Admin SDK)만 접근한다.
+    match /channelTalkControl/{id}    { allow read, write: if false; }
 
     // 그 외 모든 경로 차단
     match /{document=**} {

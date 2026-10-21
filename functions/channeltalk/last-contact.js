@@ -8,7 +8,8 @@
  * - 인증은 우리가 정한 수신 URL 토큰(query `auth`)만 쓴다. Channel 쪽 서명 방식은 확인 전이라 쓰지 않는다.
  * - 모드: off(아무것도 안 함) / observe(판정·형태만 로그, 쓰기 없음) / on(PATCH). 알 수 없는 값은 off.
  * - on에서도 다른 프로필 값 보호를 위해: 보내는 값은 { profile: { lastContactAt } } 하나, 쓰기 전 타입 검사,
- *   쓰기 후 다른 필드 변화 감지 시 이 인스턴스는 observe로 내려간다.
+ *   쓰기 후 다른 필드 변화 감지 시 이 인스턴스는 observe로 내려가고, Firestore 중단 플래그를 기록한다.
+ * - on 모드는 매 요청 중단 플래그를 확인한다. 플래그를 읽지 못하면 쓰지 않는다(fail-closed).
  * - 로그에는 형태와 사유만 남긴다(본문·이메일·이름·Secret 금지).
  */
 const crypto = require("node:crypto");
@@ -29,6 +30,16 @@ const TYPED_FIELDS = {
 // 2020-01-01 이후, 지금+1일 이전의 밀리초만 받는다. 단위가 다르면(마이크로초 등) 갱신하지 않는다.
 const MIN_MS = Date.UTC(2020, 0, 1);
 const MAX_FUTURE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * on 모드에서 실제로 쓸 고객 범위. 비어 있으면 아무에게도 쓰지 않고(안전 기본값), "*"면 전체 고객.
+ * 그 밖에는 쉼표로 구분한 Channel 고객 id 목록.
+ */
+function parseAllowList(value) {
+  const raw = String(value || "").trim();
+  if (raw === "*") return { all: true, ids: new Set() };
+  return { all: false, ids: new Set(raw.split(",").map((id) => id.trim()).filter(Boolean)) };
+}
 
 function normalizeMode(value) {
   const mode = String(value || "").trim().toLowerCase();
@@ -122,6 +133,39 @@ function findTypeRisks(profile) {
   return Object.keys(TYPED_FIELDS).filter((field) => !isValidType(TYPED_FIELDS[field], p[field])).sort();
 }
 
+// 고객 정보로 보는 최상위 필드. 바뀌면 이상이다.
+const CORE_TOP_FIELDS = [
+  "id", "type", "member", "memberId", "unifiedId", "name", "email", "mobileNumber", "tags",
+  "blocked", "unsubscribeEmail", "unsubscribeTexting", "language", "country", "city", "avatarUrl",
+];
+// 서버가 스스로 바꾸는 메타데이터·시각 필드. 바뀌어도 이상으로 보지 않고 이름만 기록한다.
+const METADATA_TOP_FIELDS = new Set([
+  "updatedAt", "version", "lastSeenAt", "alert", "unread", "sessionsCount", "managed", "hasChat", "hasPushToken",
+]);
+
+function same(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * 쓰기 전후 고객 전체 비교. profile은 lastContactAt 외 전부, 최상위는 고객 정보 필드와 나머지를 나눈다.
+ * - core: 고객 정보 최상위 필드 변화(이상)
+ * - unknownTop: 목록에 없는 최상위 필드 변화(이상으로 본다. 확인 후 메타데이터 목록에 넣을지 정한다)
+ * - metadata: 서버 메타데이터 변화(정상, 이름만 기록)
+ */
+function compareUsers(before, after) {
+  const b = before || {};
+  const a = after || {};
+  const profile = changedOtherFields(b.profile, a.profile);
+  const tagsSame = same([...(Array.isArray(b.tags) ? b.tags : [])].sort(), [...(Array.isArray(a.tags) ? a.tags : [])].sort());
+  const core = CORE_TOP_FIELDS.filter((key) => (key === "tags" ? !tagsSame : !same(b[key], a[key])));
+  const others = [...new Set([...Object.keys(b), ...Object.keys(a)])]
+    .filter((key) => key !== "profile" && !CORE_TOP_FIELDS.includes(key) && !same(b[key], a[key]));
+  const metadata = others.filter((key) => METADATA_TOP_FIELDS.has(key)).sort();
+  const unknownTop = others.filter((key) => !METADATA_TOP_FIELDS.has(key)).sort();
+  return { profile, core, unknownTop, metadata, unexpected: [...profile.map((k) => `profile.${k}`), ...core, ...unknownTop] };
+}
+
 /** 쓰기 전후 프로필에서 lastContactAt 외에 바뀐 필드 이름. */
 function changedOtherFields(before, after) {
   const a = before || {};
@@ -138,9 +182,21 @@ function changedOtherFields(before, after) {
  * @param {() => string} deps.getToken          수신 URL 토큰(Secret)
  * @param {() => {getUser: Function, patchUser: Function}} deps.getApi  on 모드에서만 만든다
  * @param {(entry: object) => void} deps.log
+ * @param {() => string} [deps.getAllowList]  on 모드 쓰기 범위("" = 없음, "*" = 전체, 아니면 고객 id 목록)
+ * @param {() => {isHalted: Function, halt: Function}} [deps.getControl]  중단 플래그. 없으면 쓰지 않는다
  */
-function createWebhookHandler({ getMode, getToken, getApi, log, now = () => Date.now() }) {
+function createWebhookHandler({
+  getMode, getToken, getApi, log, now = () => Date.now(), getAllowList = () => "", getControl = () => null,
+}) {
   let tripped = false;
+  // 같은 인스턴스 안의 쓰기 구간(중단 확인 → 조회 → 비교 → PATCH → 재조회)을 한 줄로 세운다.
+  // 동시 처리 설정이 바뀌어도 같은 고객의 날짜가 역행하지 않게 한다. 인스턴스 사이는 최대 인스턴스 1로 막는다.
+  let queue = Promise.resolve();
+  const serialize = (task) => {
+    const run = queue.then(task, task);
+    queue = run.catch(() => {});
+    return run;
+  };
 
   return async function handleWebhook(req) {
     if (req.method !== "POST") return { status: 405, body: "method_not_allowed" };
@@ -161,15 +217,42 @@ function createWebhookHandler({ getMode, getToken, getApi, log, now = () => Date
       return { status: 200, body: "ok" };
     }
 
-    try {
-      return await applyUpdate(getApi(), decision, base);
-    } catch (error) {
-      // API 오류는 재시도하지 않는다(재전송 동작 미확인). 다음 메시지나 과거 기록 채우기에서 보완된다.
-      return done(log, base, "error", error && (error.code || error.name) ? String(error.code || error.name) : "unknown", { level: "error" });
+    const allow = parseAllowList(getAllowList());
+    if (!allow.all && !allow.ids.has(decision.userId)) {
+      // 허용 목록 밖 고객은 Channel을 호출하지 않고 판정만 남긴다(observe와 같다).
+      log({ ...base, outcome: "observed", skipReason: "not_allowlisted" });
+      return { status: 200, body: "ok" };
     }
+    return serialize(async () => {
+      // 앞선 요청이 이상을 감지했으면 대기 중이던 요청도 쓰지 않는다.
+      if (tripped) return done(log, { ...base, mode: "observe" }, "skip", "tripped");
+      let control;
+      try {
+        control = getControl();
+        if (!control) return done(log, base, "skip", "no_halt_control", { level: "error" });
+        if (await control.isHalted()) return done(log, base, "skip", "halted");
+      } catch {
+        return done(log, base, "skip", "halt_check_failed", { level: "error" });
+      }
+      try {
+        return await applyUpdate(getApi(), decision, base, control);
+      } catch (error) {
+        // API 오류는 재시도하지 않는다(재전송 동작 미확인). 다음 메시지나 과거 기록 채우기에서 보완된다.
+        return done(log, base, "error", error && (error.code || error.name) ? String(error.code || error.name) : "unknown", { level: "error" });
+      }
+    });
   };
 
-  async function applyUpdate(api, decision, base) {
+  async function recordHalt(control, decision, base, reason, fields) {
+    tripped = true;
+    try {
+      await control.halt({ reason, fields, channelUserId: decision.userId, nowMs: now() });
+    } catch {
+      log({ ...base, outcome: "alert", skipReason: "halt_record_failed", level: "error" });
+    }
+  }
+
+  async function applyUpdate(api, decision, base, control) {
     const user = await api.getUser(decision.userId);
     if (!user) return done(log, base, "skip", "user_missing");
     if (user.type === "unified") return done(log, base, "skip", "user_unified");
@@ -179,13 +262,19 @@ function createWebhookHandler({ getMode, getToken, getApi, log, now = () => Date
     const current = Number.isFinite(before[FIELD]) ? floorToMinute(before[FIELD]) : null;
     if (current !== null && current >= decision.atMs) return done(log, base, "skip", "not_newer");
 
-    const patched = await api.patchUser(decision.userId, { profile: { [FIELD]: decision.atMs } });
-    const after = (patched && patched.profile) || ((await api.getUser(decision.userId)) || {}).profile || {};
-    const changed = changedOtherFields(before, after);
-    if (changed.length > 0) {
-      tripped = true;
-      return done(log, base, "alert", "other_fields_changed", { fields: changed, level: "error" });
+    await api.patchUser(decision.userId, { profile: { [FIELD]: decision.atMs } });
+    // PATCH 응답이 아니라 다시 읽은 값으로 비교한다(응답이 변환 전 상태일 수 있다).
+    const reread = await api.getUser(decision.userId);
+    if (!reread) {
+      await recordHalt(control, decision, base, "user_missing_after_patch", []);
+      return done(log, base, "alert", "user_missing_after_patch", { level: "error" });
     }
+    const diff = compareUsers(user, reread);
+    if (diff.unexpected.length > 0) {
+      await recordHalt(control, decision, base, "other_fields_changed", diff.unexpected);
+      return done(log, base, "alert", "other_fields_changed", { fields: diff.unexpected, metadata: diff.metadata, level: "error" });
+    }
+    const after = reread.profile || {};
     if (!Number.isFinite(after[FIELD]) || floorToMinute(after[FIELD]) !== decision.atMs) {
       return done(log, base, "warn", "value_not_applied", { level: "warn" });
     }
@@ -199,12 +288,16 @@ function done(log, base, outcome, reason, extra = {}) {
 }
 
 module.exports = {
+  CORE_TOP_FIELDS,
+  METADATA_TOP_FIELDS,
   TYPED_FIELDS,
   changedOtherFields,
+  compareUsers,
   classifyEvent,
   createWebhookHandler,
   describeShape,
   findTypeRisks,
   normalizeMode,
+  parseAllowList,
   verifyAuth,
 };
