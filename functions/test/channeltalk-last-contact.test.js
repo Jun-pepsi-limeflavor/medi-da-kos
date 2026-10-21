@@ -36,6 +36,17 @@ test("인증은 16자 이상 기대값과 정확히 같을 때만 통과한다",
   assert.equal(verifyAuth("", ""), false);
 });
 
+test("Channel 연동 이메일(writingType=email)은 고객·담당자 메일로 인정하고, 이메일 필드 이름만으로는 막지 않는다", () => {
+  const customerMail = classifyEvent(message({ writingType: "email", email: { subject: "x" } }), { nowMs: NOW });
+  assert.equal(customerMail.action, "update");
+  assert.equal(customerMail.reason, "customer_email");
+  const managerMail = classifyEvent(message({ personType: "manager", writingType: "email" }, { userChat: { userId: "u1" } }), { nowMs: NOW });
+  assert.equal(managerMail.reason, "manager_email");
+  const privateMail = classifyEvent(message({ personType: "manager", writingType: "email", options: ["private"] }), { nowMs: NOW });
+  assert.equal(privateMail.reason, "private_note");
+  assert.equal(classifyEvent(message({ writingType: "standard" }), { nowMs: NOW }).reason, "customer_message");
+});
+
 test("고객·담당자 실제 메시지만 갱신하고 시각은 분 단위로 내린다", () => {
   const customer = classifyEvent(message(), { nowMs: NOW });
   assert.deepEqual(customer, { action: "update", reason: "customer_message", userId: "u1", atMs: Date.UTC(2026, 9, 19, 8, 59) });
@@ -56,8 +67,9 @@ test("내부대화·봇·시스템 로그·팀챗은 제외하고, 근거가 부
     [{ ...message(), event: "update" }, "hold", "unknown_event"],
     [message({ chatType: "other" }), "hold", "unknown_chat_type"],
     [message({ personType: "workflow" }), "hold", "unknown_person_type"],
-    [message({ emailId: "e1" }), "hold", "email_unverified"],
-    [message({ source: "email" }), "hold", "email_unverified"],
+    [message({ broadcastedMsg: true }), "ignore", "broadcast"],
+    [message({ personType: "manager", broadcastedMsg: { id: "b1" } }), "ignore", "broadcast"],
+    [message({ writingType: "workflow" }), "hold", "unknown_writing_type"],
     [message({}, {}), "hold", "no_user_id"],
     [message({}, { user: { id: "u1" }, userChat: { userId: "u2" } }), "hold", "user_ref_mismatch"],
     [message({ createdAt: (NOW - 60_000) * 1000 }), "hold", "invalid_created_at"],

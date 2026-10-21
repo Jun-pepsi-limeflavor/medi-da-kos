@@ -3,8 +3,9 @@
  * lastContactAt 자동 갱신: 웹훅 메시지 판정과 프로필 보호 (순수 함수 + 요청 처리기).
  *
  * 규칙 원본: docs/plans/2026-10-19-channeltalk-v2.md 6장.
- * - 판정표는 가설이다. 공식 문서(type·event·chatType·personType)와 0단계 관찰(내부대화 options,
- *   log.action)만 근거로 쓰고, 확인되지 않은 형태(연동 이메일 등)는 갱신하지 않는다(hold).
+ * - 판정 근거: 공식 문서(type·event·chatType·personType), 0단계 관찰(내부대화 options, log.action),
+ *   2026-10-21 실제 상담 조회(연동 이메일은 writingType=email, 일괄 발송은 broadcastedMsg).
+ *   확인되지 않은 형태(다른 writingType 등)는 갱신하지 않는다(hold).
  * - 인증은 우리가 정한 수신 URL 토큰(query `auth`)만 쓴다. Channel 쪽 서명 방식은 확인 전이라 쓰지 않는다.
  * - 모드: off(아무것도 안 함) / observe(판정·형태만 로그, 쓰기 없음) / on(PATCH). 알 수 없는 값은 off.
  * - on에서도 다른 프로필 값 보호를 위해: 보내는 값은 { profile: { lastContactAt } } 하나, 쓰기 전 타입 검사,
@@ -84,10 +85,13 @@ function classifyEvent(payload, { nowMs = Date.now() } = {}) {
   if (personType === "bot") return { action: "ignore", reason: "bot" };
   if (personType !== "user" && personType !== "manager") return { action: "hold", reason: "unknown_person_type" };
 
-  // 연동 이메일의 형태는 확인 전이다. 이메일 흔적이 있는 메시지는 판정을 보류한다.
-  if (Object.keys(entity).some((key) => /mail/i.test(key)) || /mail/i.test(String(entity.source || entity.medium || ""))) {
-    return { action: "hold", reason: "email_unverified" };
-  }
+  // 일괄·자동 발송은 실제 연락이 아니다.
+  if (entity.broadcastedMsg) return { action: "ignore", reason: "broadcast" };
+  // 작성 유형: standard(일반)·email(Channel 연동 이메일, 2026-10-21 실제 상담 구조 확인)만 인정한다.
+  // 다른 값은 형태를 확인하지 못했으므로 갱신하지 않는다.
+  const writingType = lower(entity.writingType);
+  if (writingType && writingType !== "standard" && writingType !== "email") return { action: "hold", reason: "unknown_writing_type" };
+  const viaEmail = writingType === "email";
 
   const refers = payload.refers && typeof payload.refers === "object" ? payload.refers : {};
   const fromUser = refers.user && typeof refers.user.id === "string" ? refers.user.id : null;
@@ -100,7 +104,8 @@ function classifyEvent(payload, { nowMs = Date.now() } = {}) {
   if (!Number.isSafeInteger(createdAt) || createdAt < MIN_MS || createdAt > nowMs + MAX_FUTURE_MS) {
     return { action: "hold", reason: "invalid_created_at" };
   }
-  return { action: "update", reason: personType === "user" ? "customer_message" : "manager_message", userId, atMs: floorToMinute(createdAt) };
+  const reason = `${personType === "user" ? "customer" : "manager"}_${viaEmail ? "email" : "message"}`;
+  return { action: "update", reason, userId, atMs: floorToMinute(createdAt) };
 }
 
 /** 로그용 형태 요약. 값(본문·이메일·이름·id)은 넣지 않는다. */
