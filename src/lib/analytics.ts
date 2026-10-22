@@ -1,4 +1,5 @@
 import { isNonProductionEnv } from "./env-flags";
+import { trackMetaEvent } from "./meta-pixel";
 
 /**
  * 모든 GA4 이벤트에 `is_test`를 붙인다.
@@ -16,6 +17,22 @@ export function trackConversionEvent(
     ...params,
     is_test: isNonProductionEnv(),
   });
+}
+
+export type EmailLinkLocation = "contact" | "footer";
+
+/** 이메일 주소 클릭. 위치는 이벤트 이름이 아니라 `link_location`으로 나눈다. */
+export function trackEmailClick(location: EmailLinkLocation, email: string) {
+  trackConversionEvent("email_click", {
+    link_location: location,
+    link_url: `mailto:${email}`,
+  });
+  trackMetaEvent("Contact", { content_name: location });
+}
+
+/** 사용자가 주소를 직접 선택해 복사한 것. 우클릭·길게 누르기 메뉴 복사는 잡히지 않는다. */
+export function trackEmailCopy(location: EmailLinkLocation) {
+  trackConversionEvent("email_copy", { link_location: location, method: "manual" });
 }
 
 /** GA4 event when the CM Wizard step changes (saved/navigated step, not field edits). */

@@ -6,6 +6,7 @@ import { submitLandingRequest, validateLandingContact } from "@/lib/landing/requ
 import { getChannelTalkUserId } from "@/lib/channel-talk";
 import { channelUserIdField } from "@/lib/channel-talk-intake";
 import { trackLandingEvent } from "@/lib/landing/analytics";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import { consultationLeadParams, LANDING_CONSULTATION_FORM_ID } from "@/lib/landing/lead-event";
 import type { LandingCatalogItem, LandingRequestInput, LandingVariant } from "@/lib/landing/types";
 import type { CMBrief } from "@/lib/types";
@@ -69,6 +70,7 @@ export function ConsultationForm({ variant, catalogItems, dashboardBrief, onBack
       });
       // 세 랜딩 공통 비교용. 위 consultation_submit은 기존 보고서 때문에 유지한다.
       trackLandingEvent("generate_lead", variant, consultationLeadParams(fields.expectedVolume, attribution));
+      trackMetaEvent("Lead", { content_name: `landing-${variant}` });
       submittedRef.current = true;
       setComplete(true);
     } catch (error) {
