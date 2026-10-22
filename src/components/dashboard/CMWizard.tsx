@@ -40,6 +40,7 @@ import { submitCustomBrief } from "@/lib/firestore-service";
 import { useDashboardBrief } from "@/lib/dashboard-brief-context";
 import { REDIRECT_AFTER_BRIEF_SUBMIT } from "@/lib/routes";
 import { trackConversionEvent } from "@/lib/analytics";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import { trackLandingEvent } from "@/lib/landing/analytics";
 import { shouldReduceLandingMotion } from "@/lib/landing/motion";
 import { LandingDashboardHeader } from "@/components/landing/LandingDashboardHeader";
@@ -149,6 +150,7 @@ export function CMWizard({ mode = "order", onConsultationReady }: Props) {
     try {
       await submitCustomBrief(brief);
       trackConversionEvent("conversion_event_submit_lead_form", { value: 1 });
+      trackMetaEvent("SubmitApplication");
       await refreshBrief();
       setMessage("Brief submitted. Redirecting to My Orders…");
       setTimeout(() => router.push(REDIRECT_AFTER_BRIEF_SUBMIT), 1200);

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { AuthProvider } from "@/lib/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { ChannelTalk } from "@/components/support/ChannelTalk";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
@@ -133,6 +134,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
+  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const channelTalkPluginKey = process.env.NEXT_PUBLIC_CHANNEL_TALK_PLUGIN_KEY;
 
   return (
@@ -145,6 +147,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <GoogleAnalytics gaId={gaId} />
+        <MetaPixel pixelId={metaPixelId} />
         <AuthProvider>
           <ChannelTalk pluginKey={channelTalkPluginKey} gaId={gaId} />
           {children}

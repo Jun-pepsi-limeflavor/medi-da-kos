@@ -1,4 +1,5 @@
 import { isNonProductionEnv } from "./env-flags";
+import { trackMetaEvent } from "./meta-pixel";
 
 /**
  * 모든 GA4 이벤트에 `is_test`를 붙인다.
@@ -26,6 +27,7 @@ export function trackEmailClick(location: EmailLinkLocation, email: string) {
     link_location: location,
     link_url: `mailto:${email}`,
   });
+  trackMetaEvent("Contact", { content_name: location });
 }
 
 /** 사용자가 주소를 직접 선택해 복사한 것. 우클릭·길게 누르기 메뉴 복사는 잡히지 않는다. */
