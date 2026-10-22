@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { TrackedMailLink } from "@/components/analytics/TrackedMailLink";
 import { ContactForm } from "@/components/contact/ContactForm";
 import { SocialLinks } from "@/components/marketing/SocialLinks";
 import { SITE_URL, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/site";
@@ -44,12 +45,11 @@ export default function ContactPage() {
             you explore Korean OEM/ODM options — no account needed.
           </p>
           <p className="mt-4 text-sm text-slate-600">
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
+            <TrackedMailLink
+              email={SUPPORT_EMAIL}
+              location="contact"
               className="font-medium text-sky-700 hover:text-sky-800"
-            >
-              {SUPPORT_EMAIL}
-            </a>
+            />
             <span className="mx-2 text-slate-400" aria-hidden="true">
               ·
             </span>
