@@ -8,6 +8,7 @@ import {
   REFERRAL_SOURCES,
 } from "@/lib/contact-form-options";
 import { trackConversionEvent } from "@/lib/analytics";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import { getGaClientId } from "@/lib/ga-client-id";
 import { submitLandingRequest } from "@/lib/landing/request";
 import { getChannelTalkUserId } from "@/lib/channel-talk";
@@ -149,6 +150,7 @@ export function KoreaLeadForm({
         utm_campaign: utm.utmCampaign,
         utm_content: utm.utmContent,
       });
+      trackMetaEvent("Lead", { content_name: "landing-korea" });
 
       submittedRef.current = true;
       setSubmitted(true);

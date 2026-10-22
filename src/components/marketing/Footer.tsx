@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TrackedMailLink } from "@/components/analytics/TrackedMailLink";
 import { SocialLinks } from "@/components/marketing/SocialLinks";
 import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/site";
 
@@ -42,12 +43,11 @@ export function Footer() {
           <div>
             <p className="text-sm font-semibold text-slate-800">Contact</p>
             <div className="mt-3 space-y-1 text-sm text-slate-600">
-              <a
-                href={`mailto:${SUPPORT_EMAIL}`}
-                className="block hover:text-sky-600"
-              >
-                {SUPPORT_EMAIL}
-              </a>
+              <TrackedMailLink
+                email={SUPPORT_EMAIL}
+                location="footer"
+                className="hover:text-sky-600"
+              />
               <a href={SUPPORT_PHONE_HREF} className="block hover:text-sky-600">
                 {SUPPORT_PHONE}
               </a>

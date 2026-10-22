@@ -7,6 +7,7 @@ import {
   REFERRAL_SOURCES,
 } from "@/lib/contact-form-options";
 import { trackConversionEvent } from "@/lib/analytics";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import { getGaClientId } from "@/lib/ga-client-id";
 import { submitContactForm } from "@/lib/firestore-service";
 import { useAuth } from "@/lib/auth-context";
@@ -78,6 +79,7 @@ export function ContactForm() {
         utm_medium: utmParams.utmMedium,
         utm_campaign: utmParams.utmCampaign,
       });
+      trackMetaEvent("Lead", { content_name: "contact-page" });
 
       setSubmitted(true);
     } catch (err) {
