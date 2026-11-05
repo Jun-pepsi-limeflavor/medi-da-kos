@@ -5,14 +5,14 @@ import { CheckCircle2 } from "lucide-react";
 import {
   BUSINESS_TYPES,
   REFERRAL_SOURCES,
-} from "@/lib/contact-form-options";
-import { trackConversionEvent } from "@/lib/analytics";
-import { trackMetaEvent } from "@/lib/meta-pixel";
-import { getGaClientId } from "@/lib/ga-client-id";
-import { submitContactForm } from "@/lib/firestore-service";
-import { useAuth } from "@/lib/auth-context";
-import { getChannelTalkUserId } from "@/lib/channel-talk";
-import { contactIdentityFields } from "@/lib/channel-talk-intake";
+} from "@/lib/contact/form-options";
+import { trackConversionEvent } from "@/lib/analytics/events";
+import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
+import { getGaClientId } from "@/lib/analytics/ga-client-id";
+import { submitContactForm } from "@/lib/firebase/firestore-service";
+import { useAuth } from "@/lib/auth/auth-context";
+import { getChannelTalkUserId } from "@/lib/channel-talk/client";
+import { contactIdentityFields } from "@/lib/channel-talk/intake";
 import { useUtmParams } from "@/hooks/use-utm-params";
 
 const inputClass =
@@ -68,8 +68,7 @@ export function ContactForm() {
         ...contactIdentityFields({ uid: user?.uid, channelUserId: getChannelTalkUserId() }),
       });
 
-      // 이름은 구글 권장명으로 통일한다. /korea 폼과 같은 행동이므로
-      // 이벤트를 나누지 않고 form_id로 가른다.
+      // 이름은 구글 권장명으로 통일하고, 폼은 form_id로 가른다.
       trackConversionEvent("generate_lead", {
         form_id: "contact-page",
         lead_type: "inquiry",

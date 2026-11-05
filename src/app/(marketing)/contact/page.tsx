@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { TrackedMailLink } from "@/components/analytics/TrackedMailLink";
 import { ContactForm } from "@/components/contact/ContactForm";
-import { SocialLinks } from "@/components/marketing/SocialLinks";
-import { SITE_URL, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/site";
+import { SocialLinks } from "@/components/ui/SocialLinks";
+import { SITE_URL, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/config/site";
 
 export const metadata: Metadata = {
   title: "Contact — Get in Touch About Korean OEM/ODM Manufacturing",

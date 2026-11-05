@@ -14,9 +14,8 @@ const { CATEGORY_LABELS } = require("./profile");
 // Channel 메시지 길이 한도는 아직 확인 전이다(구현 테스트에서 확인). 넉넉히 낮게 둔다.
 const DEFAULT_MAX_NOTE_LENGTH = 4000;
 
-// 원본: src/lib/contact-form-options.ts EXPECTED_VOLUMES (korea 랜딩 폼 선택지).
-// functions는 앱 소스를 import할 수 없어 복사해 둔다. 폼 선택지를 추가·변경하면 여기도 같이 고쳐야 한다.
-// 맞추지 않으면 새 코드값은 라벨 없이 코드 그대로 내부대화에 남는다.
+// 기존 korea 랜딩 폼 선택지(웹 소스는 2026-11 리뉴얼 정리에서 삭제). 기존 landingRequests 문서와
+// V2 이전 도구가 쓰므로 남겨 둔다. 라벨이 없는 코드값은 코드 그대로 내부대화에 남는다.
 const EXPECTED_VOLUME_LABELS = {
   "under-5k": "About 5,000 units",
   "5k-10k": "5,000 – 10,000 units",

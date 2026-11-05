@@ -9,7 +9,7 @@
 //
 // 사용법: 각 테스트 파일에서 무거운 소스를 동적 import 하기 *전에*
 //   import { register } from "node:module";
-//   register("../tests/esm-alias-loader.mjs", import.meta.url);
+//   register("../esm-alias-loader.mjs", import.meta.url);  // tests/<기능>/ 아래 파일 기준
 // 정적 import는 이 훅이 걸리기 전에 이미 링크되므로 대상은 항상 동적 import여야 한다.
 const EXTS = [".ts", ".tsx", ".js", ".mjs"];
 const SERVER_ONLY_STUB = "server-only-stub:noop";

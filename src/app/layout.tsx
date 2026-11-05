@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
-import { AuthProvider } from "@/lib/auth-context";
+import { AuthProvider } from "@/lib/auth/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
-import { ChannelTalk } from "@/components/support/ChannelTalk";
+import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_URL } from "@/lib/config/site";
 import "./globals.css";
 
 const geistSans = Geist({

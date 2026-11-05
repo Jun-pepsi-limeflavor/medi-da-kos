@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
-import { MOCK_ADMIN } from "@/lib/mock-store";
+import { useAuth } from "@/lib/auth/auth-context";
+import { MOCK_ADMIN } from "@/lib/auth/mock-auth";
 import {
   REDIRECT_AFTER_LOGIN,
   REDIRECT_AFTER_REGISTER,
   ROUTES,
-} from "@/lib/routes";
+} from "@/lib/config/routes";
 
 type Mode = "login" | "register";
 
@@ -31,7 +31,7 @@ export function LoginForm() {
   const [country, setCountry] = useState("");
   const [companyName, setCompanyName] = useState("");
 
-  // Already logged in while on /login → send to dashboard (change ROUTES in lib/routes.ts)
+  // Already logged in while on /login → REDIRECT_AFTER_LOGIN (lib/config/routes.ts)
   useEffect(() => {
     if (!loading && user) router.replace(REDIRECT_AFTER_LOGIN);
   }, [user, loading, router]);
@@ -56,7 +56,7 @@ export function LoginForm() {
           country,
           companyName: companyName.trim(),
         });
-        // Sign up → home (see REDIRECT_AFTER_REGISTER in lib/routes.ts)
+        // Sign up → home (see REDIRECT_AFTER_REGISTER in lib/config/routes.ts)
         router.push(REDIRECT_AFTER_REGISTER);
       }
     } catch (err) {

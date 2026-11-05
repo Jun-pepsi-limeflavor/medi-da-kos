@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { trackEmailClick, trackEmailCopy, type EmailLinkLocation } from "@/lib/analytics";
+import { trackEmailClick, trackEmailCopy, type EmailLinkLocation } from "@/lib/analytics/events";
 
 type Props = {
   email: string;

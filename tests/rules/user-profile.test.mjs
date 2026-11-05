@@ -20,8 +20,8 @@ process.env.NEXT_PUBLIC_USE_MOCK_AUTH = "false";
 // firestore-service.ts는 확장자 생략 상대 import 투성이다(Next 번들러 전제).
 // node --test가 그걸 그대로 못 여니 최소 리졸버 훅을 동적 import 전에 건다.
 register("../esm-alias-loader.mjs", import.meta.url);
-const { getFirebaseDb } = await import("../../src/lib/firebase.ts");
-const { saveUserProfile } = await import("../../src/lib/firestore-service.ts");
+const { getFirebaseDb } = await import("../../src/lib/firebase/client.ts");
+const { saveUserProfile } = await import("../../src/lib/firebase/firestore-service.ts");
 
 const UID = "user-profile-test-uid";
 const appDb = getFirebaseDb();

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL } from "@/lib/config/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -10,18 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
       changeFrequency: "weekly",
       priority: 1.0,
-    },
-    {
-      url: `${SITE_URL}/compare`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${SITE_URL}/process`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 0.8,
     },
     {
       url: `${SITE_URL}/about-us`,
