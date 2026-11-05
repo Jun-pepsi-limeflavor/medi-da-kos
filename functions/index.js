@@ -5,6 +5,9 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { queueAndSendEmail } = require("./gmail-notify");
+const { buildContactAdminEmail } = require("./contact-email");
+const { buildSignupAdminEmail } = require("./signup-email");
+const { buildMemberWelcomeEmail, getFirstName } = require("./welcome-email");
 
 // 기존 함수 3개가 전부 asia-northeast3에 배포돼 있는데 소스엔 리전 설정이 없었다.
 // 이대로 배포하면 us-central1에 새로 만들고 서울 것을 지운다.
@@ -27,50 +30,6 @@ function getAdminEmails() {
 
 function formatKoDate(date = new Date()) {
   return date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-}
-
-function getFirstName(displayName) {
-  if (!displayName || !displayName.trim()) return "there";
-  return displayName.trim().split(/\s+/)[0];
-}
-
-function buildMemberWelcomeEmail(firstName) {
-  const subject = `Welcome to Medidakos, ${firstName} 👋`;
-
-  const text = `Hi ${firstName},
-
-Welcome aboard — we're glad you're here.
-
-Launching a beauty brand is hard enough without also having to navigate overseas manufacturing, certifications, and shipping. That's exactly the part we handle for you.
-
-Medidakos connects global beauty brands like yours with pre-vetted, ISO 22716 GMP-certified Korean manufacturers. Every partner in our network has English-speaking project managers and real export experience, so nothing gets lost in translation.
-
-There's no rush. When you're ready to talk through your product idea, just reply to this email and we'll help you map out the next steps.
-
-Welcome to the start of something good,
-The Medidakos Team
-
-Medidakos · Korean Cosmetics OEM/ODM for Global Brands
-https://www.medidakos.com
-
-From Medi Da KOS`;
-
-  const html = `
-    <div style="font-family:sans-serif;line-height:1.6;color:#1a1a1a;max-width:600px">
-      <p>Hi ${firstName},</p>
-      <p>Welcome aboard — we're glad you're here.</p>
-      <p>Launching a beauty brand is hard enough without also having to navigate overseas manufacturing, certifications, and shipping. That's exactly the part we handle for you.</p>
-      <p>Medidakos connects global beauty brands like yours with pre-vetted, ISO 22716 GMP-certified Korean manufacturers. Every partner in our network has English-speaking project managers and real export experience, so nothing gets lost in translation.</p>
-      <p>There's no rush. When you're ready to talk through your product idea, just reply to this email and we'll help you map out the next steps.</p>
-      <p>Welcome to the start of something good,<br>The Medidakos Team</p>
-      <p style="color:#666;font-size:13px;margin-top:2rem">
-        Medidakos · Korean Cosmetics OEM/ODM for Global Brands<br>
-        <a href="https://www.medidakos.com">https://www.medidakos.com</a><br><br>
-        From Medi Da KOS
-      </p>
-    </div>`;
-
-  return { subject, text, html };
 }
 
 async function queueEmail(docId, payload) {
@@ -103,18 +62,13 @@ exports.onUserSignup = onDocumentCreated("users/{userId}", async (event) => {
 
   await queueEmail(`signup_admin_${userId}`, {
     to: getAdminEmails(),
-    message: {
-      subject: `신규 회원가입: ${memberEmail || userId}`,
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6">
-          <h2>새 회원이 가입했습니다</h2>
-          <p><strong>이메일:</strong> ${memberEmail || "-"}</p>
-          <p><strong>이름:</strong> ${memberName || "-"}</p>
-          <p><strong>회사:</strong> ${user.companyName || "-"}</p>
-          <p><strong>UID:</strong> ${userId}</p>
-          <p><strong>가입 시각:</strong> ${signedUpAt}</p>
-        </div>`,
-    },
+    message: buildSignupAdminEmail({
+      userId,
+      memberEmail,
+      memberName,
+      companyName: user.companyName,
+      signedUpAt,
+    }),
   });
 });
 
@@ -129,31 +83,9 @@ exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event
   const contactId = event.params.contactId;
   const submittedAt = formatKoDate();
 
-  const utmParts = [
-    contact.utmSource && `source=${contact.utmSource}`,
-    contact.utmMedium && `medium=${contact.utmMedium}`,
-    contact.utmCampaign && `campaign=${contact.utmCampaign}`,
-  ].filter(Boolean);
-
   await queueEmail(`contact_admin_${contactId}`, {
     to: getAdminEmails(),
-    message: {
-      subject: `[문의] ${contact.companyName || contact.email || contactId}`,
-      html: `
-        <div style="font-family:sans-serif;line-height:1.6">
-          <h2>새 Contact 문의가 접수되었습니다</h2>
-          <p><strong>회사/브랜드:</strong> ${contact.companyName || "-"}</p>
-          <p><strong>이메일:</strong> ${contact.email || "-"}</p>
-          <p><strong>유입 경로:</strong> ${contact.referralSource || "-"}</p>
-          <p><strong>비즈니스 유형:</strong> ${contact.businessType || "-"}</p>
-          <p><strong>UTM:</strong> ${utmParts.length ? utmParts.join(", ") : "-"}</p>
-          <p><strong>문의 내용:</strong></p>
-          <pre style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px">${contact.message || "-"}</pre>
-          <p><strong>페이지 URL:</strong> ${contact.pageUrl || "-"}</p>
-          <p><strong>접수 시각:</strong> ${submittedAt}</p>
-          <p><strong>문서 ID:</strong> ${contactId}</p>
-        </div>`,
-    },
+    message: buildContactAdminEmail({ contactId, contact, submittedAt }),
   });
 });
 
