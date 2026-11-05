@@ -1,6 +1,6 @@
 # Channel Talk V2 기술 문서
 
-기준일: 2026-10-21. 이 문서는 현재 코드와 운영에서 확인한 결과만 적는다. 배포 절차의 세부는 [Firebase Functions 운영 배포 가이드](firebase-functions-deployment.md), 설계 근거는 [V1 설계](plans/2026-10-01-channeltalk-crm-integration.md)와 [V2 계획](plans/2026-10-19-channeltalk-v2.md)을 본다. 두 계획 문서의 "상태" 표기는 작성 당시 기준이며, 현재 상태는 이 문서를 따른다.
+기준일: 2026-10-21. 이 문서는 현재 코드와 운영에서 확인한 결과만 적는다. 배포 절차의 세부는 [Firebase Functions 운영 배포 가이드](../operations/firebase-functions-deployment.md), 설계 근거는 [V1 설계](../plans/2026-10-01-channeltalk-crm-integration.md)와 [V2 계획](../plans/2026-10-19-channeltalk-v2.md)을 본다. 두 계획 문서의 "상태" 표기는 작성 당시 기준이며, 현재 상태는 이 문서를 따른다.
 
 ## 1. 목적과 운영 범위
 
@@ -150,7 +150,7 @@ Channel Talk 고객별 마지막 실제 연락일이다. 상담방별 값이 아
 
 ### 환경변수와 Secret
 
-운영값은 추적되는 `functions/.env` 한 곳에서 관리한다. 근거는 [배포 가이드 3-1](firebase-functions-deployment.md#3-1-lastcontactat-웹훅-운영-설정).
+운영값은 추적되는 `functions/.env` 한 곳에서 관리한다. 근거는 [배포 가이드 3-1](../operations/firebase-functions-deployment.md#3-1-lastcontactat-웹훅-운영-설정).
 
 | 이름 | 종류 | 운영값 |
 |---|---|---|

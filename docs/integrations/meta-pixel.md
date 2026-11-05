@@ -7,7 +7,7 @@
 | 파일 | 역할 |
 |---|---|
 | `src/components/analytics/MetaPixel.tsx` | 기본 코드 로드, 첫 PageView, 클라이언트 이동 PageView |
-| `src/lib/meta-pixel.ts` | `trackMetaEvent` — 표준 이벤트 전송 |
+| `src/lib/analytics/meta-pixel.ts` | `trackMetaEvent` — 표준 이벤트 전송 |
 | `src/app/layout.tsx` | 전체 페이지에 삽입 (GA와 같은 범위) |
 
 ## 테스트 트래픽

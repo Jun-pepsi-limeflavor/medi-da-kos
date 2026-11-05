@@ -57,7 +57,7 @@ flowchart TB
 |------|------|
 | **문서 ID** | Firebase Auth `uid` |
 | **저장 시점** | 이메일 회원가입 직후, Google 로그인 직후 |
-| **호출 코드** | `src/lib/auth-context.tsx` → `saveUserProfile()` |
+| **호출 코드** | `src/lib/auth/auth-context.tsx` → `saveUserProfile()` |
 | **저장 방식** | `setDoc` (merge 없음 — 전체 덮어쓰기) |
 
 **주요 필드** (`src/lib/types.ts`):
@@ -324,8 +324,8 @@ gcloud projects add-iam-policy-binding medidakos \
 
 | 파일 | 역할 |
 |------|------|
-| `src/lib/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders) |
-| `src/lib/auth-context.tsx` | 회원가입/로그인 → `users` 저장 |
+| `src/lib/firebase/firestore-service.ts` | Firestore CRUD (users, cmBriefs, orders) |
+| `src/lib/auth/auth-context.tsx` | 회원가입/로그인 → `users` 저장 |
 | `functions/index.js` | 트리거 → `queueEmail()` |
 | `functions/gmail-notify.js` | Gmail API 발송 + `mail` 예약/delivery |
 | `functions/.env` | `ADMIN_EMAILS`, `NOTIFY_FROM_EMAIL` |
