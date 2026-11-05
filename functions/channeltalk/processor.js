@@ -22,6 +22,10 @@ const RETRY_BATCH_LIMIT = 50;
 // 재시도 함수의 실행 시간 제한(2분) 안에 끝나도록, 이 시간이 지나면 새 건을 잡지 않는다.
 const RETRY_TIME_BUDGET_MS = 80 * 1000;
 const TERMINAL = new Set(["success", "skipped", "failed"]);
+// 트리거가 남아 있는 원천. landingRequests·orders는 2026-11 리뉴얼에서 웹 접수를 없앴다.
+// 그 원천의 남은 재시도 기록은 상담·내부대화를 만들지 않고 skipped로 닫는다.
+const ACTIVE_SOURCES = new Set(["users", "contact"]);
+const SOURCE_RETIRED = "source_retired";
 // 단계 함수가 돌려주면 회원가입의 중복 판정을 미루고 이번 실행을 끝낸다.
 const DEFER_DUP_CHECK = Symbol("defer_dup_check");
 // identityNote 우선순위(앞이 높음). 사유 코드만 남긴다(고객 정보 금지).
@@ -499,6 +503,17 @@ async function runRetryBatch({ deps, limit = RETRY_BATCH_LIMIT, timeBudgetMs = R
   const processed = [];
   for (const doc of due) {
     if (clock() - startedAt > timeBudgetMs) break;
+    if (!ACTIVE_SOURCES.has(doc.source)) {
+      try {
+        await deps.store.updateSync(doc.source, doc.docId, {
+          status: "skipped", nextRetryAt: null, leaseUntil: null, pendingReason: SOURCE_RETIRED,
+        }, clock());
+        processed.push({ source: doc.source, docId: doc.docId, outcome: SOURCE_RETIRED });
+      } catch (error) {
+        processed.push({ source: doc.source, docId: doc.docId, outcome: "retire_error", error: error.code || error.name });
+      }
+      continue;
+    }
     try {
       const result = await processSubmission({ source: doc.source, docId: doc.docId, deps });
       processed.push({ source: doc.source, docId: doc.docId, outcome: result.outcome });
@@ -534,6 +549,7 @@ async function handleTriggerEvent({ source, docId, data, deps, log = console }) 
 }
 
 module.exports = {
+  ACTIVE_SOURCES,
   PreClaimError,
   RETRY_BATCH_LIMIT,
   RETRY_TIME_BUDGET_MS,

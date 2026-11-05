@@ -3,7 +3,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { shouldSendToMeta } from "@/lib/meta-pixel";
+import { shouldSendToMeta } from "@/lib/analytics/meta-pixel";
 
 type MetaPixelProps = {
   pixelId?: string;

@@ -414,6 +414,30 @@ function seedError(store, docId, nextRetryAtMs) {
   });
 }
 
+test("없앤 원천(landingRequests·orders)의 재시도 기록은 상담을 만들지 않고 skipped로 닫는다", async () => {
+  const { api, store, deps, now } = setup({ sources: { contact: { c1: contact }, landingRequests: { l1: contact }, orders: { o1: { uid: "uid-1" } } } });
+  for (const [source, docId] of [["landingRequests", "l1"], ["orders", "o1"]]) {
+    store.sync.set(syncDocId(source, docId), {
+      ...initialSyncDoc({ source, docId, email: contact.email, nowMs: T0 }),
+      status: "error",
+      attempts: 1,
+      nextRetryAt: T0 - 60000,
+    });
+  }
+  seedError(store, "c1", T0 - 30000);
+  now.advance(1000);
+  const batch = await runRetryBatch({ deps });
+  assert.deepEqual(batch.processed.map((p) => p.outcome), ["source_retired", "source_retired", "success"]);
+  for (const [source, docId] of [["landingRequests", "l1"], ["orders", "o1"]]) {
+    const sync = syncOf(store, source, docId);
+    assert.equal(sync.status, "skipped");
+    assert.equal(sync.nextRetryAt, null);
+    assert.equal(sync.pendingReason, "source_retired");
+  }
+  assert.equal(api.chats.size, 1); // contact 한 건만 상담을 만든다
+  assert.equal(syncOf(store, "contact", "c1").status, "success");
+});
+
 test("재시도는 오래된 순, 한 번에 최대 limit건", async () => {
   const { store, deps, now } = setup({ sources: { contact: {} } });
   for (let i = 0; i < 5; i += 1) {

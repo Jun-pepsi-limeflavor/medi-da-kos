@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HeroCarousel } from "@/components/marketing/HeroCarousel";
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL } from "@/lib/config/site";
 
 export const metadata: Metadata = {
   title: "Korean Cosmetics OEM & ODM Manufacturing Platform for Global Brands",
@@ -106,7 +105,7 @@ const ADVANTAGES = [
 export default function HomePage() {
   return (
     <>
-      <HeroCarousel />
+      {/* 히어로: 신규 디자인에서 새로 구현한다(기존 이미지 캐러셀 제거). */}
 
       <section className="bg-gradient-to-b from-sky-50/40 via-white to-white pb-16 pt-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { SplitHeroBrand } from "@/components/marketing/SplitHeroBrand";
-import { SITE_URL } from "@/lib/site";
+import { SplitHeroBrand } from "@/components/about/SplitHeroBrand";
+import { SITE_URL } from "@/lib/config/site";
 
 export const metadata: Metadata = {
   title: "About Us — Vetted Korean OEM/ODM Manufacturer Network for Global Brands",
