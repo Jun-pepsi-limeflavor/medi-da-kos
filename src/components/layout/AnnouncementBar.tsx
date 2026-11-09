@@ -2,20 +2,25 @@
 
 // 연말 프로모션 상단 공지 바.
 // - 클릭하면 프로모션 Contact 페이지로 이동
-// - 닫으면 이번 방문(sessionStorage) 동안 숨김, 프로모션 종료 후에는 표시하지 않음
+// - 닫으면 이 탭(sessionStorage, 프로모션 코드별 키) 동안 숨김, 프로모션 종료 후에는 표시하지 않음
+// - 닫힌 탭에서는 루트 레이아웃의 사전 스크립트가 첫 페인트 전에 숨겨 깜빡임·레이아웃 이동을 막는다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { YEAR_END_PROMO, isYearEndPromoActive } from "@/lib/config/promo";
+import {
+  ANNOUNCEMENT_DISMISSED_ATTR,
+  ANNOUNCEMENT_DISMISSED_KEY,
+  YEAR_END_PROMO,
+  isYearEndPromoActive,
+} from "@/lib/config/promo";
 
 /**
  * Figma: Design System › Announcement Bar (229:3). 40px charcoal bar, centered message + link, close at right 120px.
  * - Whole bar and the link go to /contact?promo=year-end-2026.
- * - Close hides it for this visit (sessionStorage); a new visit shows it again.
+ * - Close hides it for this tab (sessionStorage, keyed by promo code); a new tab or a new promo shows it again.
  * - Not rendered after the promo end (see YEAR_END_PROMO).
  * - Clicking the link is remembered for this visit so the future Promotion Popup can skip auto-opening.
  */
-const DISMISSED_KEY = "mdk:announcement-dismissed";
 export const PROMO_BAR_CLICKED_KEY = "mdk:promo-bar-clicked";
 
 const listeners = new Set<() => void>();
@@ -40,7 +45,7 @@ function writeSession(key: string) {
 
 /** Client snapshot: hidden when dismissed this session or the promo has ended. */
 function isHidden() {
-  return readSession(DISMISSED_KEY) === "1" || !isYearEndPromoActive();
+  return readSession(ANNOUNCEMENT_DISMISSED_KEY) === "1" || !isYearEndPromoActive();
 }
 
 export function AnnouncementBar() {
@@ -54,12 +59,14 @@ export function AnnouncementBar() {
   }
 
   function dismiss() {
-    writeSession(DISMISSED_KEY);
+    writeSession(ANNOUNCEMENT_DISMISSED_KEY);
+    document.documentElement.setAttribute(ANNOUNCEMENT_DISMISSED_ATTR, "");
     listeners.forEach((listener) => listener());
   }
 
   return (
     <div
+      data-announcement-bar=""
       // 40px single line where it fits (Figma); on narrow screens the message wraps instead of being cut off.
       className="font-mdk relative flex min-h-10 cursor-pointer flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-mdk-charcoal py-2 pr-12 pl-12 text-center text-[13px] leading-4 text-mdk-white"
       onClick={() => {

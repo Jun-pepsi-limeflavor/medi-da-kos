@@ -2,6 +2,8 @@
 // - 폰트 변수 등록: Geist·Noto Serif(기존), Instrument Sans(리뉴얼)
 // - 사이트 메타데이터·구조화 데이터, 인증 Provider
 // - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작)
+// - data-scroll-behavior="smooth": 전역 smooth 스크롤을 페이지 이동 때만 끄고 즉시 상단 이동(Next 16)
+// - Announcement Bar를 닫은 탭이면 첫 페인트 전에 <html>에 표시해 바를 숨긴다(sessionStorage)
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Sans, Noto_Serif } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
@@ -10,6 +12,10 @@ import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { SITE_NAME, SITE_URL } from "@/lib/config/site";
+import { ANNOUNCEMENT_DISMISSED_ATTR, ANNOUNCEMENT_DISMISSED_KEY } from "@/lib/config/promo";
+
+/** Runs before first paint; storage errors (private mode, blocked storage) just leave the bar visible. */
+const ANNOUNCEMENT_PREPAINT_SCRIPT = `try{if(sessionStorage.getItem(${JSON.stringify(ANNOUNCEMENT_DISMISSED_KEY)})==="1")document.documentElement.setAttribute(${JSON.stringify(ANNOUNCEMENT_DISMISSED_ATTR)},"")}catch(e){}`;
 import "./globals.css";
 
 const geistSans = Geist({
@@ -151,9 +157,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
+      // The pre-paint script may add the announcement attribute before hydration.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} ${instrumentSans.variable} h-full antialiased`}
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: ANNOUNCEMENT_PREPAINT_SCRIPT }} />
         <OrganizationJsonLd />
       </head>
       <body className="min-h-full flex flex-col">

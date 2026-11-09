@@ -2,6 +2,7 @@
  * 전역 스타일과 디자인 토큰.
  * - Tailwind v4 진입점, 기존(레거시) 페이지의 색상·폰트 변수
  * - 리뉴얼용 MDK 토큰(@theme): 색상·모서리·타이포그래피와 `font-mdk` 폰트
+ * - Announcement Bar 닫힘(탭 단위) 상태의 숨김 규칙
  */
 
 @import "tailwindcss";
@@ -131,4 +132,9 @@ html {
   .animate-float-slow {
     animation: none !important;
   }
+}
+
+/* Announcement Bar dismissed in this tab (set before first paint by the root layout script). */
+html[data-announcement-dismissed] [data-announcement-bar] {
+  display: none;
 }

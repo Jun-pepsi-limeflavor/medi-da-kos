@@ -1,39 +1,16 @@
 "use client";
 
+// 기존(레거시) 페이지용 이메일 링크: 클릭 시 메일 앱 대신 주소 복사 + email_click·email_copy 측정.
+// - 복사 로직은 공용 copyText(@/lib/utils/clipboard) 사용
 import { useEffect, useRef, useState } from "react";
 import { trackEmailClick, trackEmailCopy, type EmailLinkLocation } from "@/lib/analytics/events";
+import { copyText } from "@/lib/utils/clipboard";
 
 type Props = {
   email: string;
   location: EmailLinkLocation;
   className?: string;
 };
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // 권한 거부 등은 아래 대체 방식으로
-  }
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.setAttribute("readonly", "");
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.select();
-  let ok = false;
-  try {
-    ok = document.execCommand("copy");
-  } catch {
-    ok = false;
-  }
-  document.body.removeChild(ta);
-  return ok;
-}
 
 /**
  * 클릭하면 메일 앱을 열지 않고 주소를 복사한다.

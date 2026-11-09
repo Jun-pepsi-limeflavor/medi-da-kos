@@ -1,19 +1,20 @@
 "use client";
 
 // 리뉴얼 사이트 공통 Footer.
-// - 메뉴·Services 섹션·연락처·SNS 링크, 이메일 클릭 이벤트 측정
+// - 메뉴·Services 섹션·연락처·SNS 링크
+// - 이메일은 클릭 시 메일 앱 열기 + 주소 복사(FooterEmailLink), 클릭 이벤트 측정
 // - 하단 정책 링크와 Cookie Settings 트리거
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/layout/Wordmark";
 import { openCookieSettings } from "@/components/cookie-consent/cookie-settings";
-import { trackEmailClick } from "@/lib/analytics/events";
+import { FooterEmailLink } from "@/components/layout/FooterEmailLink";
 import { ROUTES, SERVICES_SECTIONS } from "@/lib/config/routes";
 import { SOCIAL_LINKS, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF, type SocialPlatform } from "@/lib/config/site";
 
 /**
  * Figma: Design System › Footer (742:2200). off-white, padding 120/120/48/120, 72px between rows.
- * Email is a mailto link (Figma annotation), measured with the existing email_click event.
+ * Email is a mailto link (Figma annotation) that also copies the address; measured with the existing email_click event.
  */
 const linkClass =
   "block w-fit text-mdk-body text-mdk-charcoal underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mdk-charcoal";
@@ -44,13 +45,7 @@ export function SiteFooter() {
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <p className="text-mdk-lead text-mdk-charcoal-muted">Your Gateway to K-Cosmetics Manufacturing</p>
             <p className="mt-8 text-mdk-body text-mdk-charcoal">5F, 6 Jong-ro, Jongno-gu, Seoul, Republic of Korea</p>
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              onClick={() => trackEmailClick("footer", SUPPORT_EMAIL)}
-              className={`${linkClass} self-start`}
-            >
-              {SUPPORT_EMAIL}
-            </a>
+            <FooterEmailLink email={SUPPORT_EMAIL} className={linkClass} />
             <a href={SUPPORT_PHONE_HREF} className={`${linkClass} self-start`}>
               {SUPPORT_PHONE}
             </a>
