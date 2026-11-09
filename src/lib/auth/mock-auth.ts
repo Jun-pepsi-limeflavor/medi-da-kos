@@ -1,5 +1,8 @@
 "use client";
 
+// 로컬 개발용 Mock 인증. Mock 모드에서 Firebase Auth 대신 사용한다.
+// - 사용자·세션을 localStorage에 저장하고 Mock 관리자 계정을 준비
+// - 오류에 Firebase와 같은 code를 붙여 같은 문구로 변환되게 함
 import type { UserProfile } from "@/lib/types";
 
 const USERS_KEY = "mdk_users";
@@ -59,6 +62,11 @@ export function mockSetSession(user: UserProfile | null) {
   else localStorage.removeItem(SESSION_KEY);
 }
 
+/** Mock errors carry the same `code` Firebase would return, so the UI maps both the same way. */
+function mockAuthError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
 export function mockRegister(
   email: string,
   password: string,
@@ -69,7 +77,7 @@ export function mockRegister(
     USERS_KEY,
     {},
   );
-  if (users[email]) throw new Error("An account with this email already exists.");
+  if (users[email]) throw mockAuthError("auth/email-already-in-use", "An account with this email already exists.");
   const user: UserProfile = {
     uid: `mock-${crypto.randomUUID()}`,
     email,
@@ -92,7 +100,7 @@ export function mockLogin(email: string, password: string): UserProfile {
   );
   const record = users[email];
   if (!record || record.password !== password) {
-    throw new Error("Invalid email or password.");
+    throw mockAuthError("auth/invalid-credential", "Invalid email or password.");
   }
   const { password: _, ...user } = record;
   mockSetSession(user);
