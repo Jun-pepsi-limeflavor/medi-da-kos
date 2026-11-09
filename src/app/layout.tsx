@@ -1,5 +1,9 @@
+// 루트 레이아웃. 모든 페이지에 공통 적용된다.
+// - 폰트 변수 등록: Geist·Noto Serif(기존), Instrument Sans(리뉴얼)
+// - 사이트 메타데이터·구조화 데이터, 인증 Provider
+// - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작)
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Sans, Noto_Serif } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
@@ -22,6 +26,13 @@ const notoSerif = Noto_Serif({
   variable: "--font-noto-serif",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
+});
+
+// Renewal font (Figma: Instrument Sans 400/500/600). Applied per component via `font-mdk`;
+// the body stays on Geist until every legacy page (e.g. Contact) is migrated.
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans",
+  subsets: ["latin"],
 });
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
@@ -140,7 +151,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} ${instrumentSans.variable} h-full antialiased`}
     >
       <head>
         <OrganizationJsonLd />

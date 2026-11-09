@@ -1,3 +1,9 @@
+/*
+ * 전역 스타일과 디자인 토큰.
+ * - Tailwind v4 진입점, 기존(레거시) 페이지의 색상·폰트 변수
+ * - 리뉴얼용 MDK 토큰(@theme): 색상·모서리·타이포그래피와 `font-mdk` 폰트
+ */
+
 @import "tailwindcss";
 
 :root {
@@ -14,6 +20,69 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-noto-serif), ui-serif, Georgia, serif;
+}
+
+/*
+ * MDK design tokens — only values applied in the English final frames of Figma "Website Design — Desktop"
+ * (MDK/Display XL is defined in Figma but unused there, so it is omitted).
+ * MDK / Space (4·8·12·16·24·32·48·64·96·120·160) matches Tailwind's 4px spacing scale:
+ * p-1=4 · p-2=8 · p-3=12 · p-4=16 · p-6=24 · p-8=32 · p-12=48 · p-16=64 · p-24=96 · p-30=120 · p-40=160.
+ * radius-pill(999) = rounded-full.
+ * Text not bound to an MDK style in Figma: use that node's exact values, not the nearest token.
+ */
+@theme {
+  --font-mdk: var(--font-instrument-sans), system-ui, sans-serif;
+
+  --color-mdk-white: #ffffff;
+  --color-mdk-off-white: #f7f7f7;
+  --color-mdk-light-gray: #e5e5e5;
+  --color-mdk-mid-gray: #b8b8b8;
+  --color-mdk-charcoal: #292929;
+  --color-mdk-charcoal-muted: #5f5f5f;
+  --color-mdk-inactive-gray: #767676;
+  /* Not a Figma variable: Input Field / Form Message error color. */
+  --color-mdk-error: #b22929;
+
+  --radius-mdk-sm: 8px;
+  --radius-mdk-md: 12px;
+  --radius-mdk-lg: 16px;
+
+  --text-mdk-display-l: 72px;
+  --text-mdk-display-l--line-height: 72px;
+  --text-mdk-display-l--letter-spacing: -0.04em;
+  --text-mdk-display-l--font-weight: 600;
+  --text-mdk-metric: 112px;
+  --text-mdk-metric--line-height: 104px;
+  --text-mdk-metric--letter-spacing: -0.045em;
+  --text-mdk-metric--font-weight: 600;
+  --text-mdk-heading: 44px;
+  --text-mdk-heading--line-height: 50px;
+  --text-mdk-heading--letter-spacing: -0.03em;
+  --text-mdk-heading--font-weight: 600;
+  --text-mdk-title: 24px;
+  --text-mdk-title--line-height: 30px;
+  --text-mdk-title--letter-spacing: -0.015em;
+  --text-mdk-title--font-weight: 500;
+  --text-mdk-lead: 20px;
+  --text-mdk-lead--line-height: 30px;
+  --text-mdk-lead--letter-spacing: -0.005em;
+  --text-mdk-lead--font-weight: 400;
+  --text-mdk-body: 16px;
+  --text-mdk-body--line-height: 25px;
+  --text-mdk-body--letter-spacing: -0.002em;
+  --text-mdk-body--font-weight: 400;
+  --text-mdk-label: 15px;
+  --text-mdk-label--line-height: 20px;
+  --text-mdk-label--letter-spacing: -0.003em;
+  --text-mdk-label--font-weight: 500;
+  --text-mdk-eyebrow: 14px;
+  --text-mdk-eyebrow--line-height: 20px;
+  --text-mdk-eyebrow--letter-spacing: 0em;
+  --text-mdk-eyebrow--font-weight: 500;
+  --text-mdk-caption: 12px;
+  --text-mdk-caption--line-height: 16px;
+  --text-mdk-caption--letter-spacing: 0em;
+  --text-mdk-caption--font-weight: 500;
 }
 
 body {
