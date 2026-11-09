@@ -4,6 +4,7 @@
 // - 900px 이상: 로고·메뉴·Log in/Log out·Contact를 한 줄에 표시
 // - 900px 미만: 로고·햄버거만 두고 메뉴와 두 버튼은 패널로 이동
 // - 패널은 토글·ESC·바깥 클릭·페이지 이동으로 닫힘, 로그인 상태에 따라 Log in/Log out 전환
+// - 메뉴 상태: 기본 Muted Gray·Regular·밑줄 없음 / Hover·키보드 Focus는 Charcoal·Regular + 밑줄 / Active(현재 페이지)는 Charcoal·Medium + 밑줄
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
@@ -193,7 +194,13 @@ function NavLink({
         "text-[15px] leading-[20px] tracking-[-0.003em] decoration-2 underline-offset-4",
         block ? "flex min-h-11 items-center" : "block",
         focusRing,
-        active ? "font-medium text-mdk-charcoal underline" : "font-normal text-mdk-inactive-gray hover:underline",
+        active
+          ? "font-medium text-mdk-charcoal underline"
+          : cx(
+              "font-normal text-mdk-inactive-gray",
+              "hover:text-mdk-charcoal hover:underline",
+              "focus-visible:text-mdk-charcoal focus-visible:underline",
+            ),
       )}
     >
       {label}
