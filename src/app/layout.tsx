@@ -4,6 +4,7 @@
 // - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작)
 // - data-scroll-behavior="smooth": 전역 smooth 스크롤을 페이지 이동 때만 끄고 즉시 상단 이동(Next 16)
 // - Announcement Bar를 닫은 탭이면 첫 페인트 전에 <html>에 표시해 바를 숨긴다(sessionStorage)
+// - NavigationIntent: 누른 링크·뒤로가기 시점 기록(FAQ가 일반 진입·딥링크·방문 기록 이동을 구분하는 데 사용)
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Sans, Noto_Serif } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
@@ -11,6 +12,7 @@ import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
+import { NavigationIntent } from "@/components/layout/NavigationIntent";
 import { SITE_NAME, SITE_URL } from "@/lib/config/site";
 import { ANNOUNCEMENT_DISMISSED_ATTR, ANNOUNCEMENT_DISMISSED_KEY } from "@/lib/config/promo";
 
@@ -167,6 +169,7 @@ export default function RootLayout({
         <OrganizationJsonLd />
       </head>
       <body className="min-h-full flex flex-col">
+        <NavigationIntent />
         <GoogleAnalytics gaId={gaId} />
         <MetaPixel pixelId={metaPixelId} />
         <AuthProvider>

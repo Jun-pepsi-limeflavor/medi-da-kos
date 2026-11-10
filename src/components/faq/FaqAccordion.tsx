@@ -6,15 +6,27 @@
 //   · 질문 = button(aria-expanded·aria-controls), 답변 = region. 닫힌 답변은 inert로 포커스 제외
 //   · 높이 전환 250ms(prefers-reduced-motion이면 즉시). 열고 닫을 때 페이지를 강제로 스크롤하지 않고 브라우저 기본
 //     스크롤 앵커링에 맡긴다. 위 답변이 접히며 누른 질문이 Navbar 뒤로 가려진 경우에만 한 번 보이게 맞춘다
-// - 딥링크 /faq#faq-001~039: 해당 질문으로 이동해 그 질문만 펼친다(scroll-margin 96px = Navbar 72 + 24)
+// - 진입 방식별 처리(주소창 해시만 믿지 않음 — Next 16.2.6이 이전 딥링크 해시를 /faq 이동에 다시 붙이는 문제 대응,
+//   lib/utils/navigation-intent가 실제로 누른 링크를 기록):
+//   · 일반 /faq 링크(Navbar·Footer·CTA 등): 맨 위, 모든 질문 닫힘, 붙어 온 해시는 지움
+//   · 질문 딥링크(/faq#faq-001~039, Services 'Related questions' 등): 누른 링크의 해시로 그 질문만 열고 이동
+//     (scroll-margin 96px = Navbar 72 + 24), 이동 후 주소창 해시를 지워 /faq만 남긴다
+//   · 해시가 있는 주소로 직접 접속: 기존과 같이 그 질문을 연다 / 해시 없는 /faq 새로고침: 맨 위, 모두 닫힘
+//   · 브라우저 뒤로·앞으로: 이 방문 기록(history.state)에 저장해 둔 열린 질문·스크롤 위치를 복원
+// - 열린 질문·스크롤 위치는 현재 방문 기록에만 저장(replaceState, URL 변경·기록 추가 없음): 스크롤 200ms 디바운스 +
+//   링크 클릭(다음 기록이 push되기 전)·pagehide 때 즉시
+// - 카테고리 목록 클릭: 공용 SamePageHashUrl이 해시 없이 해당 그룹으로 스크롤(주소창은 /faq 유지)
 // - lg 미만은 카테고리 목록 없이 그룹만 한 열로 표시
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FAQ_CATEGORIES, type FaqItem } from "@/components/faq/faq-data";
 import { SECTION_CONTAINER } from "@/components/home/styles";
+import { clearHashAfterLoad } from "@/components/layout/SamePageHashUrl";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
+import { ROUTES } from "@/lib/config/routes";
 import { cx } from "@/lib/utils/cx";
+import { pageEntry } from "@/lib/utils/navigation-intent";
 
 const TOPIC_IDS = FAQ_CATEGORIES.map((category) => category.id);
 const ITEM_IDS = new Set(FAQ_CATEGORIES.flatMap((category) => category.items.map((item) => item.id)));
@@ -23,6 +35,21 @@ const TOPIC_OFFSET = 96;
 /** Sticky Navbar height: a question whose top is above this line is hidden behind it. */
 const NAVBAR_HEIGHT = 72;
 const TRANSITION_MS = 250;
+
+/** Open question and scroll offset kept on the FAQ history entry (history.state), for back/forward only. */
+type SavedFaqState = { openId: string | null; y: number };
+const STATE_KEY = "mdkFaq";
+
+function readSavedFaqState(): SavedFaqState | null {
+  const saved = (window.history.state as Record<string, unknown> | null)?.[STATE_KEY] as SavedFaqState | undefined;
+  return saved && typeof saved.y === "number" ? saved : null;
+}
+
+function writeSavedFaqState(saved: SavedFaqState) {
+  if (window.location.pathname !== ROUTES.faq) return; // never write onto the next page's entry
+  // Spread keeps Next's own keys (__NA…), so its patched replaceState passes this straight through; URL unchanged.
+  window.history.replaceState({ ...(window.history.state ?? {}), [STATE_KEY]: saved }, "");
+}
 
 /**
  * After the height transition: only if the clicked question ended up hidden behind the sticky Navbar
@@ -43,27 +70,110 @@ export function FaqAccordion() {
   const [openId, setOpenId] = useState<string | null>(null);
   const { active, lock } = useScrollSpy(TOPIC_IDS, TOPIC_OFFSET);
 
-  // Deep link (/faq#faq-030): open that question and keep it aligned below the Navbar.
+  /** Until this time a back/forward restore is in progress: saving now would overwrite the offset being restored. */
+  const restoringUntil = useRef(0);
+
+  // Entry: decide from how the page was reached, not from the address bar alone (Next can carry an old hash —
+  // see lib/utils/navigation-intent). Runs once per mount; in-page toggles and topic clicks never reset anything.
   useEffect(() => {
-    // On client navigation (e.g. Services 'Related questions') Next.js may update the URL just after this page
-    // mounts, so check the hash for a few frames (~0.5s) before giving up.
+    const timers: number[] = [];
+    let cleanupHash: (() => void) | undefined;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // After Next.js has applied its own scroll for the navigation (a frame, then a tick).
+    const afterRouterScroll = (fn: () => void) => requestAnimationFrame(() => timers.push(window.setTimeout(fn)));
+    const clearHash = () => {
+      cleanupHash?.();
+      cleanupHash = clearHashAfterLoad();
+    };
+    const openItem = (id: string) => {
+      setOpenId(id);
+      afterRouterScroll(() => {
+        document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "instant" });
+        clearHash();
+      });
+    };
+    const goToTop = () =>
+      afterRouterScroll(() => {
+        window.scrollTo({ top: 0, behavior: "instant" });
+        if (location.hash) clearHash();
+      });
+    const restore = (saved: SavedFaqState) => {
+      const delay = reduce ? 0 : TRANSITION_MS + 50;
+      restoringUntil.current = Date.now() + delay + 100;
+      setOpenId(saved.openId && ITEM_IDS.has(saved.openId) ? saved.openId : null);
+      // Wait for the answer's height transition so the saved offset lands where it was.
+      timers.push(window.setTimeout(() => window.scrollTo({ top: saved.y, behavior: "instant" }), delay));
+    };
+    // Hash written in the address bar (direct visit with a hash, or a hash change inside the page).
     const openFromHash = () => {
       let frames = 0;
       const check = () => {
         const id = decodeURIComponent(window.location.hash.slice(1));
-        if (ITEM_IDS.has(id)) {
-          setOpenId(id);
-          document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "instant" });
-        } else if (++frames < 30) {
-          requestAnimationFrame(check);
-        }
+        if (ITEM_IDS.has(id)) openItem(id);
+        else if (TOPIC_IDS.includes(id)) clearHash();
+        else if (++frames < 30) requestAnimationFrame(check);
       };
       requestAnimationFrame(check);
     };
-    openFromHash();
+
+    const entry = pageEntry(ROUTES.faq);
+    const saved = readSavedFaqState();
+    if (entry.kind === "link") {
+      // Use the clicked link's own hash: a plain /faq link opens the page fresh even if Next added an old hash.
+      const id = decodeURIComponent(entry.hash.slice(1));
+      if (ITEM_IDS.has(id)) openItem(id);
+      else if (TOPIC_IDS.includes(id)) afterRouterScroll(() => {
+        document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "instant" });
+        clearHash();
+      });
+      else if (location.hash) goToTop();
+    } else if (entry.kind === "traversal") {
+      if (saved) restore(saved);
+    } else if (location.hash) {
+      openFromHash();
+    } else if (entry.type === "back_forward" && saved) {
+      restore(saved);
+    } else if (entry.type === "reload") {
+      // A plain /faq reload starts fresh: closed and at the top, even if the browser restored the old offset.
+      timers.push(window.setTimeout(() => window.scrollTo({ top: 0, behavior: "instant" })));
+      window.addEventListener("load", () => window.scrollTo({ top: 0, behavior: "instant" }), { once: true });
+    }
+
     window.addEventListener("hashchange", openFromHash);
-    return () => window.removeEventListener("hashchange", openFromHash);
+    return () => {
+      window.removeEventListener("hashchange", openFromHash);
+      timers.forEach((t) => window.clearTimeout(t));
+      cleanupHash?.();
+    };
   }, []);
+
+  // Keep the open question and scroll offset on this history entry, so browser back/forward can restore them.
+  useEffect(() => {
+    let timer = 0;
+    const saveNow = () => {
+      window.clearTimeout(timer);
+      if (Date.now() < restoringUntil.current) {
+        timer = window.setTimeout(saveNow, restoringUntil.current - Date.now());
+        return;
+      }
+      writeSavedFaqState({ openId, y: Math.round(window.scrollY) });
+    };
+    const save = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(saveNow, 200);
+    };
+    save();
+    window.addEventListener("scroll", save, { passive: true });
+    // Also save right before leaving (a link click runs before Next pushes the next entry), so no scroll is lost.
+    document.addEventListener("click", saveNow, true);
+    window.addEventListener("pagehide", saveNow);
+    return () => {
+      window.removeEventListener("scroll", save);
+      document.removeEventListener("click", saveNow, true);
+      window.removeEventListener("pagehide", saveNow);
+      window.clearTimeout(timer);
+    };
+  }, [openId]);
 
   const toggle = (id: string) => {
     const el = document.getElementById(id);

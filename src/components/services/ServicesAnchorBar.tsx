@@ -1,7 +1,7 @@
 "use client";
 
 // Services 섹션 앵커 바(Navbar 아래 sticky, 차콜 배경·높이 52px·14px).
-// - 5개 앵커(#scope 등)로 각 섹션 제목 묶음으로 이동(scroll-margin 164px, 주소창 해시 처리는 ServicesHashUrl)
+// - 5개 앵커(#scope 등)로 각 섹션 제목 묶음으로 이동(scroll-margin 164px, 주소창 해시 처리는 공용 SamePageHashUrl)
 // - 현재 섹션을 Scroll Spy로 강조: 섹션 전체(상단 여백 포함)가 바 아래에 닿으면 활성(흰색 + 하단 2px 흰색 막대, aria-current)
 // - 비활성 #B8B8B8, Hover 흰색, Focus 흰색 외곽선. 좁은 화면에서는 가로 스크롤
 import { SERVICES_ANCHORS, SERVICES_SCROLL_OFFSET, findServicesSection } from "@/components/services/anchors";
