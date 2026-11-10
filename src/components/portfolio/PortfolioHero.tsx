@@ -20,7 +20,7 @@ export function PortfolioHero() {
         <div className="flex flex-col items-start gap-6 lg:flex-row lg:items-end lg:justify-between">
           <p className="max-w-[560px] text-mdk-lead text-mdk-charcoal">
             Explore the product categories and formulas we can develop for your brand with our Korean manufacturing
-            partners
+            partners.
           </p>
           <p className="flex shrink-0 items-center gap-2 rounded-full bg-mdk-off-white py-2 pr-4 pl-3 text-[13px] leading-[18px] text-mdk-charcoal-muted">
             <Image src="/icons/circle-info.svg" alt="" width={16} height={16} />
