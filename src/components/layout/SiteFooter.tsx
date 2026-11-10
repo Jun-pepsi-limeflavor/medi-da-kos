@@ -4,6 +4,7 @@
 // - 메뉴·Services 섹션·연락처·SNS 링크
 // - 이메일은 클릭 시 메일 앱 열기 + 주소 복사(FooterEmailLink), 클릭 이벤트 측정
 // - 하단 정책 링크와 Cookie Settings 트리거
+// - 본문 컨테이너는 @container: 큰 워드마크가 실제 사용 가능 폭(여백·스크롤바 제외) 기준으로 크기를 맞춘다
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/layout/Wordmark";
@@ -40,7 +41,7 @@ export function SiteFooter() {
 
   return (
     <footer className="font-mdk bg-mdk-off-white px-6 pt-16 pb-12 lg:pt-30 xl:px-[120px]">
-      <div className="mx-auto flex max-w-[1200px] flex-col gap-12 lg:gap-[72px]">
+      <div className="@container mx-auto flex max-w-[1200px] flex-col gap-12 lg:gap-[72px]">
         <div className="flex flex-col gap-10 lg:flex-row">
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <p className="text-mdk-lead text-mdk-charcoal-muted">Your Gateway to K-Cosmetics Manufacturing</p>
