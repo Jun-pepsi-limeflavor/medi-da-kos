@@ -17,7 +17,7 @@ const STEPS = [
   { title: "Quote & sample plan", text: "We send a quote and sample timeline." },
 ] as const;
 
-/** Figma: Promo Notice — Year-end offer (291:809). No extra emphasis for ?promo= entries. */
+/** Figma: Promo Notice — Year-end offer (291:809). Shown during the promotion only. */
 export function ContactOffer({ className }: { className?: string }) {
   return (
     <section aria-label="Year-end offer" className={cx("flex flex-col gap-[25px] rounded-mdk-lg bg-mdk-charcoal p-7 sm:p-8", className)}>

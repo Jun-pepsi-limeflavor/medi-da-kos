@@ -30,5 +30,5 @@ test("year-end promo ends after 2026-12-31 23:59 KST", () => {
   assert.equal(isYearEndPromoActive(Date.parse("2026-12-31T23:59:59+09:00")), true);
   assert.equal(isYearEndPromoActive(Date.parse("2027-01-01T00:00:00+09:00")), false);
   assert.equal(isYearEndPromoActive(Date.parse("2026-12-31T15:00:00Z")), false); // = 2027-01-01 00:00 KST
-  assert.equal(YEAR_END_PROMO.contactHref, "/contact?promo=year-end-2026");
+  assert.equal(YEAR_END_PROMO.code, "year-end-2026");
 });

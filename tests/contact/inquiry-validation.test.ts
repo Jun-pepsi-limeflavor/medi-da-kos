@@ -1,4 +1,4 @@
-// Contact 문의 폼 검증 규칙 테스트: 필수 항목, 이메일·웹 주소, 수량(5,000 이상 정수), 희망 출시일, 브리프 첨부 제한.
+// Contact 문의 폼 검증 규칙 테스트: 필수 항목, 이메일·웹 주소, 수량(5,000 이상 정수), 희망 출시일, 브리프 첨부 제한, 폼 하단 오류 안내.
 import assert from "node:assert/strict";
 import { register } from "node:module";
 import { test } from "node:test";
@@ -71,4 +71,14 @@ test("brief files: allowed types, 10 MiB each, max 3, no duplicates", () => {
   r = v.addBriefFiles([one], [file("brief.pdf")]);
   assert.equal(r.files.length, 1);
   assert.equal(r.error, v.BRIEF_FILE_MESSAGES.duplicate);
+});
+
+test("form notice follows the current field errors", () => {
+  const m = v.INQUIRY_MESSAGES;
+  assert.equal(v.inquiryErrorSummary({}), null);
+  assert.equal(v.inquiryErrorSummary({ fullName: m.required, email: m.invalidEmail }), m.formError);
+  assert.equal(v.inquiryErrorSummary({ email: m.invalidEmail, website: m.invalidWebsite }), m.formInvalid);
+  assert.equal(v.inquiryErrorSummary({ quantity: undefined }), null);
+  assert.equal(m.formError, "Please fill in the required fields and try again.");
+  assert.equal(m.formInvalid, "Please correct the highlighted fields and try again.");
 });

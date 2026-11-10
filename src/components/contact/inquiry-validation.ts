@@ -3,7 +3,8 @@
 // - 필수·이메일 형식은 Log In·Sign Up과 같은 규칙·문구(lib/auth/validation 재사용)
 // - 수량 천 단위 쉼표 표시, 출시일 'MM / YYYY' 정규화
 // - 브리프 첨부: 허용 확장자·파일당 10 MiB·최대 3개·중복 제외 검증
-// - 오류 문구는 모두 확정(2026-11-10 승인)
+// - 오류 문구는 모두 확정(2026-11-10 승인). 폼 하단 안내 formError·formInvalid도 사용자 최종 검수로 확정(간결한 한 줄 문구)
+// - 폼 하단 안내는 현재 필드 오류에서 계산(inquiryErrorSummary): 필수 누락 → formError, 형식 오류만 → formInvalid, 오류 없음 → 없음
 
 import { AUTH_MESSAGES, validateAuthField } from "@/lib/auth/validation";
 
@@ -47,7 +48,9 @@ export const INQUIRY_MESSAGES = {
   invalidEmail: AUTH_MESSAGES.email,
   // Figma
   minQuantity: "Please enter a number of 5,000 or more.",
-  formError: "Some required fields are empty. Check the highlighted fields and send again.",
+  formError: "Please fill in the required fields and try again.",
+  // Confirmed 2026-11-10: every required field is filled but a format error remains
+  formInvalid: "Please correct the highlighted fields and try again.",
   // Contact-only (approved 2026-11-10)
   invalidWebsite: "Please enter a valid web address.",
   wholeNumber: "Please enter a whole number.",
@@ -133,6 +136,16 @@ export function validateInquiry(values: InquiryValues, now: Date = new Date()): 
     if (error) errors[field] = error;
   }
   return errors;
+}
+
+/**
+ * Form-level notice above Send inquiry, derived from the current field errors (so it never shows a stale result):
+ * a required field still empty → formError, only format errors left → formInvalid, no errors → null.
+ */
+export function inquiryErrorSummary(errors: Partial<Record<InquiryField, string>>): string | null {
+  const messages = Object.values(errors).filter(Boolean);
+  if (messages.length === 0) return null;
+  return messages.includes(INQUIRY_MESSAGES.required) ? INQUIRY_MESSAGES.formError : INQUIRY_MESSAGES.formInvalid;
 }
 
 // ---------- Brief attachments ----------

@@ -1,5 +1,6 @@
 // Contact 페이지(/contact). SiteShell 안에 Hero → 문의 폼 + 오른쪽 안내 영역 순서로 렌더링한다(Announcement Bar 없음).
-// - ?promo=year-end-2026 진입 여부를 요청마다 읽어 폼에 전달(프로모션 기간에만 체크박스·Year-end offer 카드 표시)
+// - 프로모션 기간 여부를 요청마다 판정(connection()으로 요청 시점 렌더링 유지) → 기간에만 Year-end offer 카드·관심 체크박스 표시.
+//   일반·프로모션 진입 모두 /contact 하나이며 초기 폼 상태는 같다(체크박스 미선택, Message 빈 칸)
 // - Hero와 문의 영역 사이 전체 폭 구분선(Figma 섹션 상단 1px), 구분선 아래 48px(모바일 32px)에서 폼·오른쪽 카드가 같은 높이로 시작
 // - 카드 순서(문서·Tab·스크린리더 순서와 같음): Year-end offer(프로모션 기간에만) → 문의 폼 → 나머지 안내 카드
 //   1열(xl 미만)은 이 순서대로 쌓고, xl 이상 2열은 그리드로 왼쪽 폼 / 오른쪽 offer·안내 카드(Figma 데스크톱 배치) 유지.
@@ -12,7 +13,8 @@ import { ContactOffer, ContactSide } from "@/components/contact/ContactSide";
 import { InquiryForm } from "@/components/contact/InquiryForm";
 import { SECTION_CONTAINER } from "@/components/home/styles";
 import { SiteShell } from "@/components/layout/SiteShell";
-import { YEAR_END_PROMO, isYearEndPromoActive } from "@/lib/config/promo";
+import { connection } from "next/server";
+import { isYearEndPromoActive } from "@/lib/config/promo";
 import { SITE_URL } from "@/lib/config/site";
 import { cx } from "@/lib/utils/cx";
 
@@ -32,10 +34,10 @@ export const metadata: Metadata = {
 };
 
 /** Figma: Contact — Final Design (1440 · desktop) (291:689), in on-canvas order. */
-export default async function ContactPage({ searchParams }: { searchParams: Promise<{ promo?: string | string[] }> }) {
-  const { promo } = await searchParams;
+export default async function ContactPage() {
+  // Render per request so the promotion disappears right after it ends (not frozen at build time).
+  await connection();
   const showPromo = isYearEndPromoActive();
-  const promoFromLink = showPromo && promo === YEAR_END_PROMO.code;
 
   return (
     <SiteShell>
@@ -49,7 +51,7 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
         >
           {showPromo ? <ContactOffer className="xl:col-start-2 xl:row-start-1" /> : null}
           <div className="min-w-0 xl:col-start-1 xl:row-span-2 xl:row-start-1">
-            <InquiryForm showPromo={showPromo} promoFromLink={promoFromLink} />
+            <InquiryForm showPromo={showPromo} />
           </div>
           <ContactSide
             className={cx("xl:sticky xl:top-24 xl:col-start-2", showPromo ? "xl:row-start-2" : "xl:row-span-2 xl:row-start-1")}
