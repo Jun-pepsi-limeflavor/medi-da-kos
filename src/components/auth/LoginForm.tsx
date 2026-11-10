@@ -12,7 +12,6 @@ import { FormMessage } from "@/components/ui/FormMessage";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/lib/auth/auth-context";
 import { describeAuthError, logAuthError } from "@/lib/auth/auth-errors";
-import { MOCK_ADMIN } from "@/lib/auth/mock-auth";
 import {
   validateAuthField,
   validateAuthForm,
@@ -53,7 +52,7 @@ const COPY = {
 
 export function LoginForm({ mode }: { mode: Mode }) {
   const router = useRouter();
-  const { user, loading, isMockMode, login, register, loginWithGoogle } =
+  const { user, loading, login, register, loginWithGoogle } =
     useAuth();
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
@@ -142,13 +141,6 @@ export function LoginForm({ mode }: { mode: Mode }) {
         <h1 className="text-mdk-heading text-mdk-charcoal max-sm:text-[32px] max-sm:leading-[38px]">{copy.title}</h1>
         <p className="text-mdk-body text-mdk-charcoal-muted">{copy.description}</p>
       </div>
-
-      {isMockMode && (
-        // Development aid only (NEXT_PUBLIC_USE_MOCK_AUTH): never shown with real Firebase Auth.
-        <div className="rounded-[4px] bg-mdk-off-white px-4 py-3 text-mdk-caption text-mdk-charcoal-muted">
-          Local mock mode — admin: {MOCK_ADMIN.email} / {MOCK_ADMIN.password}
-        </div>
-      )}
 
       <button
         type="button"
