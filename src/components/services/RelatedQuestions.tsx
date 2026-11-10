@@ -1,5 +1,5 @@
 // Services 섹션 하단 'Related questions' 링크 줄.
-// - FAQ 질문 고정 ID(/faq#faq-0NN)로 연결(Figma 주석), 좁은 화면에서는 줄바꿈
+// - FAQ 질문 고정 ID(/faq#faq-0NN)로 연결(Figma 주석). lg 미만은 세로로 쌓고, lg 이상은 가로 배치 후 넘치면 줄바꿈
 import Link from "next/link";
 import { ROUTES } from "@/lib/config/routes";
 

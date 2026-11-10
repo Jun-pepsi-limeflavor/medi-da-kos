@@ -1,6 +1,6 @@
 // Services 3 · How It Works (#how-it-works).
 // - 9단계 진행 절차: 왼쪽 sticky 단계 목록(ServicesStageNav) + 오른쪽 단계 상세(모두 펼침, #stage-01~09)
-// - 각 단계: 번호·단계명·절차 문장·Deliverable, 03단계는 'See sample costs →'(#samples-moq)
+// - 각 단계: 번호·단계명·절차 문장·보조 설명(회색 안내 문구), 03단계는 'See sample costs →'(#samples-moq)
 // - 하단 리드타임 안내와 FAQ 관련 질문 링크. lg 미만은 단계 목록 없이 상세만 표시
 import { Button } from "@/components/ui/Button";
 import { ANCHOR_TARGET } from "@/components/services/anchors";
