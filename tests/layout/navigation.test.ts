@@ -16,14 +16,14 @@ test("active nav item follows the pathname, including nested paths", () => {
 });
 
 test("Home, Contact, policy and auth pages have no active nav item", () => {
-  for (const path of ["/", "/contact", "/privacy", "/terms", "/login", "/signup", "/portfolio-old"]) {
+  for (const path of ["/", "/contact", "/privacy-policy", "/terms-of-service", "/login", "/signup", "/portfolio-old"]) {
     assert.equal(activeNavHref(path), null, path);
   }
 });
 
 test("Announcement Bar shows only on Home, About Us, Services, Portfolio and FAQ", () => {
   for (const path of ["/", "/about-us", "/services", "/portfolio", "/faq"]) assert.ok(showsAnnouncementBar(path), path);
-  for (const path of ["/contact", "/privacy", "/terms", "/login", "/signup"]) assert.ok(!showsAnnouncementBar(path), path);
+  for (const path of ["/contact", "/privacy-policy", "/terms-of-service", "/login", "/signup"]) assert.ok(!showsAnnouncementBar(path), path);
 });
 
 test("year-end promo ends after 2026-12-31 23:59 KST", () => {

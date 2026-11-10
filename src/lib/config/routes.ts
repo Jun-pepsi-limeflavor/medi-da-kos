@@ -12,9 +12,9 @@ export const ROUTES = {
   login: "/login",
   signup: "/signup",
   contact: "/contact",
-  // Figma annotation: /privacy · /terms (final URL still marked TBD there).
-  privacy: "/privacy",
-  terms: "/terms",
+  // Figma annotation marked the final URL TBD (/privacy · /terms); confirmed 2026-11-10 as below.
+  privacy: "/privacy-policy",
+  terms: "/terms-of-service",
 } as const;
 
 /** Section anchors on /services (Figma: Services Anchor Bar, Footer Services column). */
