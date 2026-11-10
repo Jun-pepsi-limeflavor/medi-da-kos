@@ -1,14 +1,22 @@
 "use client";
 
-// Footer 이메일 링크.
+// Footer 이메일 링크(Contact 'Prefer email?'에서도 재사용 — 측정 위치는 location으로 구분).
 // - 한 번 클릭(또는 Enter)으로 mailto 메일 앱 열기와 주소 클립보드 복사를 함께 시도
 // - 복사 성공 시에만 "Email copied!" 안내, 실패해도 메일 앱 열기는 그대로 진행
 // - 기존 email_click 이벤트 측정과 직접 선택 복사(email_copy) 측정 유지
 import { useEffect, useRef, useState } from "react";
-import { trackEmailClick, trackEmailCopy } from "@/lib/analytics/events";
+import { trackEmailClick, trackEmailCopy, type EmailLinkLocation } from "@/lib/analytics/events";
 import { copyText } from "@/lib/utils/clipboard";
 
-export function FooterEmailLink({ email, className }: { email: string; className?: string }) {
+export function FooterEmailLink({
+  email,
+  className,
+  location = "footer",
+}: {
+  email: string;
+  className?: string;
+  location?: EmailLinkLocation;
+}) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -21,7 +29,7 @@ export function FooterEmailLink({ email, className }: { email: string; className
 
   function handleClick() {
     // No preventDefault: the browser still follows mailto:. Copy starts in the same user gesture.
-    trackEmailClick("footer", email);
+    trackEmailClick(location, email);
     void copyText(email).then((ok) => {
       if (!ok) return;
       setCopied(true);
@@ -32,7 +40,7 @@ export function FooterEmailLink({ email, className }: { email: string; className
 
   return (
     <span className="relative self-start">
-      <a href={`mailto:${email}`} onClick={handleClick} onCopy={() => trackEmailCopy("footer")} className={className}>
+      <a href={`mailto:${email}`} onClick={handleClick} onCopy={() => trackEmailCopy(location)} className={className}>
         {email}
       </a>
       {/* Floats above the link so the footer layout doesn't move. */}

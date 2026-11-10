@@ -1,14 +1,11 @@
 // Portfolio 4 · CTA Band (custom brief).
 // - 차콜 배경 제목 + 왼쪽 안내 문구 / 오른쪽 CTA 2개(Start your project → /contact, Download brief template). lg 미만은 세로로 쌓는다
-// - Download brief template: public/downloads의 Excel 브리프 양식을 정적 파일로 바로 내려받는다(파일명 공백은 URL 인코딩)
+// - Download brief template: public/downloads의 Excel 브리프 양식을 정적 파일로 바로 내려받는다(경로는 config/downloads — Contact와 공용)
 import { Button, buttonClassName } from "@/components/ui/Button";
+import { BRIEF_TEMPLATE } from "@/lib/config/downloads";
 import { ROUTES } from "@/lib/config/routes";
 import { DISPLAY_TITLE, SECTION_CONTAINER } from "@/components/home/styles";
 import { cx } from "@/lib/utils/cx";
-
-/** Brief template (Figma: same single file as Contact), served as a static file from /public/downloads. */
-const BRIEF_TEMPLATE_FILE = "Medidakos_Product Development Brief.xlsx";
-const BRIEF_TEMPLATE_URL = `/downloads/${encodeURIComponent(BRIEF_TEMPLATE_FILE)}`;
 
 /** Figma: 4 · CTA Band (custom brief) (772:3322). */
 export function PortfolioCtaBand() {
@@ -26,7 +23,7 @@ export function PortfolioCtaBand() {
               Start your project
             </Button>
             {/* Plain <a download>: a static file, so no client routing or prefetch from next/link. */}
-            <a href={BRIEF_TEMPLATE_URL} download={BRIEF_TEMPLATE_FILE} className={buttonClassName("secondary-inverse")}>
+            <a href={BRIEF_TEMPLATE.href} download={BRIEF_TEMPLATE.fileName} className={buttonClassName("secondary-inverse")}>
               Download brief template
             </a>
           </div>
