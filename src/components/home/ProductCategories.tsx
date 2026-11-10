@@ -1,14 +1,14 @@
 // Home 5 · Product Categories.
 // - 헤더(제목·소개·예시 이미지 안내·View all)와 카테고리 7개 + Portfolio 전체 보기 타일 모자이크
-// - 타일 클릭 → /portfolio?category=<slug>, 'View all'·마지막 타일 → /portfolio
+// - 타일 클릭 → /portfolio?category=<slug>, 'View all'·마지막 타일 → /portfolio(All, 필터·첫 제품 행부터 표시)
 // - 모바일 1열은 모든 타일 4:5(Facial care는 세로형 원본이라 소폭 확대), sm~lg 2열은 Facial care만 와이드
 // - lg 이상 Figma 4열 모자이크(비율 유지) + 카테고리별 Figma 이미지 Fill 크롭·확대율 그대로
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button, buttonClassName } from "@/components/ui/Button";
+import { buttonClassName } from "@/components/ui/Button";
+import { PortfolioProductsLink } from "@/components/portfolio/PortfolioProductsLink";
 import { portfolioCategoryHref, type ProductCategorySlug } from "@/lib/config/product-categories";
-import { ROUTES } from "@/lib/config/routes";
 import { cx } from "@/lib/utils/cx";
 import { DISPLAY_TITLE, EYEBROW, SECTION_CONTAINER } from "@/components/home/styles";
 
@@ -60,9 +60,7 @@ export function ProductCategories() {
               <Image src="/icons/circle-info.svg" alt="" width={16} height={16} />
               Images are for illustrative purposes only.
             </p>
-            <Button href={ROUTES.portfolio} variant="secondary" size="s" className="h-[46px] px-6">
-              View all →
-            </Button>
+            <PortfolioProductsLink className={cx(buttonClassName("secondary", "s"), "h-[46px] px-6")}>View all →</PortfolioProductsLink>
           </div>
         </div>
 
@@ -117,8 +115,7 @@ export function ProductCategories() {
             </li>
           ))}
           <li className="sm:col-span-2">
-            <Link
-              href={ROUTES.portfolio}
+            <PortfolioProductsLink
               className="flex h-full min-h-[320px] flex-col items-start justify-between gap-10 rounded-mdk-md bg-mdk-charcoal p-6 sm:p-8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-mdk-charcoal lg:min-h-0 lg:p-12"
             >
               <span className={cx(DISPLAY_TITLE, "max-w-[420px] text-mdk-white")}>
@@ -127,7 +124,7 @@ export function ProductCategories() {
                 category
               </span>
               <span className={buttonClassName("primary-inverse")}>Discover our work →</span>
-            </Link>
+            </PortfolioProductsLink>
           </li>
         </ul>
       </div>
