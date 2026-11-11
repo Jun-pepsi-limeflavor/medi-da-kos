@@ -10,6 +10,7 @@ import { useSyncExternalStore } from "react";
 import {
   ANNOUNCEMENT_DISMISSED_ATTR,
   ANNOUNCEMENT_DISMISSED_KEY,
+  PROMO_BAR_CLICKED_KEY,
   isYearEndPromoActive,
 } from "@/lib/config/promo";
 import { ROUTES } from "@/lib/config/routes";
@@ -19,9 +20,8 @@ import { ROUTES } from "@/lib/config/routes";
  * - Whole bar and the link go to /contact (same page and initial form as any other Contact link).
  * - Close hides it for this tab (sessionStorage, keyed by promo code); a new tab or a new promo shows it again.
  * - Not rendered after the promo end (see YEAR_END_PROMO).
- * - Clicking the link is remembered for this visit so the future Promotion Popup can skip auto-opening.
+ * - Clicking the bar or its link is remembered for this session so the Promotion Popup does not auto-open (lib/promo/visit).
  */
-export const PROMO_BAR_CLICKED_KEY = "mdk:promo-bar-clicked";
 
 const listeners = new Set<() => void>();
 function subscribe(listener: () => void) {

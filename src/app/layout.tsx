@@ -5,7 +5,7 @@
 // - data-scroll-behavior="smooth": 전역 smooth 스크롤을 페이지 이동 때만 끄고 즉시 상단 이동(Next 16)
 // - Announcement Bar를 닫은 탭이면 첫 페인트 전에 <html>에 표시해 바를 숨긴다(sessionStorage)
 // - NavigationIntent: 누른 링크·뒤로가기 시점 기록(FAQ가 일반 진입·딥링크·방문 기록 이동을 구분하는 데 사용)
-// - CookieConsent: 쿠키 동의 배너·Cookie Settings 모달(모든 페이지)
+// - CookieConsent: 쿠키 동의 배너·Cookie Settings 모달(모든 페이지) · PromoVisit: Promotion 팝업용 새 방문 판정·활동 시각 기록
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Sans, Noto_Serif } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
@@ -15,6 +15,7 @@ import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { NavigationIntent } from "@/components/layout/NavigationIntent";
 import { CookieConsent } from "@/components/cookie-consent/CookieConsent";
+import { PromoVisit } from "@/components/promo/PromoVisit";
 import { SITE_NAME, SITE_URL } from "@/lib/config/site";
 import { ANNOUNCEMENT_DISMISSED_ATTR, ANNOUNCEMENT_DISMISSED_KEY } from "@/lib/config/promo";
 
@@ -172,6 +173,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <NavigationIntent />
+        <PromoVisit />
         <GoogleAnalytics gaId={gaId} />
         <MetaPixel pixelId={metaPixelId} />
         <AuthProvider>

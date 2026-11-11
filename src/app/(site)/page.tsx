@@ -2,6 +2,7 @@
 // - SiteShell을 레이아웃이 아닌 Page 루트로 감싸 페이지 첫 요소가 문서 최상단에서 시작한다.
 //   Next.js는 이동 시 Page 첫 요소 기준으로 스크롤하므로 다른 페이지에서 와도 항상 최상단에서 열린다.
 // - SEO metadata(제목·설명·canonical·Open Graph)는 기존 (marketing) Home 값을 그대로 유지
+// - Promotion 팝업(PromoPopup): 새 방문의 첫 페이지가 Home일 때 약 1초 뒤 방문당 1회 자동 표시
 import type { Metadata } from "next";
 import { Certifications } from "@/components/home/Certifications";
 import { CtaBand } from "@/components/home/CtaBand";
@@ -11,6 +12,7 @@ import { ProductCategories } from "@/components/home/ProductCategories";
 import { SocialSection } from "@/components/home/SocialSection";
 import { Testimonials } from "@/components/home/Testimonials";
 import { WhyMedidakos } from "@/components/home/WhyMedidakos";
+import { PromoPopup } from "@/components/promo/PromoPopup";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { SITE_URL } from "@/lib/config/site";
 
@@ -51,6 +53,7 @@ export default function HomePage() {
       <SocialSection posts={[]} />
       <Testimonials />
       <CtaBand />
+      <PromoPopup />
     </SiteShell>
   );
 }
