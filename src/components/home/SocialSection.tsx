@@ -6,13 +6,16 @@
 // - 게시물이 화면에 모두 들어가면 화살표·진행 막대를 숨기고(높이 유지), 탭을 바꾸면 처음으로 돌아간다
 // - 해당 플랫폼 게시물이 없으면 가짜 카드 없이 짧은 안내 문구 + 공식 계정 버튼(Secondary S)만 표시하고
 //   캐러셀 진행 막대·화살표는 렌더링하지 않는다
+// - 카드를 누르면 그 게시물의 SNS Post Modal(Instagram·TikTok 공용)을 연다 — 게시물은 플랫폼+ID로 구분
+// - 개발 서버에서만 ?socialTest=1이면 'TEST' 표시 테스트 게시물(lib/social/test-posts)을 대신 보여 준다(운영 빌드에는 없음)
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buttonClassName } from "@/components/ui/Button";
 import { SocialPostCard } from "@/components/home/SocialPostCard";
+import { SocialPostModal } from "@/components/home/SocialPostModal";
 import { DISPLAY_TITLE, EYEBROW } from "@/components/home/styles";
 import { SOCIAL_LINKS } from "@/lib/config/site";
-import { SOCIAL_FEED_LABEL, SOCIAL_FEED_PLATFORMS, type SocialFeedPlatform, type SocialPost } from "@/lib/social/types";
+import { SOCIAL_FEED_LABEL, SOCIAL_FEED_PLATFORMS, socialPostKey, type SocialFeedPlatform, type SocialPost } from "@/lib/social/types";
 import { cx } from "@/lib/utils/cx";
 
 /** Figma tab widths stay equal between selected and default states so tabs don't shift. */
@@ -23,8 +26,24 @@ type ScrollState = { overflow: boolean; atStart: boolean; atEnd: boolean; left: 
 const INITIAL_SCROLL: ScrollState = { overflow: false, atStart: true, atEnd: false, left: 0, size: 1 };
 
 /** Figma: 6 · SNS Content (secondary) (234:5388). `posts` come from the server-side feed, newest first. */
-export function SocialSection({ posts }: { posts: readonly SocialPost[] }) {
+export function SocialSection({ posts: livePosts }: { posts: readonly SocialPost[] }) {
   const [platform, setPlatform] = useState<SocialFeedPlatform>("instagram");
+  const [testPosts, setTestPosts] = useState<readonly SocialPost[] | null>(null);
+  const [openPost, setOpenPost] = useState<SocialPost | null>(null);
+  const posts = testPosts ?? livePosts;
+
+  // Development only: /?socialTest=1 shows the labelled test posts (removed from production builds).
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    if (!new URLSearchParams(window.location.search).has("socialTest")) return;
+    let cancelled = false;
+    void import("@/lib/social/test-posts").then(({ TEST_SOCIAL_POSTS }) => {
+      if (!cancelled) setTestPosts(TEST_SOCIAL_POSTS);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [scroll, setScroll] = useState<ScrollState>(INITIAL_SCROLL);
   const viewportRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -106,8 +125,8 @@ export function SocialSection({ posts }: { posts: readonly SocialPost[] }) {
             {visible.length > 0 ? (
               <ul className="flex gap-5">
                 {visible.map((post) => (
-                  <li key={`${post.platform}-${post.id}`}>
-                    <SocialPostCard post={post} />
+                  <li key={socialPostKey(post)}>
+                    <SocialPostCard post={post} onOpen={setOpenPost} />
                   </li>
                 ))}
               </ul>
@@ -165,6 +184,7 @@ export function SocialSection({ posts }: { posts: readonly SocialPost[] }) {
           </div>
         ) : null}
       </div>
+      <SocialPostModal post={openPost} onClose={() => setOpenPost(null)} />
     </section>
   );
 }
