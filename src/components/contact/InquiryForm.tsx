@@ -20,6 +20,7 @@
 //   완료 메시지(tabIndex -1)로 포커스를 옮긴다(추가 스크롤 없음). 검증 실패·Mock 외 환경에서는 이동하지 않는다
 // - Message 입력칸: 테두리를 inset 그림자 대신 실제 border로 그려 스크롤바가 테두리 안쪽에 오게 하고,
 //   얇은 스크롤바(보이는 thumb 6px + 오른쪽 테두리와 5px 간격, 투명 트랙, mid-gray 둥근 thumb)를 이 입력칸에만 적용.
+//   thumb 양끝은 같은 3px 반원(투명 border 두께 명시 + 모서리별 반경 보정, SNS 모달 Caption과 같은 방식, 2026-11-11).
 //   테두리+여백 합은 기존과 같은 18px·16px
 import Image from "next/image";
 import { useEffect, useId, useRef, useState, type FocusEvent, type FormEvent } from "react";
@@ -286,8 +287,10 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
               // Thin scrollbar, transparent track: WebKit/Blink via pseudo-elements, Firefox via scrollbar-width/color.
               // 11px bar = 6px visible thumb + 5px transparent thumb border on the right (background-clip keeps it
               // unpainted), so the thumb stands 5px off the right border; the track is inset 4px top and bottom.
+              // Border widths are explicit (3px top/bottom, 0 left; unset sides would default to 3px) and each corner
+              // radius adds its borders back (8px×6px / 3px×6px) so both ends are the same 3px semicircle.
               "[&::-webkit-scrollbar]:w-[11px] [&::-webkit-scrollbar-track]:my-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-corner]:bg-transparent",
-              "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-r-[5px] [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-mdk-mid-gray [&::-webkit-scrollbar-thumb]:bg-clip-padding",
+              "[&::-webkit-scrollbar-thumb]:rounded-l-[3px_6px] [&::-webkit-scrollbar-thumb]:rounded-r-[8px_6px] [&::-webkit-scrollbar-thumb]:border-y-[3px] [&::-webkit-scrollbar-thumb]:border-r-[5px] [&::-webkit-scrollbar-thumb]:border-l-0 [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-mdk-mid-gray [&::-webkit-scrollbar-thumb]:bg-clip-padding",
               "supports-[-moz-appearance:none]:[scrollbar-width:thin] supports-[-moz-appearance:none]:[scrollbar-color:var(--color-mdk-mid-gray)_transparent]",
             )}
           />
