@@ -133,7 +133,7 @@ dry-run 성공만으로 운영 배포의 안전성이 보장되지는 않는다.
 
 조회 명령어:
 
-`firebase functions:list`
+`firebase functions:list --project <PROJECT_ID>` (`.firebaserc` 기본값은 dev라 생략하면 dev를 조회한다)
 
 확인 항목:
 - [ ] 배포 대상 함수의 Runtime이 nodejs22로 표시됨

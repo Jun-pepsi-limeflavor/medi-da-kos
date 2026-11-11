@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/check-dev-firebase.mjs",
     "dev": "next dev",
     "build": "next build",
+    "build:local": "node scripts/local-firebase.mjs build",
+    "prestart": "node scripts/local-firebase.mjs check-start",
     "start": "next start",
+    "start:local": "node scripts/local-firebase.mjs start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "firebase emulators:exec --only firestore --project demo-medidakos 'out=$(node --test 2>&1); ec=$?; printf \"%s\\n\" \"$out\"; [ $ec -ne 0 ] && exit $ec; printf \"%s\\n\" \"$out\" | grep -qE \"tests [1-9]\" || { echo \"NO TESTS DISCOVERED\" >&2; exit 1; }'",

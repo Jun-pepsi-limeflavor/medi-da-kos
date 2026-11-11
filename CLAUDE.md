@@ -33,19 +33,22 @@ Medidakos 공개 웹사이트 저장소다. Firebase(Auth·Firestore·Functions)
 
 | 목적 | 명령 |
 |---|---|
-| 개발 서버 | `npm run dev` |
+| 개발 서버 (dev Firebase) | `npm run dev` |
 | 타입 검사 | `npm run typecheck` |
 | 린트 | `npm run lint` |
 | 테스트 (Firestore Emulator) | `npm test` |
-| 프로덕션 빌드 | `npm run build` |
+| 프로덕션 빌드 (Vercel과 같음, `.env.local` 기준) | `npm run build` |
+| 로컬 빌드·실행 (dev Firebase) | `npm run build:local` → `npm run start:local` (결과물 Firebase를 검사, 운영이면 차단) |
 | Functions 테스트 | `npm --prefix functions test` |
-| Functions 로그 | `npm --prefix functions run logs` |
-| 배포 함수 목록 | `firebase functions:list` |
+| Functions 로그 | `npm --prefix functions run logs -- -P dev` (운영은 `-P prod`) |
+| 배포 함수 목록 | `firebase functions:list -P dev` (운영은 `-P prod`) |
 
 - Next.js 16.2.6, React 19.2.4, TypeScript strict, Tailwind v4, Firebase JS SDK 12, Node 22.
 - 테스트는 Node 내장 `node --test`다. 규칙 테스트는 Firestore Emulator와 JDK 21+이 필요하다.
 - `functions/`는 Node 22 CommonJS 별도 패키지다.
-- Firebase 프로젝트는 `medidakos`, 함수 리전은 `asia-northeast3`다. 새 함수에도 리전을 명시한다.
+- 로컬 `npm run dev`는 `.env.development.local`의 dev Firebase(`dev-medidakos-b9b4f`)를 쓴다(`.env.local`은 운영 값). `predev`(`scripts/check-dev-firebase.mjs`)가 프로젝트를 출력하고 운영이면 시작을 막는다.
+- `.firebaserc`: `default`·`dev` = `dev-medidakos-b9b4f`, `prod` = `medidakos`. 프로젝트를 생략한 Firebase CLI 명령은 dev를 대상으로 하므로, 운영 작업은 항상 `-P prod`(또는 `--project medidakos`)를 명시한다.
+- 운영 Firebase 프로젝트는 `medidakos`(dev는 `dev-medidakos-b9b4f`), 함수 리전은 `asia-northeast3`다. 새 함수에도 리전을 명시한다.
 - 린터는 ESLint다. Biome, Jest, Vitest를 추가하지 않는다. 승인 없이 npm 패키지를 설치·업데이트하지 않는다.
 
 ## 배포와 Git
@@ -74,6 +77,7 @@ src/lib/<영역>/           firebase, channel-talk, analytics, auth, contact, co
 src/hooks/                공통 React 훅
 functions/                Firebase Functions (알림 메일, Channel Talk 연동)
 tests/<기능>/             node --test (analytics, channel-talk, kakaowork, rules)
+scripts/                  로컬 개발 보조 스크립트 (check-dev-firebase.mjs, local-firebase.mjs)
 docs/                     operations(운영·배포), integrations(연동), plans(계획) — docs/README.md
 ```
 

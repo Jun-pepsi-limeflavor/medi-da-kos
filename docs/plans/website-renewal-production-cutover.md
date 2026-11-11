@@ -74,7 +74,7 @@
 - 선택 배포(예): `firebase deploy --project medidakos --only functions:default:onContactCreated,functions:default:channelTalkRetry`
 - 삭제(예): `firebase functions:delete <함수명> --region asia-northeast3 --project medidakos`
 - 전체 배포(`firebase deploy --only functions`)는 금지. 소스에 없는 운영 함수가 지워진다.
-- 상태 확인: `gcloud functions list --project medidakos`, 로그: `firebase functions:log --only <함수명>`
+- 상태 확인: `gcloud functions list --project medidakos`, 로그: `firebase functions:log --project medidakos --only <함수명>`
 - 복구 기준점: 전환 직전 `main` 커밋에 태그(예: `pre-renewal-cutover`)를 남긴다. 삭제한 함수는 이 태그 소스로 다시 배포해 복구한다(관련 Secret이 남아 있어야 함).
 
 | 함수 | 현재 운영 기능 | 트리거·주기 | 신규 필요 | 처리 | 의존성 | 변경 시점 | 배포·삭제 방법 | 검증 | 복구 |
@@ -267,7 +267,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 - 작업(예, `main` 최신 커밋에서): `firebase deploy --project medidakos --only functions:default:onContactCreated,functions:default:channelTalkOnContactCreated,functions:default:channelTalkRetry,functions:default:onUserSignup,functions:default:channelTalkOnUserCreated`
 - 성공
   - [ ] `gcloud functions list`에서 해당 함수 UPDATE_TIME 갱신, ACTIVE
-  - [ ] `firebase functions:log --only channelTalkRetry` 오류 없음
+  - [ ] `firebase functions:log --project medidakos --only channelTalkRetry` 오류 없음
 
 ### 5단계. Contact 실제 연동 검증 (필수 게이트)
 - 조건: 4단계 성공. **이 단계 통과 전에는 어떤 함수도 삭제하지 않는다.**
