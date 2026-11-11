@@ -1,4 +1,4 @@
-// FAQ 3 · Contact CTA — Didn't find your answer?
+// FAQ 3 · Contact CTA — Didn't find your answer? 어두운 배경이라 data-launcher-theme="dark"(Channel Talk 런처가 이 위에서 On Dark 색으로 바뀜).
 // - 차콜 배경 제목 + 왼쪽 안내 문구 / 오른쪽 Contact Us(→ /contact). lg 미만은 세로로 쌓는다
 // - 안내 문구 아래 회신 시간 보조 문구(REPLY_TIME_NOTE, 2026-11-10 확정: 5–7 business days)
 import { Button } from "@/components/ui/Button";
@@ -12,7 +12,7 @@ const REPLY_TIME_NOTE: string | null = "Our project management team replies with
 /** Figma: 3 · Contact CTA — Didn't find your answer? (290:734). */
 export function FaqContactCta() {
   return (
-    <section className="bg-mdk-charcoal py-20 lg:py-40">
+    <section data-launcher-theme="dark" className="bg-mdk-charcoal py-20 lg:py-40">
       <div className={`${SECTION_CONTAINER} flex flex-col gap-10 lg:gap-16`}>
         <h2 className={cx(DISPLAY_TITLE, "max-w-[900px] text-mdk-white")}>Didn&apos;t find your answer?</h2>
         <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">

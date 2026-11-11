@@ -1,4 +1,4 @@
-// Portfolio 4 · CTA Band (custom brief).
+// Portfolio 4 · CTA Band (custom brief). 어두운 배경이라 data-launcher-theme="dark"(Channel Talk 런처가 이 위에서 On Dark 색으로 바뀜).
 // - 차콜 배경 제목 + 왼쪽 안내 문구 / 오른쪽 CTA 2개(Start your project → /contact, Download brief template). lg 미만은 세로로 쌓는다
 // - Download brief template: public/downloads의 Excel 브리프 양식을 정적 파일로 바로 내려받는다(경로는 config/downloads — Contact와 공용)
 import { Button, buttonClassName } from "@/components/ui/Button";
@@ -10,7 +10,7 @@ import { cx } from "@/lib/utils/cx";
 /** Figma: 4 · CTA Band (custom brief) (772:3322). */
 export function PortfolioCtaBand() {
   return (
-    <section className="bg-mdk-charcoal py-20 lg:py-40">
+    <section data-launcher-theme="dark" className="bg-mdk-charcoal py-20 lg:py-40">
       <div className={`${SECTION_CONTAINER} flex flex-col gap-10 lg:gap-16`}>
         <h2 className={cx(DISPLAY_TITLE, "text-mdk-white")}>Have a different product in mind?</h2>
         <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">

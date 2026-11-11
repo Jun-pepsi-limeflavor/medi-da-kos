@@ -1,4 +1,4 @@
-// Home 8 · CTA Band.
+// Home 8 · CTA Band. 어두운 배경이라 data-launcher-theme="dark"(Channel Talk 런처가 이 위에서 On Dark 색으로 바뀜).
 // - 차콜 배경 위 제목·안내 문구·CTA 2개(Contact, Services How it works)와 오른쪽 이미지
 // - lg 미만은 텍스트 아래에 이미지를 쌓는다(이미지 비율·크롭 유지)
 import Image from "next/image";
@@ -10,7 +10,7 @@ import { cx } from "@/lib/utils/cx";
 /** Figma: 8 · CTA Band (234:5423). */
 export function CtaBand() {
   return (
-    <section className="bg-mdk-charcoal py-20 lg:py-30">
+    <section data-launcher-theme="dark" className="bg-mdk-charcoal py-20 lg:py-30">
       <div className={`${SECTION_CONTAINER} flex flex-col gap-12 lg:flex-row lg:items-center lg:gap-24`}>
         <div className="flex min-w-0 flex-1 flex-col items-start gap-10 lg:gap-12">
           <h2 className={cx(DISPLAY_TITLE, "max-w-[664px] text-mdk-white")}>Bring your idea to life</h2>
