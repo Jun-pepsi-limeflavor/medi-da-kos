@@ -1,5 +1,5 @@
 // About Us 3 · Why Medidakos → Our approach.
-// - Why Medidakos: 목적 문장(강조 구문 회색) + 이미지(552×400)·설명 행
+// - Why Medidakos: 목적 문장(강조 구문 회색) + 이미지(552×400)·설명 행. 제목 'vendor' → 'partner'(2026.11.11 확정, Figma와 동일)
 // - Our approach: 비교 카드 2개(Without = 선 6개 / With = 선 1개, HTML·CSS 도식) + 장점 3개
 // - 도식의 선은 장식(aria-hidden), 비교 의미는 카드 제목·메시지 텍스트로 전달
 // - 640px 미만: Without은 파트너명 줄바꿈 허용, With는 'Your team / 선 / Medidakos'를 세로로 배치
@@ -52,7 +52,7 @@ export function AboutWhyApproach() {
         <div className="flex flex-col gap-10 lg:gap-16">
           <p className={EYEBROW}>Why Medidakos</p>
           <h2 className="text-[36px] leading-[40px] font-semibold tracking-[-0.035em] text-mdk-charcoal md:text-[48px] md:leading-[54px] lg:text-[60px] lg:leading-[66px]">
-            A full-service vendor,
+            A full-service partner,
             <br />
             <span className="text-[#969696]">not just a matching service</span>
           </h2>

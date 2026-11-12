@@ -1,6 +1,7 @@
 // Log In·Sign Up 입력값 검증.
 // - 필수 항목(공백만 입력해도 오류), 이메일 형식(HTML 규칙), 비밀번호 8자 이상
 // - 필드별 오류 문구 반환
+// - Sign Up의 Phone number·Country는 선택 항목(2026.11.11 확정) — 비워도 가입, 형식 규칙은 원래 없음
 
 /**
  * Log In · Sign Up field checks. Replaces the browser's native popups (the form uses noValidate) while keeping
@@ -31,7 +32,8 @@ const EMAIL_PATTERN =
 
 const REQUIRED: Record<AuthMode, AuthField[]> = {
   login: ["email", "password"],
-  register: ["displayName", "phone", "country", "email", "password"],
+  // Phone number and Country are optional since 2026.11.11.
+  register: ["displayName", "email", "password"],
 };
 
 export function authFieldsFor(mode: AuthMode): AuthField[] {

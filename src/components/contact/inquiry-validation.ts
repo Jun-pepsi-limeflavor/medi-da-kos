@@ -1,7 +1,8 @@
 // Contact 문의 폼 입력·첨부 파일 검증 규칙(화면과 분리된 순수 함수 — 테스트 대상).
-// - 필수 항목·이메일·웹 주소·수량(5,000 이상 정수, 쉼표 허용)·희망 출시일(MM / YYYY, 이번 달 이후) 검증
+// - 필수 항목·이메일·웹 주소·수량(5,000 이상 정수, 쉼표 허용) 검증
+// - 2026.11.11 확정: 희망 출시일(Desired launch date)·Message는 선택 항목. 출시일은 형식 없는 문자열(예: Q1 2027, March 2027, TBD)
 // - 필수·이메일 형식은 Log In·Sign Up과 같은 규칙·문구(lib/auth/validation 재사용)
-// - 수량 천 단위 쉼표 표시, 출시일 'MM / YYYY' 정규화
+// - 수량 천 단위 쉼표 표시
 // - 브리프 첨부: 허용 확장자·파일당 10 MiB·최대 3개·중복 제외 검증
 // - 오류 문구는 모두 확정(2026-11-10 승인). 폼 하단 안내 formError·formInvalid도 사용자 최종 검수로 확정(간결한 한 줄 문구)
 // - 폼 하단 안내는 현재 필드 오류에서 계산(inquiryErrorSummary): 필수 누락 → formError, 형식 오류만 → formInvalid, 오류 없음 → 없음
@@ -37,8 +38,11 @@ export const INQUIRY_FIELDS: readonly InquiryField[] = [
   "message",
 ];
 
-/** Figma: required fields are the ones marked * (everything except Website or social link). */
-export const REQUIRED_FIELDS: ReadonlySet<InquiryField> = new Set(INQUIRY_FIELDS.filter((f) => f !== "website"));
+/** Optional fields (no * in Figma): Website or social link; Desired launch date and Message since 2026.11.11. */
+export const OPTIONAL_FIELDS: ReadonlySet<InquiryField> = new Set<InquiryField>(["website", "launchDate", "message"]);
+
+/** Figma: required fields are the ones marked *. */
+export const REQUIRED_FIELDS: ReadonlySet<InquiryField> = new Set(INQUIRY_FIELDS.filter((f) => !OPTIONAL_FIELDS.has(f)));
 
 export const MIN_QUANTITY = 5000;
 
@@ -54,8 +58,6 @@ export const INQUIRY_MESSAGES = {
   // Contact-only (approved 2026-11-10)
   invalidWebsite: "Please enter a valid web address.",
   wholeNumber: "Please enter a whole number.",
-  launchFormat: "Please enter a date as MM / YYYY.",
-  launchPast: "Please enter this month or a later date.",
 } as const;
 
 /** Same email rule as Log In · Sign Up (HTML valid e-mail address). */
@@ -89,23 +91,8 @@ export function formatQuantity(value: string): string {
   return n === null ? value : n.toLocaleString("en-US");
 }
 
-/** "3/2027", "03 / 2027" → { month: 3, year: 2027 }; otherwise null. */
-export function parseLaunchDate(value: string): { month: number; year: number } | null {
-  const match = /^\s*(\d{1,2})\s*\/\s*(\d{4})\s*$/.exec(value);
-  if (!match) return null;
-  const month = Number(match[1]);
-  const year = Number(match[2]);
-  return month >= 1 && month <= 12 ? { month, year } : null;
-}
-
-/** Shown as "MM / YYYY" on blur when the value parses. */
-export function normalizeLaunchDate(value: string): string {
-  const date = parseLaunchDate(value);
-  return date ? `${String(date.month).padStart(2, "0")} / ${date.year}` : value;
-}
-
-/** Error message for one field, or null when valid. `now` decides which month counts as the past. */
-export function validateInquiryField(field: InquiryField, value: string, now: Date = new Date()): string | null {
+/** Error message for one field, or null when valid. Launch date and Message are free text with no format rule. */
+export function validateInquiryField(field: InquiryField, value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return REQUIRED_FIELDS.has(field) ? INQUIRY_MESSAGES.required : null;
   switch (field) {
@@ -118,21 +105,15 @@ export function validateInquiryField(field: InquiryField, value: string, now: Da
       if (n === null) return INQUIRY_MESSAGES.wholeNumber;
       return n < MIN_QUANTITY ? INQUIRY_MESSAGES.minQuantity : null;
     }
-    case "launchDate": {
-      const date = parseLaunchDate(trimmed);
-      if (!date) return INQUIRY_MESSAGES.launchFormat;
-      const currentMonth = now.getFullYear() * 12 + now.getMonth();
-      return date.year * 12 + (date.month - 1) < currentMonth ? INQUIRY_MESSAGES.launchPast : null;
-    }
     default:
       return null;
   }
 }
 
-export function validateInquiry(values: InquiryValues, now: Date = new Date()): Partial<Record<InquiryField, string>> {
+export function validateInquiry(values: InquiryValues): Partial<Record<InquiryField, string>> {
   const errors: Partial<Record<InquiryField, string>> = {};
   for (const field of INQUIRY_FIELDS) {
-    const error = validateInquiryField(field, values[field], now);
+    const error = validateInquiryField(field, values[field]);
     if (error) errors[field] = error;
   }
   return errors;

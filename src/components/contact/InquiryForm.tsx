@@ -2,13 +2,17 @@
 
 // Contact 2 · Inquiry Form — Mock 제출 단계(실제 저장·전송 없음).
 // - About you · Your project · Have a brief? (optional) · (프로모션 기간) 관심 체크박스 · Send inquiry
+//   Have a brief? 아래 'Not ready? Skip this…' 안내는 삭제(2026.11.12 확정), 제목의 (optional)은 유지
+// - Company / brand name placeholder 'Your company or brand'(2026.11.12 확정, Sign Up Company name과 같음)
 // - 입력칸·오류 표시는 Log In·Sign Up과 같은 공통 Input / FormMessage를 재사용
 // - 검증 시점도 Log In·Sign Up과 같다: 제출할 때 모든 필드 검사 → 오류 필드 표시 + 첫 오류 필드로 포커스,
 //   오류가 난 필드는 입력할 때마다 다시 검사해 고치면 바로 해제(포커스 해제 시 검사는 하지 않음)
 // - 버튼 위 FormMessage(error): 현재 필드 오류에서 바로 계산 — 필수 누락이 남으면 "Please fill in the required fields and try again.",
 //   형식 오류만 남으면 "Please correct the highlighted fields and try again.", 마지막 오류를 고치면 재제출 없이 즉시 사라짐(자동 제출 없음).
 //   실제 제출 실패 안내(submitError)는 입력 검증과 별개로 다음 제출 때까지 유지
-// - 포커스 해제 시 수량은 천 단위 쉼표, 출시일은 'MM / YYYY'로 표기만 정리
+// - 포커스 해제 시 수량만 천 단위 쉼표로 표기 정리
+// - 2026.11.11 확정: Desired launch date·Message는 선택 항목(* 없음, 비워도 제출). 출시일은 형식 없는 텍스트
+//   (placeholder 'e.g., Q1 2027, March 2027, or TBD'). Message 아래 8px에 MOQ 안내와 같은 스타일의 안내 문구, placeholder는 기존 그대로
 // - 프로모션 기간: 관심 체크박스 표시(기본 미선택, 고객이 직접 선택), 선택 여부는 문의 데이터의 별도 항목(promoInterest).
 //   모든 진입(일반·프로모션 CTA)은 /contact 하나 — 진입 URL로 체크박스·Message를 바꾸지 않는다(2026-11-10 확정)
 // - 예전에 공유된 /contact?promo=… 주소: 처음 열릴 때 promo 값만 주소창에서 지우고 다른 query·입력값은 유지
@@ -27,9 +31,9 @@ import { useEffect, useId, useRef, useState, type FocusEvent, type FormEvent } f
 import { BriefUpload } from "@/components/contact/BriefUpload";
 import {
   INQUIRY_FIELDS,
+  OPTIONAL_FIELDS,
   formatQuantity,
   inquiryErrorSummary,
-  normalizeLaunchDate,
   validateInquiry,
   validateInquiryField,
   type InquiryField,
@@ -71,11 +75,14 @@ type FieldConfig = {
   note?: string;
 };
 
+/** Helper text under an input (same style for the quantity MOQ note and the Message note). */
+const FIELD_NOTE = "text-mdk-caption text-mdk-charcoal-muted";
+
 /** Figma: labels and placeholders (Inquiry Form 291:721). */
 const FIELDS: Record<InquiryField, FieldConfig> = {
   fullName: { label: "Full name *", placeholder: "Your name", autoComplete: "name" },
   email: { label: "Email *", placeholder: "name@company.com", type: "email", autoComplete: "email" },
-  company: { label: "Company / brand name *", placeholder: "Company or brand", autoComplete: "organization" },
+  company: { label: "Company / brand name *", placeholder: "Your company or brand", autoComplete: "organization" },
   country: { label: "Country *", placeholder: "Your country", autoComplete: "country-name" },
   website: { label: "Website or social link", placeholder: "https://", type: "url", autoComplete: "url" },
   productCategory: { label: "Product category *", placeholder: "e.g., serum, sunscreen, cushion" },
@@ -86,11 +93,12 @@ const FIELDS: Record<InquiryField, FieldConfig> = {
     note: "Standard MOQ starts at 5,000 units per SKU (may vary with packaging).",
   },
   targetMarkets: { label: "Target markets *", placeholder: "e.g., United States, United Kingdom" },
-  launchDate: { label: "Desired launch date *", placeholder: "MM / YYYY", inputMode: "numeric" },
+  launchDate: { label: "Desired launch date", placeholder: "e.g., Q1 2027, March 2027, or TBD" },
   message: {
-    label: "Message *",
+    label: "Message",
     placeholder:
       "Tell us about your product idea — concept, key ingredients or claims, reference products, and what you already have (formula, packaging, design).",
+    note: "The more details you share, the faster we can respond to your inquiry.",
   },
 };
 
@@ -144,10 +152,10 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
     });
   };
 
-  /** Blur only tidies the display (no validation): quantity thousands commas, launch date "MM / YYYY". */
+  /** Blur only tidies the display (no validation): quantity thousands commas. */
   const onBlur = (field: InquiryField) => (event: FocusEvent<HTMLInputElement>) => {
     const raw = event.target.value;
-    const tidy = field === "quantity" ? formatQuantity(raw) : field === "launchDate" ? normalizeLaunchDate(raw) : raw;
+    const tidy = field === "quantity" ? formatQuantity(raw) : raw;
     if (tidy !== raw) onChange(field, tidy);
   };
 
@@ -209,14 +217,14 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
           type={config.type ?? "text"}
           inputMode={config.inputMode}
           autoComplete={config.autoComplete ?? "off"}
-          aria-required={name === "website" ? undefined : true}
+          aria-required={OPTIONAL_FIELDS.has(name) ? undefined : true}
           aria-describedby={config.note ? noteId : undefined}
           onChange={(e) => onChange(name, e.target.value)}
           onBlur={onBlur(name)}
           error={errors[name]}
         />
         {config.note ? (
-          <p id={noteId} className="text-mdk-caption text-mdk-charcoal-muted">
+          <p id={noteId} className={FIELD_NOTE}>
             {config.note}
           </p>
         ) : null}
@@ -226,6 +234,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
 
   const messageError = errors.message;
   const messageErrorId = `${idFor("message")}-error`;
+  const messageNoteId = `${idFor("message")}-note`;
 
   return (
     <form
@@ -274,9 +283,8 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
             name="message"
             value={values.message}
             placeholder={FIELDS.message.placeholder}
-            aria-required
             aria-invalid={messageError ? true : undefined}
-            aria-describedby={messageError ? messageErrorId : undefined}
+            aria-describedby={messageError ? `${messageErrorId} ${messageNoteId}` : messageNoteId}
             onChange={(e) => onChange("message", e.target.value)}
             className={cx(
               "h-[168px] w-full resize-y overflow-y-auto rounded-[4px] bg-mdk-white text-mdk-body text-mdk-charcoal outline-none placeholder:text-mdk-charcoal-muted",
@@ -299,6 +307,9 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
               {messageError}
             </p>
           ) : null}
+          <p id={messageNoteId} className={FIELD_NOTE}>
+            {FIELDS.message.note}
+          </p>
         </div>
       </div>
 
@@ -307,12 +318,9 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
         aria-labelledby={`${formId}-brief`}
         className="flex min-w-0 flex-col gap-5 border-t border-mdk-light-gray pt-10"
       >
-        <div className="flex flex-col gap-1.5">
-          <h2 id={`${formId}-brief`} className={SECTION_TITLE}>
-            Have a brief? (optional)
-          </h2>
-          <p className="text-mdk-body text-mdk-charcoal-muted">Not ready? Skip this — your message is enough.</p>
-        </div>
+        <h2 id={`${formId}-brief`} className={SECTION_TITLE}>
+          Have a brief? (optional)
+        </h2>
         <BriefUpload files={files} onChange={setFiles} />
         <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mdk-body text-mdk-charcoal">
           Need a template?

@@ -7,6 +7,8 @@
 // - 해당 플랫폼 게시물이 없으면 가짜 카드 없이 짧은 안내 문구 + 공식 계정 버튼(Secondary S)만 표시하고
 //   캐러셀 진행 막대·화살표는 렌더링하지 않는다
 // - 카드를 누르면 그 게시물의 SNS Post Modal(Instagram·TikTok 공용)을 연다 — 게시물은 플랫폼+ID로 구분
+// - 2026.11.11 확정(1차 배포): TikTok은 탭 대신 공식 계정(SOCIAL_LINKS) 링크 — 누르면 새 탭으로 바로 이동(중간 안내 화면 없음).
+//   TikTok 게시물 캐러셀·카드·Post Modal 코드는 2차 배포(API 연동)용으로 그대로 두고 TIKTOK_FEED_ENABLED로만 끈다
 // - 개발 서버에서만 ?socialTest=1이면 'TEST' 표시 테스트 게시물(lib/social/test-posts)을 대신 보여 준다(운영 빌드에는 없음)
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,6 +22,11 @@ import { cx } from "@/lib/utils/cx";
 
 /** Figma tab widths stay equal between selected and default states so tabs don't shift. */
 const TAB_WIDTH: Record<SocialFeedPlatform, string> = { instagram: "w-[108px]", tiktok: "w-[85px]" };
+
+/** 1st release (2026.11.11): no in-page TikTok feed — the TikTok button opens the official account. Set true for the 2nd release. */
+const TIKTOK_FEED_ENABLED = false;
+const FEED_TABS = SOCIAL_FEED_PLATFORMS.filter((p) => TIKTOK_FEED_ENABLED || p !== "tiktok");
+const TIKTOK_HREF = SOCIAL_LINKS.find((link) => link.platform === "tiktok")?.href;
 
 type ScrollState = { overflow: boolean; atStart: boolean; atEnd: boolean; left: number; size: number };
 
@@ -92,21 +99,35 @@ export function SocialSection({ posts: livePosts }: { posts: readonly SocialPost
             <p className={EYEBROW}>On social</p>
             <h2 className={cx(DISPLAY_TITLE, "max-w-[577px] text-mdk-charcoal")}>Stay in the loop on beauty insights!</h2>
           </div>
-          <div role="tablist" aria-label="Social platform" className="flex gap-2">
-            {SOCIAL_FEED_PLATFORMS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                role="tab"
-                id={`social-tab-${p}`}
-                aria-selected={p === platform}
-                aria-controls={`social-panel-${p}`}
-                onClick={() => selectPlatform(p)}
-                className={cx(buttonClassName(p === platform ? "primary" : "secondary", "s"), TAB_WIDTH[p], "px-0")}
+          <div className="flex gap-2">
+            <div role="tablist" aria-label="Social platform" className="flex gap-2">
+              {FEED_TABS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  id={`social-tab-${p}`}
+                  aria-selected={p === platform}
+                  aria-controls={`social-panel-${p}`}
+                  onClick={() => selectPlatform(p)}
+                  className={cx(buttonClassName(p === platform ? "primary" : "secondary", "s"), TAB_WIDTH[p], "px-0")}
+                >
+                  {SOCIAL_FEED_LABEL[p]}
+                </button>
+              ))}
+            </div>
+            {/* 1st release: same look as the unselected TikTok tab, but a link to the official account. */}
+            {!TIKTOK_FEED_ENABLED && TIKTOK_HREF ? (
+              <a
+                href={TIKTOK_HREF}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cx(buttonClassName("secondary", "s"), TAB_WIDTH.tiktok, "px-0")}
               >
-                {SOCIAL_FEED_LABEL[p]}
-              </button>
-            ))}
+                {SOCIAL_FEED_LABEL.tiktok}
+                <span className="sr-only"> — Medidakos on TikTok (opens in a new tab)</span>
+              </a>
+            ) : null}
           </div>
         </div>
 

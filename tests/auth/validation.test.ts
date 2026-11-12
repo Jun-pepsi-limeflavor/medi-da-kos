@@ -1,4 +1,4 @@
-// validation.ts 테스트: 필수 항목, 이메일 형식, 비밀번호 길이.
+// validation.ts 테스트: 필수 항목(Sign Up Phone·Country는 선택), 이메일 형식, 비밀번호 길이.
 import assert from "node:assert/strict";
 import { register } from "node:module";
 import { test } from "node:test";
@@ -13,7 +13,7 @@ test("empty required fields use the Figma message", () => {
     email: AUTH_MESSAGES.required,
     password: AUTH_MESSAGES.required,
   });
-  assert.deepEqual(Object.keys(validateAuthForm("register", empty)), ["displayName", "phone", "country", "email", "password"]);
+  assert.deepEqual(Object.keys(validateAuthForm("register", empty)), ["displayName", "email", "password"]); // Phone·Country optional (2026.11.11)
   assert.equal(validateAuthField("displayName", "   "), AUTH_MESSAGES.required);
 });
 
@@ -39,6 +39,11 @@ test("password must be at least 8 characters", () => {
 test("a valid form has no errors; company name is optional", () => {
   assert.deepEqual(
     validateAuthForm("register", { displayName: "QA", phone: "+1 555", country: "US", email: "qa@example.test", password: "longenough" }),
+    {},
+  );
+  // Phone number and Country may be left empty (2026.11.11).
+  assert.deepEqual(
+    validateAuthForm("register", { displayName: "QA", phone: "", country: "  ", email: "qa@example.test", password: "longenough" }),
     {},
   );
 });

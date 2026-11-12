@@ -3,6 +3,10 @@
 // Log In·Sign Up 공통 인증 폼.
 // - 이메일·비밀번호 로그인, 회원가입, Google 로그인(기존 useAuth 함수 사용)
 // - 필드 오류는 입력창 아래, 인증 오류는 FormMessage로 표시
+// - Sign Up의 Phone number·Country는 선택 항목(2026.11.11 확정, * 없음). 비우면 빈 문자열로 저장(Google 가입과 같은 형태)
+//   Company name도 선택 항목 — 라벨의 '(optional)' 표기는 삭제(2026.11.12 확정, * 없음)
+// - Placeholder(2026.11.12 확정, Contact와 통일): Your name · Your phone number(형식·국가번호 제한 없음) · Your country ·
+//   Your company or brand · name@company.com · Password는 Sign Up 'At least 8 characters' / Log In 'Enter your password'
 // - 성공하면 지정 경로로 이동, 이미 로그인된 상태면 리다이렉트
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -171,6 +175,7 @@ export function LoginForm({ mode }: { mode: Mode }) {
                 id="auth-displayName"
                 label="Full name *"
                 autoComplete="name"
+                placeholder="Your name"
                 value={displayName}
                 onChange={(e) => { setDisplayName(e.target.value); updateFieldError("displayName", e.target.value); }}
                 required
@@ -178,28 +183,28 @@ export function LoginForm({ mode }: { mode: Mode }) {
               />
               <Input
                 id="auth-phone"
-                label="Phone number *"
+                label="Phone number"
                 type="tel"
                 autoComplete="tel"
+                placeholder="Your phone number"
                 value={phone}
                 onChange={(e) => { setPhone(e.target.value); updateFieldError("phone", e.target.value); }}
-                required
                 error={fieldErrors.phone}
               />
               <Input
                 id="auth-country"
-                label="Country *"
+                label="Country"
                 autoComplete="country-name"
+                placeholder="Your country"
                 value={country}
                 onChange={(e) => { setCountry(e.target.value); updateFieldError("country", e.target.value); }}
-                required
                 error={fieldErrors.country}
               />
               <Input
                 id="auth-companyName"
-                label="Company name (optional)"
+                label="Company name"
                 autoComplete="organization"
-                placeholder="Your brand or company"
+                placeholder="Your company or brand"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
               />
@@ -210,6 +215,7 @@ export function LoginForm({ mode }: { mode: Mode }) {
             label="Email *"
             type="email"
             autoComplete="email"
+            placeholder="name@company.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); updateFieldError("email", e.target.value); }}
             required
@@ -220,6 +226,7 @@ export function LoginForm({ mode }: { mode: Mode }) {
             label="Password *"
             type="password"
             autoComplete={mode === "login" ? "current-password" : "new-password"}
+            placeholder={mode === "login" ? "Enter your password" : "At least 8 characters"}
             value={password}
             onChange={(e) => { setPassword(e.target.value); updateFieldError("password", e.target.value); }}
             required
