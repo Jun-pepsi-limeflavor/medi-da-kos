@@ -1,6 +1,7 @@
 "use client";
 
-// Contact 'Have a brief? (optional)' 첨부 영역 — Mock UI(파일은 브라우저 안에만 있고 어디에도 업로드하지 않는다).
+// Contact 'Have a brief? (optional)' 첨부 영역 — 파일 선택 UI만(브라우저 안에만 있고 어디에도 업로드하지 않는다).
+// 저장소(회사 Google Drive) 업로드 연동은 별도 작업
 // - 드래그 앤 드롭 또는 클릭(키보드: 영역에 포커스 후 Enter·Space)으로 파일 선택, 파일별 Remove 텍스트 버튼(아이콘 없음)
 // - 허용 형식·파일당 10 MB·최대 3개·중복 검증(inquiry-validation). 문제 있는 파일은 건너뛰고 첫 오류 문구를 영역 안에 표시
 // - 상태: Empty → Drag over(차콜 점선) → 선택된 파일 목록 / Error(빨간 점선 + 오류 문구). 3개가 차면 영역을 숨긴다
