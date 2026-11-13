@@ -66,3 +66,17 @@ export function useUtmParams(): UtmParams {
     return readStoredUtmParams();
   }, [searchParams]);
 }
+
+/**
+ * Same rule as useUtmParams, read once at submit time. Uses window.location instead of useSearchParams,
+ * so a statically rendered page (the renewal Contact) needs no Suspense boundary.
+ */
+export function readUtmParams(): UtmParams {
+  if (typeof window === "undefined") return {};
+  const fromUrl = parseUtmFromSearchParams(new URLSearchParams(window.location.search));
+  if (Object.values(fromUrl).some(Boolean)) {
+    storeUtmParams(fromUrl);
+    return fromUrl;
+  }
+  return readStoredUtmParams();
+}

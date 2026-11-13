@@ -214,3 +214,62 @@ test("한 줄이 한도보다 길어도 잘라서 모두 남긴다", () => {
 test("한도 안이면 메시지는 하나다", () => {
   assert.equal(buildNotes({ kind: "contact", docId: "c1", data: contact, receivedAt, profileResult }).length, 1);
 });
+
+const contactV2 = {
+  formVersion: 2,
+  fullName: "Jane Doe",
+  email: "buyer@example.com",
+  companyName: "Acme Beauty",
+  country: "United States",
+  website: "https://acme.example",
+  productCategory: "serum, sunscreen",
+  quantityPerSku: 12000,
+  targetMarkets: "Germany, France",
+  launchDate: "Q1 2027",
+  message: "Vegan sunscreen.",
+  promoInterest: true,
+  utmSource: "google",
+  pageUrl: "https://medidakos.com/contact",
+  userAgent: "Mozilla/5.0",
+  isTest: true,
+  status: "submitted",
+  createdAt: receivedAt,
+};
+
+test("Contact v2: 새 항목을 읽기 쉽게 표시하고 기타 항목이 생기지 않는다", () => {
+  const [note] = buildNotes({ kind: "contact", docId: "c2", data: contactV2, label: "[TEST]", identitySource: "browser", receivedAt, profileResult });
+  const l = lines(note);
+  assert.equal(l[0], "[TEST] [Contact 문의] Acme Beauty · buyer@example.com");
+  const order = ["■ 문의 내용", "■ 프로젝트", "■ 고객 정보", "■ 프로필 반영", "■ 기술 정보"].map((title) => note.indexOf(title));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(order.every((index) => index > 0));
+  for (const line of [
+    "이름: Jane Doe", "국가(고객 소재지): United States", "웹사이트·SNS: https://acme.example", "회원 여부: 비회원",
+    "제품 카테고리: serum, sunscreen", "SKU당 예상 수량: 12,000개", "판매 대상 시장: Germany, France",
+    "희망 출시 시점: Q1 2027", "프로모션 관심: 예",
+  ]) assert.ok(l.includes(line), line);
+  assert.ok(!note.includes("비즈니스 유형"));
+  assert.ok(!note.includes("유입 경로(고객 선택)"));
+  assert.ok(!note.includes("■ 기타 항목"));
+  assert.equal(l[l.length - 1], "기록: contact/c2");
+});
+
+test("Contact v2: 선택 항목이 없으면 '-', 프로모션 미표시 기간에는 관심 줄이 없다", () => {
+  const { website, launchDate, message, promoInterest, ...required } = contactV2;
+  void website; void launchDate; void message; void promoInterest;
+  const [note] = buildNotes({ kind: "contact", docId: "c3", data: { ...required, uid: "uid-9" }, receivedAt, profileResult });
+  const l = lines(note);
+  assert.equal(l[l.indexOf("■ 문의 내용") + 1], "-");
+  assert.ok(l.includes("희망 출시 시점: -"));
+  assert.ok(l.includes("웹사이트·SNS: -"));
+  assert.ok(l.includes("회원 여부: 회원 (uid-9)"));
+  assert.ok(!note.includes("프로모션 관심"));
+});
+
+test("기존 운영 Contact(formVersion 없음)는 예전 메모 그대로", () => {
+  const [note] = buildNotes({ kind: "contact", docId: "c1", data: contact, receivedAt, profileResult });
+  assert.ok(!note.includes("■ 프로젝트"));
+  assert.ok(note.includes("비즈니스 유형: Existing Beauty Brand"));
+  assert.ok(note.includes("유입 경로(고객 선택): Social Media"));
+  assert.ok(!note.includes("이름:"));
+});

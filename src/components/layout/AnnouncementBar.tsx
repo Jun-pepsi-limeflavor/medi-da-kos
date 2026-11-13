@@ -11,6 +11,7 @@ import {
   ANNOUNCEMENT_DISMISSED_ATTR,
   ANNOUNCEMENT_DISMISSED_KEY,
   PROMO_BAR_CLICKED_KEY,
+  YEAR_END_PROMO,
   isYearEndPromoActive,
 } from "@/lib/config/promo";
 import { ROUTES } from "@/lib/config/routes";
@@ -75,7 +76,7 @@ export function AnnouncementBar() {
       }}
     >
       <p className="font-normal">
-        Year-end offer: 10% off eligible costs when you sign by December 31, 2026. Terms apply.
+        Year-end offer: 10% off eligible costs when you sign by {YEAR_END_PROMO.deadlineLabel}. Terms apply.
       </p>
       <Link
         href={ROUTES.contact}

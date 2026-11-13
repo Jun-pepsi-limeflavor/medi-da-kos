@@ -6,6 +6,7 @@
 // - 이메일은 Footer와 같은 FooterEmailLink(메일 앱 열기 + 주소 복사, 클릭 측정 위치 'contact')
 import { FooterEmailLink } from "@/components/layout/FooterEmailLink";
 import { Button } from "@/components/ui/Button";
+import { YEAR_END_PROMO } from "@/lib/config/promo";
 import { ROUTES } from "@/lib/config/routes";
 import { SUPPORT_EMAIL } from "@/lib/config/site";
 import { cx } from "@/lib/utils/cx";
@@ -33,7 +34,7 @@ export function ContactOffer({ className }: { className?: string }) {
         <p className="text-[20px] leading-[30px] font-medium tracking-[-0.005em] text-mdk-white">
           Contract signed by
           <br />
-          December 31, 2026
+          {YEAR_END_PROMO.deadlineLabel}
         </p>
       </div>
       <p className="text-mdk-body text-mdk-mid-gray">
@@ -50,7 +51,7 @@ export function ContactOffer({ className }: { className?: string }) {
           <br />
           Cannot be combined with other offers.
           <br />
-          Contract must be signed by December 31, 2026 (KST).
+          Contract must be signed by {YEAR_END_PROMO.deadlineLabel} (KST).
         </p>
       </div>
     </section>

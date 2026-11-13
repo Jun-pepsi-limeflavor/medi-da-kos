@@ -1,6 +1,7 @@
 // 연말 프로모션(2026) 설정.
 // - 프로모션 코드·종료 시각(KST). 프로모션 문의도 일반 /contact로 연결(전용 URL 없음, 2026-11-10 확정)
-// - 현재 시각 기준 진행 여부 판정
+// - 현재 시각 기준 진행 여부 판정. 마감일 표시 문구(deadlineLabel)도 여기 한 곳 — 연장 시 endsAt·deadlineLabel만 고친다
+//   (사용처: Announcement Bar, Promotion Popup, Contact Year-end offer 카드 2곳)
 // - Announcement Bar 닫힘·클릭 상태 sessionStorage 키(닫힘은 프로모션 코드별) — 쿠키 동의 보관(6개월)과 별개
 /**
  * Year-end 2026 promotion (Figma: Announcement Bar, Promotion Popup, Contact Promo Notice).
@@ -11,6 +12,8 @@ export const YEAR_END_PROMO = {
   code: "year-end-2026",
   /** First instant after 2026-12-31 23:59 KST. */
   endsAt: Date.parse("2027-01-01T00:00:00+09:00"),
+  /** Last contract day as shown on screen (keep in step with endsAt). */
+  deadlineLabel: "December 31, 2026",
 } as const;
 
 /**

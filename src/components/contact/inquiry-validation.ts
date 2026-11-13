@@ -3,11 +3,14 @@
 // - 2026.11.11 확정: 희망 출시일(Desired launch date)·Message는 선택 항목. 출시일은 형식 없는 문자열(예: Q1 2027, March 2027, TBD)
 // - 필수·이메일 형식은 Log In·Sign Up과 같은 규칙·문구(lib/auth/validation 재사용)
 // - 수량 천 단위 쉼표 표시
+// - 저장 형식 변환(toInquiryFields, 2026-11): 문자열은 앞뒤 공백만 제거(단어 사이 공백 유지), 수량은 정수, 빈 선택 항목은 생략.
+//   키·길이는 firestore.rules validContactV2와 같다(company → companyName, quantity → quantityPerSku)
 // - 브리프 첨부: 허용 확장자·파일당 10 MiB·최대 3개·중복 제외 검증
 // - 오류 문구는 모두 확정(2026-11-10 승인). 폼 하단 안내 formError·formInvalid도 사용자 최종 검수로 확정(간결한 한 줄 문구)
 // - 폼 하단 안내는 현재 필드 오류에서 계산(inquiryErrorSummary): 필수 누락 → formError, 형식 오류만 → formInvalid, 오류 없음 → 없음
 
 import { AUTH_MESSAGES, validateAuthField } from "@/lib/auth/validation";
+import type { InquiryFields } from "@/lib/firebase/firestore-service";
 
 export type InquiryValues = {
   fullName: string;
@@ -127,6 +130,34 @@ export function inquiryErrorSummary(errors: Partial<Record<InquiryField, string>
   const messages = Object.values(errors).filter(Boolean);
   if (messages.length === 0) return null;
   return messages.includes(INQUIRY_MESSAGES.required) ? INQUIRY_MESSAGES.formError : INQUIRY_MESSAGES.formInvalid;
+}
+
+/**
+ * Validated form values → the contact document fields (formVersion 2). Trims ends only, keeps inner spaces,
+ * stores the quantity as a whole number and omits empty optional fields. Call after validateInquiry passed.
+ * promoInterest is only passed while the promotion checkbox is shown.
+ */
+export function toInquiryFields(values: InquiryValues, promoInterest?: boolean): InquiryFields {
+  const quantityPerSku = parseQuantity(values.quantity);
+  if (quantityPerSku === null) throw new Error("quantity must be validated before saving");
+  const optional = (value: string) => value.trim() || undefined;
+  const fields: InquiryFields = {
+    fullName: values.fullName.trim(),
+    email: values.email.trim(),
+    companyName: values.company.trim(),
+    country: values.country.trim(),
+    productCategory: values.productCategory.trim(),
+    quantityPerSku,
+    targetMarkets: values.targetMarkets.trim(),
+  };
+  const website = optional(values.website);
+  const launchDate = optional(values.launchDate);
+  const message = optional(values.message);
+  if (website) fields.website = website;
+  if (launchDate) fields.launchDate = launchDate;
+  if (message) fields.message = message;
+  if (typeof promoInterest === "boolean") fields.promoInterest = promoInterest;
+  return fields;
 }
 
 // ---------- Brief attachments ----------

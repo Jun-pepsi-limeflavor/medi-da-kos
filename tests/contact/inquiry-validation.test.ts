@@ -1,5 +1,5 @@
 // Contact 문의 폼 검증 규칙 테스트: 필수·선택 항목(2026.11.11: 출시일·Message 선택), 이메일·웹 주소, 수량(5,000 이상 정수),
-// 희망 출시일 자유 문자열, 브리프 첨부 제한, 폼 하단 오류 안내.
+// 희망 출시일 자유 문자열, 브리프 첨부 제한, 폼 하단 오류 안내, 저장 형식 변환(toInquiryFields, formVersion 2).
 import assert from "node:assert/strict";
 import { register } from "node:module";
 import { test } from "node:test";
@@ -89,4 +89,46 @@ test("form notice follows the current field errors", () => {
   assert.equal(v.inquiryErrorSummary({ quantity: undefined }), null);
   assert.equal(m.formError, "Please fill in the required fields and try again.");
   assert.equal(m.formInvalid, "Please correct the highlighted fields and try again.");
+});
+
+const filled = {
+  fullName: "  Jane  Doe ",
+  email: " name@company.com ",
+  company: " Acme  Beauty ",
+  country: " United States ",
+  website: "",
+  productCategory: " serum ",
+  quantity: " 12,000 ",
+  targetMarkets: " Germany, France ",
+  launchDate: "   ",
+  message: "",
+};
+
+test("toInquiryFields: trims ends only, renames keys, whole-number quantity, omits empty optional fields", () => {
+  assert.deepEqual(v.toInquiryFields(filled), {
+    fullName: "Jane  Doe",
+    email: "name@company.com",
+    companyName: "Acme  Beauty",
+    country: "United States",
+    productCategory: "serum",
+    quantityPerSku: 12000,
+    targetMarkets: "Germany, France",
+  });
+});
+
+test("toInquiryFields: keeps filled optional fields (message line breaks intact) and promoInterest only when given", () => {
+  const out = v.toInquiryFields(
+    { ...filled, website: " acme.com ", launchDate: " Q1 2027 ", message: "\n Line 1\nLine 2 \n" },
+    false,
+  );
+  assert.equal(out.website, "acme.com");
+  assert.equal(out.launchDate, "Q1 2027");
+  assert.equal(out.message, "Line 1\nLine 2");
+  assert.equal(out.promoInterest, false);
+  assert.equal(v.toInquiryFields(filled, true).promoInterest, true);
+  assert.ok(!("promoInterest" in v.toInquiryFields(filled)));
+});
+
+test("toInquiryFields: refuses an unvalidated quantity", () => {
+  assert.throws(() => v.toInquiryFields({ ...filled, quantity: "about 5k" }));
 });

@@ -1,6 +1,6 @@
 "use client";
 
-// Contact 2 · Inquiry Form — Mock 제출 단계(실제 저장·전송 없음).
+// Contact 2 · Inquiry Form — Firestore contact 저장(formVersion 2, 2026-11).
 // - About you · Your project · Have a brief? (optional) · (프로모션 기간) 관심 체크박스 · Send inquiry
 //   Have a brief? 아래 'Not ready? Skip this…' 안내는 삭제(2026.11.12 확정), 제목의 (optional)은 유지
 // - Company / brand name placeholder 'Your company or brand'(2026.11.12 확정, Sign Up Company name과 같음)
@@ -16,12 +16,14 @@
 // - 프로모션 기간: 관심 체크박스 표시(기본 미선택, 고객이 직접 선택), 선택 여부는 문의 데이터의 별도 항목(promoInterest).
 //   모든 진입(일반·프로모션 CTA)은 /contact 하나 — 진입 URL로 체크박스·Message를 바꾸지 않는다(2026-11-10 확정)
 // - 예전에 공유된 /contact?promo=… 주소: 처음 열릴 때 promo 값만 주소창에서 지우고 다른 query·입력값은 유지
-// - 제출: Mock 모드이면서 운영 도메인이 아닐 때만 완료 화면(Figma 'Inquiry sent') 표시 — 개발용 확인은 콘솔 로그와
-//   완료 메시지의 data-mock-submission 속성으로 한다. Firestore·Channel Talk·메일·GA4·Meta 호출 없음,
-//   첨부 파일은 브라우저 밖으로 나가지 않는다. 그 밖의 환경에서는 제출하지 않고 오류 안내(허위 성공 화면 없음)
-//   (실제 연동은 데이터 구조·규칙 승인 후 dev 환경에서 기존 submitContactForm 경로로 구현 예정)
+// - 제출: submitInquiry로 contact 문서 저장 → 기존 Functions가 관리자 메일·Channel Talk 상담·내부 메모를 만든다.
+//   회원이면 본인 uid, 브라우저 Channel 고객 id는 바로 얻을 때만 넣는다(기존 ContactForm과 같음). 저장 성공 후에만 완료 화면,
+//   실패하면 오류 안내 + 입력값 유지(재시도 가능). Mock 모드는 저장하지 않고 완료 화면(data-mock-submission),
+//   단 운영 도메인에서는 Mock이어도 허위 성공 화면을 띄우지 않는다
+// - GA4 generate_lead · Meta Lead는 아직 연결하지 않는다(별도 승인 후 저장 성공 직후 위치에 추가)
+// - 브리프 첨부(BriefUpload)는 업로드 저장소가 없어 숨김(BRIEF_UPLOAD_ENABLED). 코드·디자인은 유지, 템플릿 다운로드는 표시
 // - 제출 성공 후: 완료 메시지가 렌더링된 뒤 그 위치(Navbar 72 + 24px 아래)로 한 번 스크롤하고(동작 줄이기 설정이면 즉시),
-//   완료 메시지(tabIndex -1)로 포커스를 옮긴다(추가 스크롤 없음). 검증 실패·Mock 외 환경에서는 이동하지 않는다
+//   완료 메시지(tabIndex -1)로 포커스를 옮긴다(추가 스크롤 없음). 검증·저장 실패 시에는 이동하지 않는다
 // - Message 입력칸: 테두리를 inset 그림자 대신 실제 border로 그려 스크롤바가 테두리 안쪽에 오게 하고,
 //   얇은 스크롤바(보이는 thumb 6px + 오른쪽 테두리와 5px 간격, 투명 트랙, mid-gray 둥근 thumb)를 이 입력칸에만 적용.
 //   thumb 양끝은 같은 3px 반원(투명 border 두께 명시 + 모서리별 반경 보정, SNS 모달 Caption과 같은 방식, 2026-11-11).
@@ -34,6 +36,7 @@ import {
   OPTIONAL_FIELDS,
   formatQuantity,
   inquiryErrorSummary,
+  toInquiryFields,
   validateInquiry,
   validateInquiryField,
   type InquiryField,
@@ -44,7 +47,12 @@ import { FormMessage } from "@/components/ui/FormMessage";
 import { Input } from "@/components/ui/Input";
 import { BRIEF_TEMPLATE } from "@/lib/config/downloads";
 import { SUPPORT_EMAIL } from "@/lib/config/site";
+import { useAuth } from "@/lib/auth/auth-context";
+import { getChannelTalkUserId } from "@/lib/channel-talk/client";
+import { contactIdentityFields } from "@/lib/channel-talk/intake";
 import { useMockAuth } from "@/lib/firebase/client";
+import { submitInquiry } from "@/lib/firebase/firestore-service";
+import { readUtmParams } from "@/hooks/use-utm-params";
 import { isNonProductionEnv } from "@/lib/utils/env-flags";
 import { cx } from "@/lib/utils/cx";
 
@@ -52,6 +60,9 @@ import { cx } from "@/lib/utils/cx";
 const LEGACY_PROMO_PARAM = "promo";
 /** Navbar 72 + 24px: where 'Inquiry sent' lands after submitting (same offset as the site's anchor scrolls). */
 const SENT_SCROLL_OFFSET = 96;
+/** Brief attachments have no storage yet: the dropzone stays hidden so no one thinks files were sent. */
+const BRIEF_UPLOAD_ENABLED = false;
+const SUBMIT_FAILED = `We couldn’t send your inquiry. Please try again, or email us at ${SUPPORT_EMAIL}.`;
 
 const EMPTY: InquiryValues = {
   fullName: "",
@@ -116,6 +127,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
   const [sent, setSent] = useState(false);
   const sentRef = useRef<HTMLDivElement>(null);
   const mock = useMockAuth();
+  const { user } = useAuth();
 
   // Old shared links (/contact?promo=…) no longer change the form: drop just that parameter from the address bar,
   // keeping any other query and the hash. replaceState(null) lets Next sync its router without a reload or scroll.
@@ -171,28 +183,35 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
       return;
     }
 
-    // Not wired to Firestore / Channel Talk yet (pending data-structure approval). Outside local mock mode the form
-    // never shows a success screen; the production domain is excluded even if the mock flag were set by mistake.
-    if (!mock || !isNonProductionEnv()) {
-      setSubmitError(`Online inquiries aren’t connected yet. Please email us at ${SUPPORT_EMAIL}.`);
+    // Mock mode saves nothing, so it must never show a success screen on the production domain.
+    if (mock && !isNonProductionEnv()) {
+      setSubmitError(SUBMIT_FAILED);
       return;
     }
 
     setSubmitting(true);
-    // Mock submission: stays in the browser. File contents are never read — only names and sizes are logged.
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    console.info("[mock] contact inquiry — not sent (no Firestore / Channel Talk / email / analytics)", {
-      ...values,
-      promoInterest: showPromo ? promoInterest : undefined,
-      files: files.map((file) => ({ name: file.name, size: file.size })),
-    });
-    setSubmitting(false);
-    setSent(true);
+    try {
+      await submitInquiry({
+        ...toInquiryFields(values, showPromo ? promoInterest : undefined),
+        ...readUtmParams(),
+        pageUrl: window.location.href,
+        userAgent: navigator.userAgent,
+        // Member's own uid, and the browser's Channel user id only if already available (never waits).
+        ...contactIdentityFields({ uid: user?.uid, channelUserId: getChannelTalkUserId() }),
+      });
+      // GA4 generate_lead / Meta Lead go here once approved (after a successful save only).
+      setSent(true);
+    } catch (error) {
+      console.error("contact inquiry submit failed", error);
+      setSubmitError(SUBMIT_FAILED);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (sent) {
     return (
-      <div ref={sentRef} tabIndex={-1} data-mock-submission="true" className="outline-none">
+      <div ref={sentRef} tabIndex={-1} data-mock-submission={mock ? "true" : undefined} className="outline-none">
         <FormMessage type="success" title="Inquiry sent">
           Thanks — we&apos;ve received your inquiry. We&apos;ll reply by email within 5–7 business days.
         </FormMessage>
@@ -321,7 +340,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
         <h2 id={`${formId}-brief`} className={SECTION_TITLE}>
           Have a brief? (optional)
         </h2>
-        <BriefUpload files={files} onChange={setFiles} />
+        {BRIEF_UPLOAD_ENABLED ? <BriefUpload files={files} onChange={setFiles} /> : null}
         <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mdk-body text-mdk-charcoal">
           Need a template?
           <a

@@ -113,3 +113,46 @@ test("escapeHtml은 & < > \" ' 다섯 문자를 바꾼다", () => {
   assert.equal(escapeHtml(`&<>"'`), "&amp;&lt;&gt;&quot;&#39;");
   assert.equal(escapeHtml(123), "123");
 });
+
+const contactV2 = {
+  formVersion: 2,
+  fullName: "Jane Doe",
+  email: "buyer@example.com",
+  companyName: "Acme Beauty",
+  country: "United States",
+  productCategory: "serum",
+  quantityPerSku: 12000,
+  targetMarkets: "Germany, France",
+  launchDate: "Q1 2027",
+  message: "Vegan <b>sunscreen</b>",
+  promoInterest: false,
+  utmSource: "google",
+  pageUrl: "https://www.medidakos.com/contact",
+};
+
+test("리뉴얼 Contact(formVersion 2): 새 항목을 표시하고 기존 전용 항목은 값이 있을 때만", () => {
+  const email = buildContactAdminEmail({ contactId: "v2id", contact: contactV2, submittedAt: SUBMITTED_AT });
+  assert.equal(email.subject, "[문의] Acme Beauty");
+  for (const part of [
+    "이름:</strong> Jane Doe", "국가(고객 소재지):</strong> United States", "웹사이트·SNS:</strong> -",
+    "제품 카테고리:</strong> serum", "SKU당 예상 수량:</strong> 12,000개", "판매 대상 시장:</strong> Germany, France",
+    "희망 출시 시점:</strong> Q1 2027", "프로모션 관심:</strong> 아니오", "회원 여부:</strong> 비회원",
+    "UTM:</strong> source=google", "Vegan &lt;b&gt;sunscreen&lt;/b&gt;", "문서 ID:</strong> v2id",
+  ]) assert.ok(email.html.includes(part), part);
+  assert.ok(!email.html.includes("유입 경로"));
+  assert.ok(!email.html.includes("비즈니스 유형"));
+});
+
+test("리뉴얼 Contact: Message·프로모션이 없으면 '-'와 관심 줄 없음", () => {
+  const { message, promoInterest, ...rest } = contactV2;
+  void message; void promoInterest;
+  const email = buildContactAdminEmail({ contactId: "v2b", contact: { ...rest, uid: "u1" }, submittedAt: SUBMITTED_AT });
+  assert.match(email.html, /border-radius:6px">-<\/pre>/);
+  assert.ok(!email.html.includes("프로모션 관심"));
+  assert.ok(email.html.includes("회원 여부:</strong> 회원"));
+});
+
+test("기존 운영 Contact 문서는 formVersion이 없으면 예전 양식과 같다(회귀)", () => {
+  const email = buildContactAdminEmail({ contactId: "abc123", contact: { ...normalContact, uid: "u1", channelUserId: "ch1" }, submittedAt: SUBMITTED_AT });
+  assert.equal(email.html, legacyHtml("abc123", normalContact, SUBMITTED_AT).replace("We'd", "We&#39;d"));
+});

@@ -14,7 +14,7 @@ import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CloseButton } from "@/components/ui/CloseButton";
 import { Modal } from "@/components/ui/Modal";
-import { isYearEndPromoActive } from "@/lib/config/promo";
+import { YEAR_END_PROMO, isYearEndPromoActive } from "@/lib/config/promo";
 import { ROUTES } from "@/lib/config/routes";
 import { getVisit, isBotVisitor, markPromoSeen, promoBarClicked, readSeenVisit, shouldAutoOpenPromo } from "@/lib/promo/visit";
 
@@ -64,7 +64,7 @@ export function PromoPopup() {
             </h2>
             <p className="text-mdk-label text-mdk-mid-gray">your production quote</p>
           </div>
-          <p className="text-[20px] leading-[30px] font-medium tracking-[-0.005em]">Sign your project contract by December 31, 2026.</p>
+          <p className="text-[20px] leading-[30px] font-medium tracking-[-0.005em]">Sign your project contract by {YEAR_END_PROMO.deadlineLabel}.</p>
           <p className="pt-2.5 text-[14px] leading-5 font-medium text-mdk-mid-gray">Planning your next beauty launch? Get in touch early.</p>
           <div className="flex flex-col items-center gap-4 pt-7">
             <Button href={ROUTES.contact} variant="primary-inverse" onClick={close} className="w-full">
