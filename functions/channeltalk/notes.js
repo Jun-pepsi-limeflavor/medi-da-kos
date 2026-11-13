@@ -65,6 +65,9 @@ const CONTACT_KEYS = [
   "companyName", "email", "message", "referralSource", "businessType",
   "utmSource", "utmMedium", "utmCampaign", "utmContent", "utmTerm",
   "pageUrl", "gaClientId", "userAgent", "uid", "channelUserId",
+  // Renewal Contact (formVersion 2)
+  "formVersion", "fullName", "country", "website", "productCategory", "quantityPerSku", "targetMarkets",
+  "launchDate", "promoInterest",
 ];
 const LANDING_KEYS = [
   "landingVariant", "companyName", "contactName", "email", "country", "expectedVolume", "message",
@@ -229,7 +232,43 @@ function koreaCountry(value) {
   return show(value);
 }
 
+function quantityText(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toLocaleString("en-US")}개` : show(value);
+}
+
+/** Renewal Contact (formVersion 2). Legacy-only fields are listed only when a document carries them. */
+function contactNoteV2(data) {
+  const customer = [
+    `이름: ${show(data.fullName)}`,
+    `회사/브랜드: ${show(data.companyName)}`,
+    `이메일: ${show(data.email)}`,
+    `국가(고객 소재지): ${show(data.country)}`,
+    `웹사이트·SNS: ${show(data.website)}`,
+    `회원 여부: ${isBlank(data.uid) ? "비회원" : `회원 (${show(data.uid)})`}`,
+  ];
+  if (!isBlank(data.businessType)) customer.push(`비즈니스 유형: ${show(data.businessType)}`);
+  if (!isBlank(data.referralSource)) customer.push(`유입 경로(고객 선택): ${show(data.referralSource)}`);
+  const project = [
+    `제품 카테고리: ${show(data.productCategory)}`,
+    `SKU당 예상 수량: ${quantityText(data.quantityPerSku)}`,
+    `판매 대상 시장: ${show(data.targetMarkets)}`,
+    `희망 출시 시점: ${show(data.launchDate)}`,
+  ];
+  if (typeof data.promoInterest === "boolean") project.push(`프로모션 관심: ${show(data.promoInterest)}`);
+  return {
+    line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
+    sections: [
+      { title: "■ 문의 내용", lines: [show(data.message)] },
+      { title: "■ 프로젝트", lines: project },
+      { title: "■ 고객 정보", lines: customer },
+    ],
+    leftover: leftovers(data, CONTACT_KEYS),
+    technical: technicalSection(data),
+  };
+}
+
 function contactNote(data) {
+  if (data && data.formVersion === 2) return contactNoteV2(data);
   return {
     line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
     sections: [

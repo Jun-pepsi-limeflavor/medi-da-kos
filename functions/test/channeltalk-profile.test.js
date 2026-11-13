@@ -184,3 +184,33 @@ test("긴 문자열은 512자로 잘린다", () => {
 test("알 수 없는 종류는 오류", () => {
   assert.throws(() => buildProfileUpdate({ kind: "cmBriefs", data: {} }));
 });
+
+test("Contact v2(리뉴얼): 이름·이메일·회사·고객 국가만, 판매 대상 시장·수량은 프로필에 넣지 않는다", () => {
+  const update = buildProfileUpdate({
+    kind: "contact",
+    data: {
+      formVersion: 2, fullName: "Jane Doe", email: "Jane@Example.com", companyName: "Acme Beauty", country: "United States",
+      productCategory: "serum", quantityPerSku: 12000, targetMarkets: "Germany, France", message: "hi",
+    },
+  });
+  assert.deepEqual(update.profileOnce, {
+    name: "Jane Doe",
+    email: "jane@example.com",
+    brandCompanyName: "Acme Beauty",
+    marketCountry: ["미국"],
+    firstSource: "contact",
+  });
+  assert.deepEqual(update.profile, {});
+  assert.ok(!("moq" in update.result.skipped));
+  assertNoForbidden(update);
+});
+
+test("Contact v2: 이름이 회사명과 같거나 국가를 변환할 수 없으면 미반영 사유를 남긴다", () => {
+  const update = buildProfileUpdate({
+    kind: "contact",
+    data: { formVersion: 2, fullName: "Acme Beauty", email: "a@example.com", companyName: "Acme Beauty", country: "Global" },
+  });
+  assert.ok(!("name" in update.profileOnce));
+  assert.equal(update.result.skipped.name, "same_as_company");
+  assert.equal(update.result.skipped.marketCountry, "not_specific");
+});

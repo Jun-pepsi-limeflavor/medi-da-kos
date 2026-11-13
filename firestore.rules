@@ -58,24 +58,73 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // contact/{docId}: 비로그인 문의 폼 — create만 허용
-    // uid는 로그인 상태에서 본인 것만. 허용 필드 목록이 없어 이 검사 없이는 남의 uid로 문의를 붙일 수 있다.
-    // channelUserId는 브라우저 Channel Talk 사용자 id. 서버가 이메일로 다시 검증한다.
-    match /contact/{docId} {
-      allow create: if
-        (!('uid' in request.resource.data)
+    // contact/{docId}: 문의 폼 — create만 허용. 두 가지 모양을 받는다.
+    // - 리뉴얼 Contact(formVersion == 2, 2026-11): 필수·타입·길이·허용 필드 목록을 모두 검사(validContactV2)
+    // - 기존 운영 Contact(formVersion 없음): 기존 검사 + 운영 폼이 실제로 보내는 필드만 허용(validContactLegacy).
+    //   formVersion을 넣은 문서는 기존 검사로 통과할 수 없다(리뉴얼 검사 우회 방지)
+    // uid는 로그인 상태에서 본인 것만. channelUserId는 브라우저 Channel Talk 사용자 id(서버가 이메일로 다시 검증).
+    function validContactIdentity() {
+      return (!('uid' in request.resource.data)
           || (isSignedIn() && request.resource.data.uid == request.auth.uid))
-        && validLandingOptionalString('channelUserId', 64)
-        && request.resource.data.keys().hasAll(['companyName', 'email', 'message', 'status', 'createdAt'])
-        && request.resource.data.companyName is string
-        && request.resource.data.companyName.size() > 0
-        && request.resource.data.companyName.size() <= 200
-        && request.resource.data.email is string
-        && request.resource.data.email.matches('.*@.*\\..*')
-        && request.resource.data.message is string
-        && request.resource.data.message.size() > 0
-        && request.resource.data.message.size() <= 5000
-        && request.resource.data.status == 'submitted';
+        && validLandingOptionalString('channelUserId', 64);
+    }
+
+    function validContactTracking() {
+      return validLandingOptionalString('utmSource', 200)
+        && validLandingOptionalString('utmMedium', 200)
+        && validLandingOptionalString('utmCampaign', 200)
+        && validLandingOptionalString('utmContent', 200)
+        && validLandingOptionalString('utmTerm', 200)
+        && validLandingOptionalString('pageUrl', 2000)
+        && validLandingOptionalString('gaClientId', 200)
+        && validLandingOptionalString('userAgent', 1000);
+    }
+
+    function validContactV2() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['formVersion', 'fullName', 'email', 'companyName', 'country', 'productCategory', 'quantityPerSku', 'targetMarkets', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+        && data.keys().hasOnly(['formVersion', 'fullName', 'email', 'companyName', 'country', 'productCategory', 'quantityPerSku', 'targetMarkets', 'website', 'launchDate', 'message', 'promoInterest', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'uid', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+        && data.formVersion == 2
+        && validLandingString(data.fullName, 100)
+        && validLandingString(data.email, 254)
+        && data.email.matches('.*@.*\\..*')
+        && validLandingString(data.companyName, 200)
+        && validLandingString(data.country, 100)
+        && validLandingString(data.productCategory, 200)
+        && data.quantityPerSku is int
+        && data.quantityPerSku >= 5000
+        && data.quantityPerSku <= 100000000
+        && validLandingString(data.targetMarkets, 300)
+        && validLandingOptionalString('website', 500)
+        && validLandingOptionalString('launchDate', 100)
+        && validLandingOptionalString('message', 5000)
+        && (!('promoInterest' in data) || data.promoInterest is bool)
+        && data.isTest is bool
+        && data.status == 'submitted'
+        && validLandingString(data.createdAt, 64)
+        && data.serverCreatedAt == request.time;
+    }
+
+    function validContactLegacy() {
+      let data = request.resource.data;
+      return !('formVersion' in data)
+        && data.keys().hasAll(['companyName', 'email', 'message', 'status', 'createdAt'])
+        && data.keys().hasOnly(['companyName', 'email', 'referralSource', 'businessType', 'message', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'uid', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+        && data.companyName is string
+        && data.companyName.size() > 0
+        && data.companyName.size() <= 200
+        && data.email is string
+        && data.email.matches('.*@.*\\..*')
+        && data.message is string
+        && data.message.size() > 0
+        && data.message.size() <= 5000
+        && data.status == 'submitted';
+    }
+
+    match /contact/{docId} {
+      allow create: if validContactIdentity()
+        && ((('formVersion' in request.resource.data) && validContactV2() && validContactTracking())
+          || validContactLegacy());
       allow read, update, delete: if false;
     }
 

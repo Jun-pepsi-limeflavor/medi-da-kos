@@ -51,7 +51,7 @@ tests/
   analytics/ channel-talk/ kakaowork/ rules/   기능별 테스트 (rules는 Firestore Emulator)
   esm-alias-loader.mjs    테스트용 "@/" 별칭 리졸버
 docs/
-  operations/             운영·배포 (Functions 배포 가이드, 컬렉션·메일)
+  operations/             운영·배포 (Functions 배포 가이드, 컬렉션·메일, dev → 운영 전환 마스터 문서)
   integrations/           외부 연동 (Channel Talk V2, Meta Pixel)
   plans/                  설계·계획 (운영 전환 체크리스트 포함)
 ```

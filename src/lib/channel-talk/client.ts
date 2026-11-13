@@ -1,6 +1,12 @@
+// Channel Talk SDK boot·종료·페이지 동기화. boot 때 SDK 기본 버튼을 숨기고 사이트 런처(ChannelTalkLauncher)를 커스텀 런처로 연결하며,
+// 메신저 열림·닫힘과 미읽음 수(onBadgeChanged) 콜백을 런처 표시 상태에 넘긴다(lib/channel-talk/launcher).
+// 콜백은 boot 성공 때 등록하고, 다시 boot하기 전 shutdown이 지우므로 중복 등록되지 않는다.
 import {
   boot,
   loadScript,
+  onBadgeChanged,
+  onHideMessenger,
+  onShowMessenger,
   resetPage,
   setPage,
   shutdown,
@@ -11,6 +17,7 @@ import {
   type User,
 } from "@channel.io/channel-web-sdk-loader";
 import { gaBootProfile } from "@/lib/channel-talk/intake";
+import { LAUNCHER_SELECTOR, setChannelUnread, setMessengerOpen } from "@/lib/channel-talk/launcher";
 import type { UserProfile } from "@/lib/types";
 
 export { CHANNEL_TALK_GA_PROFILE_KEY } from "@/lib/channel-talk/intake";
@@ -55,10 +62,16 @@ function runBoot(option: BootOption): Promise<User> {
 
       lastBootError = null;
       lastBootUser = user;
+      // Site launcher (ChannelTalkLauncher) shows the messenger state; shutdown clears these callbacks.
+      onShowMessenger(() => setMessengerOpen(true));
+      onHideMessenger(() => setMessengerOpen(false));
+      // Red dot on the launcher: unread = all unread, alert = important ones (counted in unread; max() just in case).
+      onBadgeChanged((unread, alert) => setChannelUnread(Math.max(unread, alert)));
       resolve(user);
     };
 
-    boot(option, callback);
+    // Figma launcher: hide the SDK's default button and use the site launcher instead.
+    boot({ ...option, hideChannelButtonOnBoot: true, customLauncherSelector: LAUNCHER_SELECTOR }, callback);
   });
 }
 
@@ -104,6 +117,7 @@ export async function bootChannelTalkAsMember(
 
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
+    setChannelUnread(0); // the next boot reports its own count
     bootedMemberId = null;
     bootedAnonymous = false;
   }
@@ -145,6 +159,7 @@ export async function bootChannelTalkAsAnonymous(
 
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
+    setChannelUnread(0); // the next boot reports its own count
     bootedMemberId = null;
     bootedAnonymous = false;
   }
@@ -174,6 +189,8 @@ export async function bootChannelTalkAsAnonymous(
 export function shutdownChannelTalk(): void {
   if (!bootedMemberId && !bootedAnonymous) return;
   shutdown();
+  setMessengerOpen(false);
+  setChannelUnread(0);
   bootedMemberId = null;
   bootedAnonymous = false;
   lastBootError = null;
