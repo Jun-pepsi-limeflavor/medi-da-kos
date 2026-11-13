@@ -5,11 +5,15 @@
 // - 본문 블록: 문단 · H3(2.1 등) · 소제목(① 등) · 글머리 목록 · 굵은 라벨 행(Legal Entity Name: 등). 문구는 각 데이터 파일 원문 그대로
 // - 섹션 간 48px, 섹션 안 16px, 목록 항목 사이 간격 0px(Figma 프레임 실측·주석 확정)
 // - 목록 글머리: Figma와 같은 왼쪽 끝 약 2px 점, 텍스트 시작 15px(브라우저 기본 원형 글머리·24px 들여쓰기 대신)
+// - 본문 mailto 링크는 Footer·Contact·About과 같은 FooterEmailLink(메일 앱 + 주소 복사, email_click·email_copy·Meta Contact).
+//   link_location은 문서별 emailLocation(privacy-policy · terms-of-service) — 2026-11-13
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DISPLAY_TITLE, SECTION_CONTAINER } from "@/components/home/styles";
+import { FooterEmailLink } from "@/components/layout/FooterEmailLink";
 import { SamePageHashUrl } from "@/components/layout/SamePageHashUrl";
 import { LegalContents } from "@/components/legal/LegalContents";
+import type { EmailLinkLocation } from "@/lib/analytics/events";
 import { cx } from "@/lib/utils/cx";
 
 /** Text with optional links: a plain string, or parts where a link is `{ text, href }`. */
@@ -28,15 +32,20 @@ export type LegalDocumentData = {
   title: string;
   effectiveDate: string;
   lastUpdated: string;
+  /** `link_location` of the email events for mailto links in this document. */
+  emailLocation: EmailLinkLocation;
   sections: readonly LegalSection[];
 };
 
 const LINK = "underline underline-offset-2 hover:text-mdk-charcoal-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mdk-charcoal";
 
-function Text({ text }: { text: LegalText }) {
+function Text({ text, email }: { text: LegalText; email: EmailLinkLocation }) {
   if (typeof text === "string") return text;
   return text.map((part, i) => {
     if (typeof part === "string") return part;
+    if (part.href.startsWith("mailto:")) {
+      return <FooterEmailLink key={i} email={part.href.slice("mailto:".length)} location={email} className={LINK} />;
+    }
     if (part.href.startsWith("/")) {
       return <Link key={i} href={part.href} className={LINK}>{part.text}</Link>;
     }
@@ -44,10 +53,10 @@ function Text({ text }: { text: LegalText }) {
   });
 }
 
-function Block({ block }: { block: LegalBlock }): ReactNode {
+function Block({ block, email }: { block: LegalBlock; email: EmailLinkLocation }): ReactNode {
   switch (block.type) {
     case "p":
-      return <p><Text text={block.text} /></p>;
+      return <p><Text text={block.text} email={email} /></p>;
     case "h3":
       return (
         <h3 id={block.id} className="scroll-mt-24 text-lg leading-[26px] font-medium tracking-normal text-mdk-charcoal">
@@ -65,7 +74,7 @@ function Block({ block }: { block: LegalBlock }): ReactNode {
               key={i}
               className="relative pl-[15px] before:absolute before:top-[10px] before:left-0 before:size-[2px] before:bg-current before:content-['']"
             >
-              <Text text={item} />
+              <Text text={item} email={email} />
             </li>
           ))}
         </ul>
@@ -73,7 +82,7 @@ function Block({ block }: { block: LegalBlock }): ReactNode {
     case "field":
       return (
         <p>
-          <strong className="font-semibold">{block.label}</strong> <Text text={block.value} />
+          <strong className="font-semibold">{block.label}</strong> <Text text={block.value} email={email} />
         </p>
       );
   }
@@ -114,7 +123,7 @@ export function LegalDocument({ data }: { data: LegalDocumentData }) {
                   {section.title}
                 </h2>
                 {section.blocks.map((block, i) => (
-                  <Block key={i} block={block} />
+                  <Block key={i} block={block} email={data.emailLocation} />
                 ))}
               </section>
             ))}

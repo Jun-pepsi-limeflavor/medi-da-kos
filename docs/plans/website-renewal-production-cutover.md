@@ -162,7 +162,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 
 | 컬렉션 | 현재 규칙(저장소 기준) | 신규 사용 | 전환 후 처리 |
 |---|---|---|---|
-| `contact` | 검증된 create만 허용 | 사용 | **유지** |
+| `contact` | 검증된 create만 허용 | 사용 | **유지**. 리뉴얼 Contact(`formVersion: 2`) 규칙 포함본을 배포해야 저장됨(dev 검증 2026-11-13, 마스터 문서 C-2·C-4) |
 | `users` | 본인 create·update, 읽기 | 사용(회원가입) | **유지** |
 | `landingRequests` | 비로그인 create 허용 | 미사용 | create 차단(`allow create: if false`) |
 | `orders` | 본인 create·read | 미사용 | create 차단. read는 Dashboard V2 계획에 따라 결정 |
@@ -206,17 +206,23 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 
 ### 6.1 삭제되는 URL과 SEO·광고
 
-| URL | 처리 결정 필요 |
-|---|---|
-| `/process`, `/compare` (기존 sitemap 포함) | 신규 대응 페이지로 301 또는 404/410 |
-| `/how-it-works`, `/pricing`, `/business` (기존 301) | 신규 페이지로 301 유지 여부 |
-| `/korea`, `/landing/korea`, `/landing/catalog`, `/landing/dashboard` | 콜드메일·광고 URL. 신규 랜딩/Contact로 301 여부 |
-| `/dashboard`, `/dashboard/orders`, `/dashboard/tracking` | 로그인 사용자 북마크. 홈으로 301 또는 404 |
-| `/admin/*`, `/test` | 404 유지 |
+처리 현황(2026-11-13 확정, `next.config.ts` `redirects()`, `feat/website-renewal-v1.1`). 쿼리(UTM 등)는 그대로 넘어가고 1회 이동으로 끝난다(로컬 확인).
+
+| 기존 URL | 처리 | 상태 |
+|---|---|---|
+| `/business` | → `/about-us` (308) | 확정 |
+| `/process`, `/how-it-works` | → `/services#how-it-works` (308) | 확정 |
+| `/landing/catalog` | → `/portfolio` (308) | 확정 |
+| `/compare`, `/pricing` | → `/services` (308) | 확정 |
+| `/dashboard` 및 하위 경로(`/dashboard/orders`, `/dashboard/tracking` 등) | → `/contact` (307 임시) | 확정. V2.1 Dashboard 복구 때 이 리디렉션 제거 |
+| `/korea`, `/landing/korea`, `/landing/dashboard` | → `/contact` (307 임시) | **대표님 컨펌 대기 — 최종 목적지 미확정.** 콜드메일 링크가 404가 되지 않도록 임시로만 연결 |
+| `/admin/*`, `/test` | 404 유지 | 확정 |
 
 체크
 - [ ] Google Ads·Meta 광고·콜드메일 템플릿의 최종 URL 목록 확인 후 변경
-- [ ] 리디렉션 정책 확정 → `next.config.ts`에 반영(신규 브랜치)
+- [ ] Google Ads 전환: `Contact 페이지 문의 제출 (GA4)`(`generate_lead`) 기본 전환 유지, `Dashboard 브리프 제출 (GA4)`(`conversion_event_submit_lead_form`, 리뉴얼에서 발생 안 함)은 보조 전환 변경·목표 제외 검토(마스터 문서 C-9)
+- [x] 리디렉션 정책 확정 → `next.config.ts`에 반영(`feat/website-renewal-v1.1`, 컨펌 대기 3개 제외)
+- [ ] `/korea`·`/landing/korea`·`/landing/dashboard` 최종 목적지 대표님 컨펌 후 반영
 - [ ] 신규 `sitemap.xml`·`robots.txt` 확인, Search Console에 sitemap 재제출
 - [ ] Search Console에서 404 증가 모니터링(전환 후 2주)
 - [ ] 신규 favicon·Apple 아이콘·manifest 아이콘·OG·Twitter 이미지·JSON-LD 로고 적용 확인(정리 브랜치에서 기존 파일 전부 삭제됨)
@@ -257,7 +263,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 - 작업: `dev → main` PR 병합 → Vercel이 Production 배포.
 - 성공
   - [ ] www.medidakos.com에 신규 홈페이지 표시, 콘솔 오류 없음
-  - [ ] 로그인·회원가입·로그아웃, Channel Talk 위젯, GA4·Meta Pixel 이벤트 확인
+  - [ ] 로그인·회원가입·로그아웃, Channel Talk 위젯, GA4·Meta Pixel 이벤트 확인(GA4 실시간: page_view·`email_click`·`sign_up`, Meta: PageView·`Contact`). page_view 중복은 이후 GA4 데이터로 확인(마스터 문서 C-9)
   - [ ] 리디렉션 정책대로 동작, 기존 Landing·Dashboard 경로에서 폼 제출 불가
   - [ ] 이 시점 Functions는 기존 그대로이므로 Contact 문의는 기존 방식으로 계속 처리됨
 - 실패: Vercel에서 이전 Production 배포로 즉시 롤백(Instant Rollback). Functions는 아직 바꾸지 않았으므로 영향 없음.
@@ -277,6 +283,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
   - [ ] `channelTalkSync/contact_<id>` status `success`, steps 전부 done
   - [ ] Channel Talk에 `[TEST]` 상담 생성 **그리고** 내부 대화에 고객 정보·문의 내용 등록
   - [ ] `ADMIN_EMAILS`로 "[문의]" 알림 메일 수신
+  - [ ] `contact` 문서에 `gaClientId` 저장, GA4 `generate_lead`(`form_id: contact-page`)·Meta `Lead` 수집 확인. 이 테스트 문의는 Google Ads 전환 1건으로 집계될 수 있다(`is_test`로 걸러지지 않음)
 - 실패: 4단계 함수를 `pre-renewal-cutover` 태그 소스로 다시 배포해 원복하고 원인 분석. 테스트 상담은 Channel Desk에서 정리.
 
 ### 6단계. Landing·주문용 Functions 삭제

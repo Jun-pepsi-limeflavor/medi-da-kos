@@ -10,6 +10,7 @@ const EMAIL = { text: "support@medidakos.com", href: "mailto:support@medidakos.c
 export const PRIVACY_POLICY: LegalDocumentData = {
   title: "Privacy Policy",
   effectiveDate: "November 13, 2026",
+  emailLocation: "privacy-policy",
   lastUpdated: "November 13, 2026",
   sections: [
     {

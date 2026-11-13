@@ -20,7 +20,10 @@
 //   회원이면 본인 uid, 브라우저 Channel 고객 id는 바로 얻을 때만 넣는다(기존 ContactForm과 같음). 저장 성공 후에만 완료 화면,
 //   실패하면 오류 안내 + 입력값 유지(재시도 가능). Mock 모드는 저장하지 않고 완료 화면(data-mock-submission),
 //   단 운영 도메인에서는 Mock이어도 허위 성공 화면을 띄우지 않는다
-// - GA4 generate_lead · Meta Lead는 아직 연결하지 않는다(별도 승인 후 저장 성공 직후 위치에 추가)
+// - 전환 이벤트(2026-11-13 복구): 저장 성공 직후 한 번만 기존 운영 Contact와 같은 GA4 generate_lead
+//   (form_id contact-page · lead_type inquiry · UTM)와 Meta Lead(content_name contact-page). 이벤트 오류는 완료 화면에 영향 없음.
+//   실제 Firestore 저장(saved: true)일 때만 보낸다 — Mock 제출은 전환 이벤트를 보내지 않는다(trackContactLead)
+//   gaClientId도 기존처럼 저장(GA 미설정·조회 실패면 생략, 최대 2.5초 대기). 새 이벤트·매개변수는 추가하지 않는다
 // - 브리프 첨부(BriefUpload): Figma UI 그대로 다시 표시(2026-11-13, Google Drive 연동 준비). 저장소 미연결 —
 //   선택한 파일은 브라우저 안에만 있고 제출되지 않는다(files는 submitInquiry로 전달하지 않음). 업로드 연동은 별도 작업
 // - 제출 성공 후: 완료 메시지가 렌더링된 뒤 그 위치(Navbar 72 + 24px 아래)로 한 번 스크롤하고(동작 줄이기 설정이면 즉시),
@@ -54,6 +57,8 @@ import { contactIdentityFields } from "@/lib/channel-talk/intake";
 import { useMockAuth } from "@/lib/firebase/client";
 import { submitInquiry } from "@/lib/firebase/firestore-service";
 import { readUtmParams } from "@/hooks/use-utm-params";
+import { trackContactLead } from "@/lib/analytics/events";
+import { getGaClientId } from "@/lib/analytics/ga-client-id";
 import { isNonProductionEnv } from "@/lib/utils/env-flags";
 import { cx } from "@/lib/utils/cx";
 
@@ -190,15 +195,21 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
 
     setSubmitting(true);
     try {
-      await submitInquiry({
+      const utmParams = readUtmParams();
+      // Same as the previous production Contact form: GA client id when GA is set (gives up after 2.5s, then omitted).
+      const gaId = process.env.NEXT_PUBLIC_GA_ID;
+      const gaClientId = gaId ? await getGaClientId(gaId).catch(() => null) : null;
+      const result = await submitInquiry({
         ...toInquiryFields(values, showPromo ? promoInterest : undefined),
-        ...readUtmParams(),
+        ...utmParams,
         pageUrl: window.location.href,
+        gaClientId: gaClientId ?? undefined,
         userAgent: navigator.userAgent,
         // Member's own uid, and the browser's Channel user id only if already available (never waits).
         ...contactIdentityFields({ uid: user?.uid, channelUserId: getChannelTalkUserId() }),
       });
-      // GA4 generate_lead / Meta Lead go here once approved (after a successful save only).
+      // Only for a real Firestore save (result.saved) — a mock submission sends no conversion events.
+      trackContactLead(result, utmParams);
       setSent(true);
     } catch (error) {
       console.error("contact inquiry submit failed", error);

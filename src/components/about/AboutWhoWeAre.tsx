@@ -2,7 +2,10 @@
 // - 광화문 와이드 이미지(2:1) + 왼쪽 소개 / 오른쪽 주소·이메일(mailto)·전화(tel) 목록과 Contact us 버튼
 // - 이메일·전화 값은 사이트 공통 설정(SUPPORT_*)을 사용
 // - 1440 제목은 Figma Heading 44/50
+// - 이메일은 Footer·Contact와 같은 FooterEmailLink(메일 앱 열기 + 주소 복사, email_click·email_copy·Meta Contact,
+//   link_location "about") — 2026-11-13 추적 누락 복구
 import Image from "next/image";
+import { FooterEmailLink } from "@/components/layout/FooterEmailLink";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/lib/config/routes";
 import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/config/site";
@@ -50,9 +53,7 @@ export function AboutWhoWeAre() {
               <div className={ROW}>
                 <dt className={LABEL}>Email</dt>
                 <dd>
-                  <a href={`mailto:${SUPPORT_EMAIL}`} className={LINK}>
-                    {SUPPORT_EMAIL}
-                  </a>
+                  <FooterEmailLink email={SUPPORT_EMAIL} location="about" className={LINK} />
                 </dd>
               </div>
               <div className={ROW}>

@@ -12,6 +12,7 @@ const PRIVACY_POLICY_LINK = { text: "Privacy Policy", href: ROUTES.privacy };
 export const TERMS_OF_SERVICE: LegalDocumentData = {
   title: "Terms of Service",
   effectiveDate: "November 13, 2026",
+  emailLocation: "terms-of-service",
   lastUpdated: "November 13, 2026",
   sections: [
     {

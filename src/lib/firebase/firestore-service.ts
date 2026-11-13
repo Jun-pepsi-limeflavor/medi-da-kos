@@ -101,6 +101,8 @@ export type InquiryPayload = InquiryFields & {
   utmContent?: string;
   utmTerm?: string;
   pageUrl?: string;
+  /** GA4 client id, as the previous production Contact form saved it. */
+  gaClientId?: string;
   userAgent?: string;
   /** Signed-in member's own uid (rules require uid == auth.uid). */
   uid?: string;
@@ -116,9 +118,9 @@ function clip(value: string | undefined, max: number): string | undefined {
 /**
  * Saves a renewal Contact inquiry to `contact` (formVersion 2). The existing Functions pick it up from there:
  * admin notification mail (onContactCreated) and Channel Talk chat + internal note (channelTalkOnContactCreated).
- * Mock mode logs and saves nothing.
+ * Mock mode logs and saves nothing and returns `saved: false` (conversion events are only sent for `saved: true`).
  */
-export async function submitInquiry(data: InquiryPayload): Promise<{ id: string }> {
+export async function submitInquiry(data: InquiryPayload): Promise<{ id: string; saved: boolean }> {
   const doc = {
     ...data,
     utmSource: clip(data.utmSource, 200),
@@ -127,6 +129,7 @@ export async function submitInquiry(data: InquiryPayload): Promise<{ id: string 
     utmContent: clip(data.utmContent, 200),
     utmTerm: clip(data.utmTerm, 200),
     pageUrl: clip(data.pageUrl, 2000),
+    gaClientId: clip(data.gaClientId, 200),
     userAgent: clip(data.userAgent, 1000),
     formVersion: 2 as const,
     isTest: isNonProductionEnv(),
@@ -137,12 +140,12 @@ export async function submitInquiry(data: InquiryPayload): Promise<{ id: string 
   if (isMockAuth()) {
     const id = `mock-inquiry-${Date.now()}`;
     console.info("[mock] contact inquiry (formVersion 2) — not saved", { id, ...doc });
-    return { id };
+    return { id, saved: false };
   }
 
   const ref = await addDoc(
     collection(getFirebaseDb(), "contact"),
     stripUndefined({ ...doc, serverCreatedAt: serverTimestamp() }),
   );
-  return { id: ref.id };
+  return { id: ref.id, saved: true };
 }
