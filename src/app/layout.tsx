@@ -1,5 +1,6 @@
 // 루트 레이아웃. 모든 페이지에 공통 적용된다.
-// - 폰트 변수 등록: Geist·Noto Serif(기존), Instrument Sans(리뉴얼)
+// - 폰트 변수 등록: Geist(기존), Instrument Sans(리뉴얼). Noto Serif는 리뉴얼 화면에서 쓰이지 않아 로드하지 않는다
+//   (2026-11-12 — Vercel 빌드에서 Noto Serif의 next/font/google 처리가 실패해 제거, docs/operations/website-renewal-dev-to-production.md)
 // - 사이트 메타데이터·구조화 데이터, 인증 Provider
 // - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작)
 // - data-scroll-behavior="smooth": 전역 smooth 스크롤을 페이지 이동 때만 끄고 즉시 상단 이동(Next 16)
@@ -8,7 +9,7 @@
 // - ChannelTalkLauncher: Figma 물방울 런처(모든 페이지, SDK 기본 버튼 대신 사용 · 키가 없으면 mock 동작)
 // - CookieConsent: 쿠키 동의 배너·Cookie Settings 모달(모든 페이지) · PromoVisit: Promotion 팝업용 새 방문 판정·활동 시각 기록
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Sans, Noto_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Sans } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
@@ -33,12 +34,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
-
-const notoSerif = Noto_Serif({
-  variable: "--font-noto-serif",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
 });
 
 // Renewal font (Figma: Instrument Sans 400/500/600). Applied per component via `font-mdk`;
@@ -167,7 +162,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       // The pre-paint script may add the announcement attribute before hydration.
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} ${instrumentSans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSans.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: ANNOUNCEMENT_PREPAINT_SCRIPT }} />
