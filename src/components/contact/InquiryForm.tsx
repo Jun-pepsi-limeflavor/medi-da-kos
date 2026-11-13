@@ -21,7 +21,8 @@
 //   실패하면 오류 안내 + 입력값 유지(재시도 가능). Mock 모드는 저장하지 않고 완료 화면(data-mock-submission),
 //   단 운영 도메인에서는 Mock이어도 허위 성공 화면을 띄우지 않는다
 // - GA4 generate_lead · Meta Lead는 아직 연결하지 않는다(별도 승인 후 저장 성공 직후 위치에 추가)
-// - 브리프 첨부(BriefUpload)는 업로드 저장소가 없어 숨김(BRIEF_UPLOAD_ENABLED). 코드·디자인은 유지, 템플릿 다운로드는 표시
+// - 브리프 첨부(BriefUpload): Figma UI 그대로 다시 표시(2026-11-13, Google Drive 연동 준비). 저장소 미연결 —
+//   선택한 파일은 브라우저 안에만 있고 제출되지 않는다(files는 submitInquiry로 전달하지 않음). 업로드 연동은 별도 작업
 // - 제출 성공 후: 완료 메시지가 렌더링된 뒤 그 위치(Navbar 72 + 24px 아래)로 한 번 스크롤하고(동작 줄이기 설정이면 즉시),
 //   완료 메시지(tabIndex -1)로 포커스를 옮긴다(추가 스크롤 없음). 검증·저장 실패 시에는 이동하지 않는다
 // - Message 입력칸: 테두리를 inset 그림자 대신 실제 border로 그려 스크롤바가 테두리 안쪽에 오게 하고,
@@ -60,8 +61,6 @@ import { cx } from "@/lib/utils/cx";
 const LEGACY_PROMO_PARAM = "promo";
 /** Navbar 72 + 24px: where 'Inquiry sent' lands after submitting (same offset as the site's anchor scrolls). */
 const SENT_SCROLL_OFFSET = 96;
-/** Brief attachments have no storage yet: the dropzone stays hidden so no one thinks files were sent. */
-const BRIEF_UPLOAD_ENABLED = false;
 const SUBMIT_FAILED = `We couldn’t send your inquiry. Please try again, or email us at ${SUPPORT_EMAIL}.`;
 
 const EMPTY: InquiryValues = {
@@ -340,7 +339,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
         <h2 id={`${formId}-brief`} className={SECTION_TITLE}>
           Have a brief? (optional)
         </h2>
-        {BRIEF_UPLOAD_ENABLED ? <BriefUpload files={files} onChange={setFiles} /> : null}
+        <BriefUpload files={files} onChange={setFiles} />
         <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mdk-body text-mdk-charcoal">
           Need a template?
           <a
