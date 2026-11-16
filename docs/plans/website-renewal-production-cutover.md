@@ -287,6 +287,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 - 실패: 4단계 함수를 `pre-renewal-cutover` 태그 소스로 다시 배포해 원복하고 원인 분석. 테스트 상담은 Channel Desk에서 정리.
 
 ### 6단계. Landing·주문용 Functions 삭제
+- 배경(2026-11-16 확인): 이 함수들의 소스·호출 코드·주문 등록 화면은 V1.1 소스에서 이미 제거됐다. 운영에만 배포돼 남아 있으므로 이 단계에서 삭제한다.
 - 조건: 5단계 통과. 승인.
 - 작업(예)
   - `firebase functions:delete channelTalkOnLandingCreated channelTalkOnOrderCreated --region asia-northeast3 --project medidakos`
@@ -308,6 +309,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 - 실패: 태그 소스로 재배포.
 
 ### 9단계. Firestore Rules 정리
+- 배경(2026-11-16 확인): 현재 규칙은 `landingRequests`(**비로그인 생성 허용**)·`orders`·`sampleRequests`(로그인 본인 생성)·`cmBriefs`·`tracking`을 아직 열어 둔다. 화면·트리거는 없지만 API로 직접 쓰면 문서가 생기고, 6단계 전에는 운영의 예전 함수가 반응할 수 있다. 이 단계에서 생성을 차단한다(데이터는 삭제하지 않음).
 - 조건: 5장 규칙안 승인, 에뮬레이터 테스트 통과.
 - 작업: 규칙 PR → `firebase deploy --project medidakos --only firestore:rules`
 - 성공: Contact 문의·회원가입 정상, `landingRequests` 등 쓰기 거부 확인(에뮬레이터·콘솔 Rules Playground).

@@ -190,7 +190,11 @@ dev 선택 재배포(승인 후, 이 PC에서):
 | CRM 영향 | staging 방문자·회원이 운영 채널에 고객으로 생성됨(회원 ID는 dev uid라 운영 회원과 겹치지 않음). Functions 연동(가입·문의 → 상담·메모)은 dev에서 `isTest` 제출을 건너뛰고 `+chtest` 주소만 `[TEST]` 라벨로 전송 |
 | 환경변수 | `NEXT_PUBLIC_CHANNEL_TALK_PLUGIN_KEY`, `CHANNEL_TALK_MEMBER_HASH_SECRET`, (회원 검증용) `FIREBASE_SERVICE_ACCOUNT_B64` |
 | 배포 상태 | 운영: 기존 위젯 반영. 리뉴얼 런처: staging 반영(2026-11-13 PR #39, staging 변수 적용) |
+| 런처 표시 조건 (2026-11-13, V1.1 로컬) | 플러그인 키가 있으면 SDK 연결 성공 뒤에만 런처 표시(연결 전·실패·shutdown 중 숨김 — 광고 차단 등으로 반응 없는 버튼 방지). 키가 없는 운영 빌드에는 런처 없음(기존 운영과 같음), 개발 서버만 Mock 런처. 가짜 SDK·외부 요청 차단으로 검증. 실제 채널 연결 검증(B)은 별도 |
 | 같은 브라우저 자동 통합 (기존 동작) | 익명(리드)으로 쓰던 브라우저에서 회원으로 로그인하면 Channel Talk가 리드를 회원에 합친다(이메일이 달라도). 옛 리드는 프로필이 비워져 자동 이름(예: `Cupcake 372`)으로 남고, 회원 프로필의 빈 칸만 리드 값으로 채워진다. 리뉴얼 이전부터 있던 Channel Talk 동작이며 설계 문서 T4·X12 실험과 같다(`docs/plans/2026-10-01-channeltalk-crm-integration.md`). 2026-11-13 Contact 테스트에서 재현됨 — 코드 수정 없음. 테스트는 비회원을 시크릿 창에서, 회원을 다른 창에서 진행한다 |
+| 런처 최종 동작 (2026-11-16, V1.1 로컬) | 물방울 클릭 → `showMessenger()`, 상담창이 열린 동안 물방울 숨김 · SDK 기본 X(데스크톱) / 전체 화면 닫기 버튼(휴대폰)으로 닫으면 복귀. 위치·크기는 기기 기준(휴대폰 아님: 60×51.36 · 오른쪽 34 · 아래 39.32, 휴대폰: 48×41.1 · 16px, Safe Area 포함). 미읽음: 빨간 점 + SDK 기본 알림 팝업·숫자 배지 유지(`hidePopup` 미사용) |
+| 회원 연동 실사용 테스트 (2026-11-16, localhost · dev Firebase · 운영 Channel 채널) | **MEM-04 통과**: auth02 로그인, member-hash 200, `memberHashAttached: true`, Desk에서 Test User 02로 식별, `[TEST]` 메시지 송·수신 각 1건. **MEM-01 통과**: A 로그아웃 → 익명 재연결 → auth03 로그인, member-hash 200, B 화면에 A의 대화·이름·이메일 없음, Desk에서 A·B 별도 고객, B `[TEST]` 메시지 1건. **MEM-02 부분 통과**: B 로그아웃 후 익명 재연결 성공(오류 없음)·물방울 복귀는 확인, **로그아웃 직후 익명 상담창에 직전 회원 B의 대화가 표시됨 — 즉시 상담 분리 미충족** |
+| 로그아웃 후 상담 유지 (2026-11-16 결정) | 원인: Channel Talk SDK가 세션 토큰을 `ch-session-<채널>` 쿠키(30분)에, 고객 식별값을 `ch-veil-id` 쿠키·localStorage에 두고 `shutdown()`은 메모리 토큰만 비운다 → 로그아웃 후 익명 연결이 직전 회원 세션을 이어 씀(SDK 기본 세션 유지 동작, 운영 `main`도 같은 흐름). **V1.1에서는 SDK 기본 동작을 유지하고 세션 쿠키 삭제·별도 초기화 로직은 추가하지 않음.** 같은 기기·브라우저에서 로그아웃 후 약 30분 안에는 이전 회원 대화가 보일 수 있음(공용 PC 주의) |
 
 staging Channel Talk 연결 절차(다음 단계, 승인 후):
 
@@ -263,6 +267,7 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 |---|---|
 | dev | 배너·Cookie Settings UI와 동의 저장(6개월) 구현 |
 | 범위 (2026-11-13 회의) | V1.1: 기존 UI 유지, Popup → Settings·Footer → Settings 연결과 화면 동작만 검증. V1.2: 실제 동의·거부·설정 변경·철회, 6개월 보관·재동의, GA4 동의 제어·Meta Pixel 실행 차단 |
+| Cookie UI 작업 때 확인 (2026-11-13 발견) | 640px 미만에서 모바일 메뉴를 열면 쿠키 배너가 메뉴 하단 Log in·Contact 버튼을 가린다(배너·메뉴 모두 z-40). 기존 동작, 아직 수정하지 않음 |
 | 미구현 | 동의에 따른 GA4·Meta Pixel·Channel Talk 실행 제어 — 현재는 동의와 무관하게 로드 |
 | 배포 상태 | UI: staging 반영(PR #39). 실행 제어: 미구현(V1.2) |
 
@@ -322,6 +327,10 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | Google Ads Dashboard 전환 액션 | 리뉴얼에서 발생 안 함 | 운영 전환 때 보조 전환·목표 제외 검토 |
 | Brief 업로드·Google Drive 저장 | 미구현(업로드 UI만 표시, 파일은 제출되지 않음) | 이사님 Drive 연동 + 전달 방식 검토(C-6) |
 | staging 접근 | Vercel 로그인 보호(SSO) 켜짐 | 이사님 공유 방식 결정 |
+| 로그아웃 후 직전 회원 상담 노출(MEM-02) | V1.1은 SDK 기본 동작 유지로 결정(2026-11-16), **즉시 상담 분리 미충족** | 필요 시 Channel Talk 공식 로그아웃 방법 문의 후 재검토 |
+| 폐기 컬렉션 생성 권한(`landingRequests` 비로그인 생성, `orders`·`sampleRequests` 로그인 생성) | 소스에 화면·트리거는 없으나 규칙은 아직 허용 | 운영 전환 9단계에서 차단 |
+| 운영에 남은 Landing·주문 Functions | 소스에서는 제거, 운영에는 배포된 상태(전환 문서 기준) | 운영 전환 6단계에서 삭제 |
+| Functions 내부 Landing·주문 처리 분기 | 호출하는 트리거가 없어 실행되지 않음. 재시도는 `source_retired`로 닫음 | 당장 수정하지 않음(남은 기록 정리 후 선택) |
 | GA4·Meta dev/운영 분리 | V1.2로 결정(2026-11-13) | V1.2 |
 | `webhook-sa@medidakos`의 dev Secret 읽기 권한 | 회수 예정 | 인수인계 문서 남은 작업 |
 | `NEXT_PUBLIC_USE_MOCK_AUTH`(Production·Preview) 값 | 미확인 | Vercel에서 확인(운영은 없음 또는 `false`) |
@@ -379,3 +388,6 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | 2026-11-13 | Contact 실제 연동 | dev(staging) | 비회원·회원 각 1건 제출(사용자): Firestore 저장·회원 uid, 관리자 메일 4명 `SUCCESS`·중복 없음, Channel Talk 상담·`[TEST]` 메모, 회원 프로필 덮어쓰기 없음, Functions 오류 없음 → **Contact 연동 dev 검증 완료**. 같은 브라우저 리드→회원 자동 통합 재현(기존 Channel Talk 동작, C-5). GA4·Meta 이벤트·Brief 업로드는 미완료 | Firestore REST·`functions:log` 읽기 전용, 사용자 Channel Talk·메일함 확인 |
 | 2026-11-13 | Brief 업로드 UI 복원 | dev·staging | 이사님 요청으로 Figma 업로드 UI 다시 표시(안내 문구 없음, 업로드 미구현). `fix/contact-brief-upload-ui` → PR #40 → `dev` `98ef18e`, staging READY. Contact 저장·Channel Talk·메일·Rules·Functions 무변경. typecheck·lint·420 테스트·`build:local` 통과, 로컬 브라우저(1440·390)에서 파일 선택·형식 오류·Remove 확인(제출 없음) | 로컬 headless Chrome, Vercel API |
 | 2026-11-13 | GA4·Meta 복구·문서 반영 | 로컬 | Contact `generate_lead`·`Lead`(실제 저장 시만)·`gaClientId`, About·Privacy·Terms 이메일 추적 복구, 기존 URL 리디렉션(`next.config.ts`). 운영 전환 문서에 GA4·Meta·Google Ads 확인 사항 반영(C-9·E, 전환 문서 6.1·3·5단계) | 단위 테스트, 외부 요청 차단 브라우저 확인 |
+| 2026-11-13 | Channel Talk 런처 | 로컬 | 운영·V1.1 비교, Mock 런처·가짜 SDK 검증(외부 요청 0). 런처를 SDK 연결 성공 뒤에만 표시, 키 없는 운영 빌드에서 Mock 런처 제거. 모바일 메뉴·쿠키 배너 겹침은 C-8에 기록만 | 단위 테스트, 가짜 SDK 브라우저 확인, 키 없는 운영 빌드 확인 |
+| 2026-11-16 | Landing·Dashboard 제거 확인 | 소스(`feat/website-renewal-v1.1`) | 웹 페이지·컴포넌트·주문 등록 코드·주문/랜딩 트리거 **제거 완료**(Functions 진입점은 `onUserSignup`·`onContactCreated`·`channelTalkOnUserCreated`·`channelTalkOnContactCreated`·`channelTalkRetry`·`channelTalkLastContactWebhook`). 남은 것: 실행되지 않는 처리 분기, 폐기 컬렉션 생성 규칙(9단계), 운영 배포 함수(6단계). Contact·회원 동기화·관리자 메일은 유지 | 소스 검색(읽기 전용) |
+| 2026-11-16 | Channel Talk 회원 연동 실사용 | localhost(dev Firebase, 운영 Channel 채널) | MEM-04·MEM-01 통과, MEM-02 부분 통과(익명 재연결 성공, 즉시 상담 분리 미충족 — SDK 기본 동작 유지 결정). 운영 채널에 `[TEST]` 상담 A·B 각 1건 + 관리자 답장 1건 남음 | 사용자 실행, 서버·브라우저 로그, Desk 확인 |
