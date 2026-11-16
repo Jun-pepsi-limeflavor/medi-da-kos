@@ -16,12 +16,24 @@
 // - 데스크톱 Caption 스크롤바는 위·아래 구분선의 오른쪽 끝 안쪽에 정렬(스크롤 영역 = 구분선 폭, thumb는 오른쪽 끝).
 //   thumb 양끝은 같은 3px 반원 캡슐(투명 border 두께를 명시하고 모서리별 반경으로 보정, 2026-11-11)
 // - 닫기: X · 배경 클릭 · ESC(Modal). 닫으면 연 카드로 포커스 복귀, Home 스크롤 위치·주소 그대로, 영상 정지
-import type { CSSProperties } from "react";
-import { useId } from "react";
+// - 상단(2026-11-16): 프로필 사진(28px, 안쪽 1px light-gray 테두리, 없거나 로드 실패면 회색 원) + 계정명(@ 없이 medidakos,
+//   플랫폼명은 화면 낭독기용). 플랫폼이 프로필 URL을 주면 사진과 이름이 하나의 링크(새 탭, 밑줄·색 없음)
+//   — 없으면 링크 없이 표시.
+//   Caption 본문은 차콜, #해시태그는 muted(표시만 구분, 원문 그대로), 날짜는 기존 caption 스타일
+import type { CSSProperties, ReactNode } from "react";
+import { useId, useState } from "react";
 import { SocialMediaViewer } from "@/components/home/SocialMediaViewer";
 import { CloseButton } from "@/components/ui/CloseButton";
 import { Modal } from "@/components/ui/Modal";
-import { SOCIAL_FEED_LABEL, formatSocialDate, socialPostRatio, type SocialPost } from "@/lib/social/types";
+import {
+  SOCIAL_FEED_LABEL,
+  formatSocialDate,
+  socialDisplayName,
+  socialPostRatio,
+  socialProfileHref,
+  splitCaptionHashtags,
+  type SocialPost,
+} from "@/lib/social/types";
 import { cx } from "@/lib/utils/cx";
 
 /**
@@ -35,6 +47,27 @@ const THIN_SCROLLBAR = cx(
   "[&::-webkit-scrollbar-thumb]:rounded-l-[3px_6px] [&::-webkit-scrollbar-thumb]:rounded-r-[8px_6px] [&::-webkit-scrollbar-thumb]:border-y-[3px] [&::-webkit-scrollbar-thumb]:border-r-[5px] [&::-webkit-scrollbar-thumb]:border-l-0 [&::-webkit-scrollbar-thumb]:border-solid [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-mdk-mid-gray [&::-webkit-scrollbar-thumb]:bg-clip-padding",
   "supports-[-moz-appearance:none]:[scrollbar-width:thin] supports-[-moz-appearance:none]:[scrollbar-color:var(--color-mdk-mid-gray)_transparent]",
 );
+
+/** 28px avatar circle with a 1px light-gray edge drawn inside it (size and crop unchanged). */
+const AVATAR = "size-7 shrink-0 rounded-full bg-mdk-light-gray outline -outline-offset-1 outline-mdk-light-gray";
+
+/**
+ * Avatar + name: one link to the account's profile (new tab) when the platform gives a profile URL, otherwise plain.
+ * No underline, link color or background — only the pointer and the keyboard focus ring show it is a link.
+ */
+function AccountIdentity({ href, className, children }: { href?: string; className: string; children: ReactNode }) {
+  if (!href) return <div className={className}>{children}</div>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cx(className, "cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-mdk-charcoal")}
+    >
+      {children}
+    </a>
+  );
+}
 
 export function SocialPostModal({ post, onClose }: { post: SocialPost | null; onClose: () => void }) {
   const titleId = useId();
@@ -50,6 +83,9 @@ function PostPanel({ post, titleId, onClose }: { post: SocialPost; titleId: stri
   const date = formatSocialDate(post.publishedAt);
   const ratio = socialPostRatio(post);
   const darkMedia = post.media[0]?.type === "video";
+  // A broken or expired avatar URL falls back to the gray circle (the name link still works).
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const profileHref = socialProfileHref(post.account);
   // --mh: media height budget; --mw (set per breakpoint below): media width = height × ratio, capped by the viewport.
   const style = { "--r": ratio, "--mh": "min(680px, calc(100dvh - 32px))" } as CSSProperties;
 
@@ -74,17 +110,29 @@ function PostPanel({ post, titleId, onClose }: { post: SocialPost; titleId: stri
       {/* Account + X: top of the modal on mobile (stays visible while it scrolls); top of the info panel on desktop. */}
       <div className="sticky top-0 z-20 shrink-0 bg-mdk-white pt-3 pb-3 sm:px-1.5 lg:static lg:px-8 lg:col-start-2 lg:row-start-1 lg:pt-7 lg:pb-0">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {post.account.avatarUrl ? (
+          <AccountIdentity
+            href={profileHref}
+            className="flex min-w-0 items-center gap-2.5"
+          >
+            {post.account.avatarUrl && !avatarFailed ? (
               // eslint-disable-next-line @next/next/no-img-element -- platform CDN avatar, not optimizable
-              <img src={post.account.avatarUrl} alt="" width={28} height={28} className="size-7 shrink-0 rounded-full object-cover" />
+              <img
+                src={post.account.avatarUrl}
+                alt=""
+                width={28}
+                height={28}
+                onError={() => setAvatarFailed(true)}
+                className={cx(AVATAR, "object-cover")}
+              />
             ) : (
-              <span aria-hidden="true" className="size-7 shrink-0 rounded-full bg-mdk-light-gray" />
+              <span aria-hidden="true" className={AVATAR} />
             )}
             <h2 id={titleId} className="truncate text-mdk-label text-mdk-charcoal">
-              {platform} · {post.account.handle}
+              <span className="sr-only">{platform} </span>
+              {socialDisplayName(post.account.handle)}
+              {profileHref ? <span className="sr-only"> — profile (opens in a new tab)</span> : null}
             </h2>
-          </div>
+          </AccountIdentity>
           <CloseButton onClick={onClose} label="Close post" variant="bordered" />
         </div>
         <div className="mt-5 hidden h-px bg-mdk-light-gray lg:block" />
@@ -113,7 +161,18 @@ function PostPanel({ post, titleId, onClose }: { post: SocialPost; titleId: stri
           "lg:[&::-webkit-scrollbar-thumb]:rounded-l-[8px_6px] lg:[&::-webkit-scrollbar-thumb]:rounded-r-[3px_6px]",
         )}
       >
-        <p className="text-mdk-body whitespace-pre-line text-mdk-charcoal-muted [overflow-wrap:anywhere]">{post.caption}</p>
+        {/* Caption body in charcoal; #hashtags stay muted (display only — the caption text is unchanged). */}
+        <p className="text-mdk-body whitespace-pre-line text-mdk-charcoal [overflow-wrap:anywhere]">
+          {splitCaptionHashtags(post.caption).map((part, i) =>
+            part.hashtag ? (
+              <span key={i} className="text-mdk-charcoal-muted">
+                {part.text}
+              </span>
+            ) : (
+              part.text
+            ),
+          )}
+        </p>
         {date ? (
           <time dateTime={post.publishedAt} className="text-mdk-caption text-mdk-charcoal-muted">
             {date}

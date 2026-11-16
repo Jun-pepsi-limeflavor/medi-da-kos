@@ -257,9 +257,12 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 
 | 항목 | 내용 |
 |---|---|
-| dev | 피드 UI·Post Modal·카드 구현, 게시물은 서버 피드에서 받는 구조(현재 빈 목록). 개발 서버 `?socialTest=1` 테스트 게시물(운영 빌드 제외) |
-| 정할 것 | 토큰 발급·갱신 방법과 저장 위치(Secret), 캐시·갱신 주기 |
-| 배포 상태 | 미구현(1차 연동 예정). TikTok은 2차, 1차는 공식 계정 링크 |
+| dev | 피드 UI·Post Modal·카드 구현. 개발 서버 `?socialTest=1` 테스트 게시물(운영 빌드 제외) |
+| 연동 (2026-11-16, V1.1 로컬) | Meta 앱 `Medidakos Website`(비즈니스 포트폴리오 `Medi Da Kos`), Instagram API with **Unified Login**, `@medidakos`. 앱 대시보드 Generate token으로 발급한 시스템 사용자 토큰(OAuth 콜백 없음). Home 서버 컴포넌트가 `src/lib/social/instagram.ts`로 `graph.facebook.com/v27.0/<INSTAGRAM_USER_ID>/media` 최신 12개 조회 → `SocialPost` 변환. fetch·Home 페이지 모두 15분(900초) 재생성(2026-11-16 1시간에서 단축). 토큰·ID 없음·API/네트워크 오류 → 빈 목록(기존 빈 상태). 모달 상단 프로필 사진은 같은 토큰으로 `profile_picture_url` 조회(실패 시 회색 원). 계정명은 @ 없이 표시하고 사진·이름은 API `username`으로 만든 프로필 URL 링크(새 탭). 영상은 음소거 자동 재생(2026-11-16) |
+| 환경변수 (서버 전용) | `INSTAGRAM_ACCESS_TOKEN`(Sensitive), `INSTAGRAM_USER_ID`. 로컬 `.env.local`, Vercel `staging`·`Production`에만 등록(Preview·Development 없음). 값은 문서·Git에 기록하지 않음. 원본 토큰은 회사 암호 관리 도구 |
+| 토큰 관리 | 구성 만료 설정 '만료 없음'. 실제 토큰 만료는 **미확인**(시스템 사용자 토큰은 `debug_token` 조회 불가 → 앱 관리자로 Access Token Debugger에서 확인). 교체: 새 토큰 발급 → Vercel 두 환경 값 교체·재배포 → 기존 토큰 폐기 |
+| 알려진 한계 | API가 미디어 크기를 주지 않아 모달 비율 기본값(이미지 4:5, 단독 영상 9:16). 3:4 게시물은 좌우 여백이 약간 생김(잘림 없음). CDN 주소는 수일 뒤 만료(`oe`) → 15분 재생성으로 갱신 |
+| 배포 상태 | 코드: `feat/website-renewal-v1.1` 커밋(미푸시, 2026-11-16). 로컬 `localhost:3000` 실제 계정 검증 통과. Vercel 환경변수: staging·Production에 `INSTAGRAM_ACCESS_TOKEN`(Secret)·`INSTAGRAM_USER_ID` 등록 완료(2026-11-16, 사용자 등록·값 미기록) — 다음 배포부터 적용. TikTok은 2차, 1차는 공식 계정 링크 |
 
 ### C-8. Cookie Consent
 

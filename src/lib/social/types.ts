@@ -12,7 +12,28 @@ export type SocialImage = { type: "image"; src: string; alt: string; width: numb
 export type SocialVideo = { type: "video"; src: string; poster?: string; width: number; height: number; alt?: string };
 export type SocialMedia = SocialImage | SocialVideo;
 
-export type SocialAccount = { handle: string; avatarUrl?: string };
+/**
+ * `handle`: platform username as data (e.g. "@medidakos"); the modal shows it without "@".
+ * `profileUrl`: the account's profile page on the platform, set by the feed integration. Without it the modal
+ * shows the avatar and name as plain (non-link) content.
+ */
+export type SocialAccount = { handle: string; avatarUrl?: string; profileUrl?: string };
+
+/** Username as displayed in the modal header: the handle without a leading "@". */
+export function socialDisplayName(handle: string): string {
+  return handle.replace(/^@/, "");
+}
+
+/** The account profile URL if it is a usable https link, otherwise undefined (never guessed). */
+export function socialProfileHref(account: Pick<SocialAccount, "profileUrl">): string | undefined {
+  if (!account.profileUrl) return undefined;
+  try {
+    const url = new URL(account.profileUrl);
+    return url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type SocialPost = {
   /** Platform post ID (unique per platform). Cards and the modal are keyed by platform + id. */
@@ -62,6 +83,17 @@ export function socialPostRatio(post: Pick<SocialPost, "media">): number {
   const first = post.media[0];
   if (!first || first.width <= 0 || first.height <= 0) return 1;
   return Math.min(SOCIAL_RATIO_RANGE.max, Math.max(SOCIAL_RATIO_RANGE.min, first.width / first.height));
+}
+
+/**
+ * Caption split into plain text and #hashtags, in order, for display only (the caption itself is unchanged).
+ * Joining every `text` gives the original caption back.
+ */
+export function splitCaptionHashtags(caption: string): { text: string; hashtag: boolean }[] {
+  return caption
+    .split(/(#[\p{L}\p{N}_]+)/u)
+    .filter(Boolean)
+    .map((text) => ({ text, hashtag: /^#[\p{L}\p{N}_]+$/u.test(text) }));
 }
 
 /** Publish date as shown in the modal, e.g. "November 3, 2026" (UTC, so server and client agree). */

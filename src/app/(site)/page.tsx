@@ -3,6 +3,7 @@
 //   Next.js는 이동 시 Page 첫 요소 기준으로 스크롤하므로 다른 페이지에서 와도 항상 최상단에서 열린다.
 // - SEO metadata(제목·설명·canonical·Open Graph)는 기존 (marketing) Home 값을 그대로 유지
 // - Promotion 팝업(PromoPopup): 새 방문의 첫 페이지가 Home일 때 약 1초 뒤 방문당 1회 자동 표시
+// - On social: Instagram 최신 게시물을 서버에서 조회(lib/social/instagram, 15분 캐시). 미설정·오류면 빈 상태
 import type { Metadata } from "next";
 import { Certifications } from "@/components/home/Certifications";
 import { CtaBand } from "@/components/home/CtaBand";
@@ -15,6 +16,10 @@ import { WhyMedidakos } from "@/components/home/WhyMedidakos";
 import { PromoPopup } from "@/components/promo/PromoPopup";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { SITE_URL } from "@/lib/config/site";
+import { getInstagramPosts } from "@/lib/social/instagram";
+
+/** Regenerate every 15 minutes (same as the Instagram fetch) so a failed or missing feed at build time recovers without a redeploy. */
+export const revalidate = 900;
 
 export const metadata: Metadata = {
   title: "Korean Cosmetics OEM & ODM Manufacturing Platform for Global Brands",
@@ -41,7 +46,8 @@ export const metadata: Metadata = {
 };
 
 /** Figma: Home — Final Design (1440 · desktop) (234:5299), in on-canvas order. */
-export default function HomePage() {
+export default async function HomePage() {
+  const instagramPosts = await getInstagramPosts();
   return (
     <SiteShell>
       <HomeHero />
@@ -49,8 +55,8 @@ export default function HomePage() {
       <Certifications />
       <WhyMedidakos />
       <ProductCategories />
-      {/* Live posts arrive with the Instagram·TikTok feed integration; until then the section shows its empty state. */}
-      <SocialSection posts={[]} />
+      {/* Instagram posts from the server-side feed (TikTok: 2nd release). Empty list → the section's empty state. */}
+      <SocialSection posts={instagramPosts} />
       <Testimonials />
       <CtaBand />
       <PromoPopup />
