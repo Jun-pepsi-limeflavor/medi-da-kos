@@ -220,3 +220,53 @@ test("member-hash가 실패(503 등)하면 클라이언트는 해시 없이 회�
   assert.ok(!("memberHash" in option));
   assert.equal(ct.getChannelTalkUserId(), "ch-user-1", "boot는 진행된다");
 });
+
+// ---- 런처 표시 조건(2026-11-13): SDK 연결 성공 중에만 ready ----
+
+test("런처 ready: boot 성공 때 true, shutdown·재연결 중·boot 실패 때 false", async () => {
+  // The launcher store is shared by every client instance in this file; start from "not booted".
+  const { isChannelReady, setChannelReady } = await import("../../src/lib/channel-talk/launcher.ts");
+  setChannelReady(false);
+  stubFetch();
+  fakeChannel({ bootUser: { id: "anon-1" } });
+  const ct = await freshChannelTalk();
+  assert.equal(isChannelReady(), false, "before boot");
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  assert.equal(isChannelReady(), true, "after anonymous boot");
+
+  // Login: the SDK is shut down first (launcher hidden), then booted as the member (shown again).
+  const states: boolean[] = [];
+  const { ChannelIO } = (globalThis as unknown as { window: { ChannelIO: (m: string, ...a: unknown[]) => void } }).window;
+  (globalThis as unknown as { window: unknown }).window = {
+    ChannelIO: (method: string, ...args: unknown[]) => {
+      if (method === "shutdown" || method === "boot") states.push(isChannelReady());
+      ChannelIO(method, ...args);
+    },
+  };
+  await ct.bootChannelTalkAsMember("plugin-key", member, null, "id-token");
+  assert.deepEqual(states, [true, false], "ready while booted, false once shut down before the member boot");
+  assert.equal(isChannelReady(), true, "after member boot");
+
+  ct.shutdownChannelTalk();
+  assert.equal(isChannelReady(), false, "after logout shutdown");
+
+  fakeChannel({ bootError: new Error("blocked") });
+  const failed = await freshChannelTalk();
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    await failed.bootChannelTalkAsAnonymous("plugin-key", null);
+  } finally {
+    console.error = quiet;
+  }
+  assert.equal(isChannelReady(), false, "after a failed boot");
+});
+
+test("boot은 SDK 기본 버튼을 숨기고 customLauncherSelector는 넘기지 않는다(사이트 런처가 직접 열고 닫음)", async () => {
+  const channel = fakeChannel();
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const option = channel.of("boot")[0].args[0] as Record<string, unknown>;
+  assert.equal(option.hideChannelButtonOnBoot, true);
+  assert.ok(!("customLauncherSelector" in option));
+});

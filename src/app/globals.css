@@ -3,9 +3,19 @@
  * - Tailwind v4 진입점, 기존(레거시) 페이지의 색상·폰트 변수
  * - 리뉴얼용 MDK 토큰(@theme): 색상·모서리·타이포그래피와 `font-mdk` 폰트
  * - Announcement Bar 닫힘(탭 단위) 상태의 숨김 규칙
+ * - `phone:` 변형(2026-11-16): 터치 전용 + 짧은 변 600px 미만 = 휴대폰. Channel Talk SDK가 모바일 메신저를 쓰는 기기
+ *   (User-Agent의 device.type "mobile")를 CSS로 근사한다 — 폭만 줄인 데스크톱 브라우저·태블릿은 해당하지 않는다.
+ *   완전히 같지는 않다(휴대폰의 '데스크톱 사이트' 모드, 펼친 폴더블 등은 다르게 판정될 수 있음)
  */
 
 @import "tailwindcss";
+
+@custom-variant phone {
+  @media (pointer: coarse) and (hover: none) and (orientation: portrait) and (max-width: 599.98px),
+    (pointer: coarse) and (hover: none) and (orientation: landscape) and (max-height: 599.98px) {
+    @slot;
+  }
+}
 
 :root {
   --background: #f6fbff;
