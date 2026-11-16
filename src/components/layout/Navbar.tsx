@@ -87,7 +87,11 @@ export function Navbar() {
 
   return (
     <header
-      className="font-mdk sticky top-0 z-40 bg-mdk-white shadow-[inset_0_-1px_0_var(--color-mdk-light-gray)]"
+      className={cx(
+        "font-mdk sticky top-0 bg-mdk-white shadow-[inset_0_-1px_0_var(--color-mdk-light-gray)]",
+        // Open menu panel sits above the cookie banner (z-40); closed, the banner keeps covering the bar on short screens.
+        menuOpen ? "z-50" : "z-40",
+      )}
       onKeyDown={(event) => {
         if (event.key === "Escape" && menuOpen) {
           closeMenu();

@@ -55,7 +55,7 @@ export function CookieConsent() {
           <Link href={ROUTES.privacy} className={`${COOKIE_LINK_CLASS} self-start`}>
             Privacy Policy
           </Link>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="secondary" size="s" onClick={() => save(ALL_REJECTED)}>
               Reject Optional
             </Button>
