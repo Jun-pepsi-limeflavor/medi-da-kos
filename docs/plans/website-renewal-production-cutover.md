@@ -215,14 +215,15 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 | `/landing/catalog` | → `/portfolio` (308) | 확정 |
 | `/compare`, `/pricing` | → `/services` (308) | 확정 |
 | `/dashboard` 및 하위 경로(`/dashboard/orders`, `/dashboard/tracking` 등) | → `/contact` (307 임시) | 확정. V2.1 Dashboard 복구 때 이 리디렉션 제거 |
-| `/korea`, `/landing/korea`, `/landing/dashboard` | → `/contact` (307 임시) | **대표님 컨펌 대기 — 최종 목적지 미확정.** 콜드메일 링크가 404가 되지 않도록 임시로만 연결 |
+| `/korea`, `/landing/korea`, `/landing/dashboard` | → `/portfolio` (308) | 확정(2026-11-17) |
 | `/admin/*`, `/test` | 404 유지 | 확정 |
 
 체크
 - [ ] Google Ads·Meta 광고·콜드메일 템플릿의 최종 URL 목록 확인 후 변경
 - [ ] Google Ads 전환: `Contact 페이지 문의 제출 (GA4)`(`generate_lead`) 기본 전환 유지, `Dashboard 브리프 제출 (GA4)`(`conversion_event_submit_lead_form`, 리뉴얼에서 발생 안 함)은 보조 전환 변경·목표 제외 검토(마스터 문서 C-9)
 - [x] 리디렉션 정책 확정 → `next.config.ts`에 반영(`feat/website-renewal-v1.1`, 컨펌 대기 3개 제외)
-- [ ] `/korea`·`/landing/korea`·`/landing/dashboard` 최종 목적지 대표님 컨펌 후 반영
+- [x] `/korea`·`/landing/korea`·`/landing/dashboard` 최종 목적지 확정 → `/portfolio` 308 반영(2026-11-17, `tests/redirects/legacy-urls.test.ts`)
+- [ ] `medidakos.com`(apex)이 `www`로 이동하지 않고 200 응답(리뉴얼 전 운영에서도 동일, 2026-11-17 확인). Vercel 도메인 설정 확인 필요
 - [ ] 신규 `sitemap.xml`·`robots.txt` 확인, Search Console에 sitemap 재제출
 - [ ] Search Console에서 404 증가 모니터링(전환 후 2주)
 - [ ] 신규 favicon·Apple 아이콘·manifest 아이콘·OG·Twitter 이미지·JSON-LD 로고 적용 확인(정리 브랜치에서 기존 파일 전부 삭제됨)
