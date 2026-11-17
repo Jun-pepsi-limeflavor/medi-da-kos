@@ -1349,3 +1349,115 @@ test("로그인 회원의 Contact도 이미 있는 회원이면 PUT 없이 Desk 
   assert.equal(api.users.get(member.id).profile.description, "담당자 메모");
   assert.equal(api.users.get(member.id).profile.firstSource, "signup");
 });
+
+// ── Contact 브리프 첨부(2026-11): 내부대화 ■ 브리프의 Drive 폴더 링크 ──
+const BRIEF_FOLDER = "https://drive.google.com/drive/folders/folder-abc";
+const briefContact = {
+  ...contact,
+  formVersion: 2,
+  fullName: "Jane Doe",
+  country: "United States",
+  productCategory: "serum",
+  quantityPerSku: 5000,
+  targetMarkets: "US",
+  briefFiles: [
+    { name: "brief.pdf", size: 1200, contentType: "application/pdf" },
+    { name: "label.png", size: 3400, contentType: "image/png" },
+  ],
+};
+
+function noteOf(api, store, docId) {
+  const sync = syncOf(store, "contact", docId);
+  return api.chats.get(sync.userChatId).messages.find((m) => m.plainText).plainText;
+}
+
+test("브리프 Contact: 내부대화 단계에서 폴더 링크를 받아 ■ 브리프에 넣는다(문의 id로 한 번)", async () => {
+  const { api, store, deps } = setup({ sources: { contact: { k1: briefContact } } });
+  const asked = [];
+  deps.getBriefFolderUrl = async (contactId) => { asked.push(contactId); return BRIEF_FOLDER; };
+  const result = await processSubmission({ source: "contact", docId: "k1", data: briefContact, deps });
+  assert.deepEqual(result, { outcome: "success" });
+  assert.deepEqual(asked, ["k1"]);
+  const note = noteOf(api, store, "k1");
+  assert.ok(note.includes("브리프: 2개 (brief.pdf, label.png)"));
+  assert.ok(note.includes(`Drive 폴더: ${BRIEF_FOLDER}`));
+});
+
+test("브리프 Contact: 폴더가 아직 없으면(null) 링크 대신 안내로 내부대화를 그대로 만든다", async () => {
+  const { api, store, deps } = setup({ sources: { contact: { k2: briefContact } } });
+  deps.getBriefFolderUrl = async () => null;
+  assert.deepEqual(await processSubmission({ source: "contact", docId: "k2", data: briefContact, deps }), { outcome: "success" });
+  assert.ok(noteOf(api, store, "k2").includes("Drive 폴더: 폴더를 아직 만들지 못했습니다(Firestore contact 문서의 briefArchive 확인)"));
+  assert.equal(syncOf(store, "contact", "k2").status, "success");
+});
+
+test("브리프 Contact: 폴더 조회가 예외를 던져도 내부대화는 실패·재시도 없이 안내로 만든다", async () => {
+  const { api, store, deps } = setup({ sources: { contact: { k3: briefContact } } });
+  deps.getBriefFolderUrl = async () => { throw new Error("drive down"); };
+  assert.deepEqual(await processSubmission({ source: "contact", docId: "k3", data: briefContact, deps }), { outcome: "success" });
+  const sync = syncOf(store, "contact", "k3");
+  assert.equal(sync.nextRetryAt, null);
+  assert.ok(noteOf(api, store, "k3").includes("폴더를 아직 만들지 못했습니다"));
+});
+
+test("브리프 Contact: getBriefFolderUrl이 없는 실행(구성 누락)도 안내로 처리한다", async () => {
+  const { api, store, deps } = setup({ sources: { contact: { k4: briefContact } } });
+  assert.deepEqual(await processSubmission({ source: "contact", docId: "k4", data: briefContact, deps }), { outcome: "success" });
+  assert.ok(noteOf(api, store, "k4").includes("폴더를 아직 만들지 못했습니다"));
+});
+
+test("첨부 없는 Contact는 폴더를 묻지 않고 ■ 브리프도 없다", async () => {
+  const plain = { ...briefContact };
+  delete plain.briefFiles;
+  const { api, store, deps } = setup({ sources: { contact: { k5: plain } } });
+  let asked = 0;
+  deps.getBriefFolderUrl = async () => { asked += 1; return BRIEF_FOLDER; };
+  await processSubmission({ source: "contact", docId: "k5", data: plain, deps });
+  assert.equal(asked, 0);
+  assert.ok(!noteOf(api, store, "k5").includes("■ 브리프"));
+});
+
+test("브리프 Contact 재시도: 내부대화 전송이 실패했다가 재시도되면 링크가 들어간 내부대화를 한 번만 보낸다", async () => {
+  const { api, store, deps, now } = setup({ sources: { contact: { k6: briefContact } } });
+  let ready = false;
+  deps.getBriefFolderUrl = async () => (ready ? BRIEF_FOLDER : null);
+  api.failures.sendPrivateNote = () => Promise.reject(rejected());
+  await processSubmission({ source: "contact", docId: "k6", data: briefContact, deps });
+  assert.equal(syncOf(store, "contact", "k6").steps.note, "error");
+
+  delete api.failures.sendPrivateNote;
+  ready = true; // 그 사이 onContactCreated가 폴더를 만들었다
+  now.advance(10 * 60 * 1000);
+  await runRetryBatch({ deps });
+  const sync = syncOf(store, "contact", "k6");
+  assert.equal(sync.status, "success");
+  const notes = api.chats.get(sync.userChatId).messages.filter((m) => m.plainText);
+  assert.equal(notes.length, 1);
+  assert.ok(notes[0].plainText.includes(`Drive 폴더: ${BRIEF_FOLDER}`));
+
+  // 같은 이벤트가 다시 와도(Firebase 재전달) 내부대화를 다시 보내지 않는다
+  await processSubmission({ source: "contact", docId: "k6", data: briefContact, deps });
+  assert.equal(api.chats.get(sync.userChatId).messages.filter((m) => m.plainText).length, 1);
+});
+
+test("브리프가 있어도 일반 isTest 문의는 skipped — 폴더를 묻지 않고 Channel Talk을 부르지 않는다", async () => {
+  const { api, store, deps } = setup();
+  let asked = 0;
+  deps.getBriefFolderUrl = async () => { asked += 1; return BRIEF_FOLDER; };
+  const result = await processSubmission({ source: "contact", docId: "k7", data: { ...briefContact, isTest: true }, deps });
+  assert.deepEqual(result, { outcome: "skip" });
+  assert.equal(syncOf(store, "contact", "k7").status, "skipped");
+  assert.equal(syncOf(store, "contact", "k7").skipReason, "is_test");
+  assert.equal(asked, 0);
+  assert.equal(api.calls.length, 0);
+});
+
+test("브리프가 있는 허용 테스트 이메일(+chtest@techasset.co.kr)은 [TEST]로 연동하고 링크를 넣는다", async () => {
+  const data = { ...briefContact, isTest: true, email: "qa+chtest@techasset.co.kr" };
+  const { api, store, deps } = setup({ sources: { contact: { k8: data } } });
+  deps.getBriefFolderUrl = async () => BRIEF_FOLDER;
+  assert.deepEqual(await processSubmission({ source: "contact", docId: "k8", data, deps }), { outcome: "success" });
+  const note = noteOf(api, store, "k8");
+  assert.ok(note.startsWith("[TEST] [Contact 문의]"));
+  assert.ok(note.includes(`Drive 폴더: ${BRIEF_FOLDER}`));
+});

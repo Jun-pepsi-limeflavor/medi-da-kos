@@ -76,6 +76,23 @@ function describeError(step, error) {
   return `${step}: internal_error`;
 }
 
+/**
+ * Drive folder link of a Contact inquiry with brief attachments, for the internal note (■ 브리프).
+ * deps.getBriefFolderUrl is the same function the admin mail uses (functions/drive/triggers.js): it returns the
+ * existing folder or creates it once (shared claim with onContactCreated / onContactBriefUploaded, so no duplicate
+ * folder), waits briefly while another function is creating it, and returns null if it cannot get one now.
+ * Any failure here gives null: the note is still sent, with the "check briefArchive" wording instead of the link.
+ */
+async function resolveBriefFolderUrl(deps, docId, data) {
+  if (!Array.isArray(data.briefFiles) || data.briefFiles.length === 0) return undefined;
+  if (typeof deps.getBriefFolderUrl !== "function") return null;
+  try {
+    return await deps.getBriefFolderUrl(docId);
+  } catch {
+    return null;
+  }
+}
+
 async function loadContext(source, docId, data, store) {
   if (source === "users") return { uid: docId, email: data.email || "", user: data };
   if (source === "orders") {
@@ -325,6 +342,7 @@ async function processSubmission({ source, docId, data: given, deps }) {
 
     async note() {
       const position = source === "orders" ? await orderPosition(store, ctx.uid, docId) : {};
+      const briefFolderUrl = source === "contact" ? await resolveBriefFolderUrl(deps, docId, data) : undefined;
       const notes = buildNotes(
         {
           kind: source,
@@ -337,6 +355,7 @@ async function processSubmission({ source, docId, data: given, deps }) {
           orderIndex: position.orderIndex,
           orderId: docId,
           user: ctx.user,
+          briefFolderUrl,
         },
         { maxLength: config.noteMaxLength },
       );
