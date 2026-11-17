@@ -6,6 +6,7 @@ const { defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { queueAndSendEmail } = require("./gmail-notify");
 const { buildContactAdminEmail } = require("./contact-email");
+const { getBriefFolderUrl, onContactBriefUploaded } = require("./drive/triggers");
 const { buildSignupAdminEmail } = require("./signup-email");
 const { buildMemberWelcomeEmail, getFirstName } = require("./welcome-email");
 
@@ -82,12 +83,18 @@ exports.onContactCreated = onDocumentCreated("contact/{contactId}", async (event
   const contact = snap.data();
   const contactId = event.params.contactId;
   const submittedAt = formatKoDate();
+  // Brief attached: make its Drive folder first so the mail can link it (null if Drive failed — mail still goes out).
+  const hasBrief = Array.isArray(contact.briefFiles) && contact.briefFiles.length > 0;
+  const briefFolderUrl = hasBrief ? await getBriefFolderUrl(contactId) : undefined;
 
   await queueEmail(`contact_admin_${contactId}`, {
     to: getAdminEmails(),
-    message: buildContactAdminEmail({ contactId, contact, submittedAt }),
+    message: buildContactAdminEmail({ contactId, contact, submittedAt, briefFolderUrl }),
   });
 });
+
+// Contact 브리프 Storage → Google 공유 드라이브 (functions/drive/triggers.js).
+exports.onContactBriefUploaded = onContactBriefUploaded;
 
 // Channel Talk 웹 접수 연동 — 기존 함수와 별개로 같은 문서 이벤트에 반응한다 (functions/channeltalk/triggers.js).
 Object.assign(exports, require("./channeltalk/triggers"));

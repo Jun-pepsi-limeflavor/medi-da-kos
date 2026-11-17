@@ -6,6 +6,7 @@
  * 관리자 수신함에 임의 HTML(링크·이미지·가짜 안내문)을 심을 수 있으므로 모두 이스케이프한다.
  * 제목은 HTML이 아니므로 이스케이프하지 않는다(줄바꿈은 gmail-notify가 막는다).
  * 리뉴얼 Contact(formVersion 2, 2026-11)는 새 항목을 보여 주고, 기존 문서는 예전 양식 그대로 만든다.
+ * 브리프 첨부(briefFiles)가 있으면 파일 이름과 Drive 폴더 링크(briefFolderUrl, drive.google.com만)를 덧붙인다.
  */
 
 const { escapeHtml, escapeOrDash: field } = require("./html-escape");
@@ -14,7 +15,21 @@ function quantityText(value) {
   return typeof value === "number" && Number.isFinite(value) ? `${value.toLocaleString("en-US")}개` : field(value);
 }
 
-function buildContactAdminEmailV2({ contactId, contact, submittedAt, utm }) {
+/** Brief rows (only when files were attached): names, and the Drive folder link or where to check instead. */
+function briefRows(contact, briefFolderUrl) {
+  const files = Array.isArray(contact.briefFiles) ? contact.briefFiles : [];
+  if (!files.length) return "";
+  const names = files.map((f) => escapeHtml(f?.name ?? "-")).join(", ");
+  const folder =
+    typeof briefFolderUrl === "string" && /^https:\/\/drive\.google\.com\//.test(briefFolderUrl)
+      ? `<a href="${escapeHtml(briefFolderUrl)}">${escapeHtml(briefFolderUrl)}</a>`
+      : "폴더를 아직 만들지 못했습니다(Firestore contact 문서의 briefArchive 확인)";
+  return `
+          <p><strong>브리프:</strong> ${files.length}개 (${names})</p>
+          <p><strong>Drive 폴더:</strong> ${folder}</p>`;
+}
+
+function buildContactAdminEmailV2({ contactId, contact, submittedAt, utm, briefFolderUrl }) {
   const legacyRows = [
     contact.referralSource && `<p><strong>유입 경로:</strong> ${field(contact.referralSource)}</p>`,
     contact.businessType && `<p><strong>비즈니스 유형:</strong> ${field(contact.businessType)}</p>`,
@@ -39,7 +54,7 @@ function buildContactAdminEmailV2({ contactId, contact, submittedAt, utm }) {
           <p><strong>회원 여부:</strong> ${contact.uid ? "회원" : "비회원"}</p>
           <p><strong>UTM:</strong> ${utm}</p>
           <p><strong>문의 내용:</strong></p>
-          <pre style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px">${field(contact.message)}</pre>
+          <pre style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px">${field(contact.message)}</pre>${briefRows(contact, briefFolderUrl)}
           <p><strong>페이지 URL:</strong> ${field(contact.pageUrl)}</p>
           <p><strong>접수 시각:</strong> ${escapeHtml(submittedAt)}</p>
           <p><strong>문서 ID:</strong> ${escapeHtml(contactId)}</p>
@@ -47,7 +62,7 @@ function buildContactAdminEmailV2({ contactId, contact, submittedAt, utm }) {
   };
 }
 
-function buildContactAdminEmail({ contactId, contact, submittedAt }) {
+function buildContactAdminEmail({ contactId, contact, submittedAt, briefFolderUrl }) {
   const utmParts = [
     contact.utmSource && `source=${contact.utmSource}`,
     contact.utmMedium && `medium=${contact.utmMedium}`,
@@ -56,7 +71,7 @@ function buildContactAdminEmail({ contactId, contact, submittedAt }) {
 
   if (contact.formVersion === 2) {
     const utm = utmParts.length ? escapeHtml(utmParts.join(", ")) : "-";
-    return buildContactAdminEmailV2({ contactId, contact, submittedAt, utm });
+    return buildContactAdminEmailV2({ contactId, contact, submittedAt, utm, briefFolderUrl });
   }
 
   return {

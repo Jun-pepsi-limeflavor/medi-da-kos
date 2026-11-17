@@ -79,7 +79,7 @@ API 키, Secret 값, 고객 개인정보를 터미널 출력이나 문서에 기
 | `CHANNELTALK_LAST_CONTACT_MODE` | `on` | `off`(아무것도 안 함) · `observe`(판정만 로그) · `on`(쓰기) |
 | `CHANNELTALK_LAST_CONTACT_ALLOW_USER_IDS` | `*` | `""`(쓰기 없음) · `*`(전체 고객) · 쉼표 구분 고객 id |
 
-- `functions/.env.medidakos`(추적 안 함)에는 이 두 키를 넣지 않는다. 넣으면 저장소 값보다 우선해 사람마다 배포 결과가 달라진다.
+- 프로젝트별 파일 `functions/.env.medidakos`·`functions/.env.dev-medidakos-b9b4f`(2026-11-17부터 Git 추적, 배포된 값 기준으로 같은 키·순서)에는 이 두 키를 넣지 않는다. 넣으면 `functions/.env`보다 우선해 운영값이 두 곳으로 나뉜다.
 - 에뮬레이터·로컬 실험은 `functions/.env.local`(추적 안 함)에 `CHANNELTALK_LAST_CONTACT_MODE=off`를 둔다. 에뮬레이터에는 웹훅 토큰 Secret이 없어 인증이 모두 거부되므로, 실수로 켜도 고객 정보는 바뀌지 않는다.
 - 운영을 잠시 멈추려면 `MODE=observe`로 바꿔 커밋하고 이 함수만 다시 배포한다. 이상이 감지돼 멈춘 경우의 확인·해제는 `node functions/scripts/channeltalk-last-contact-control.mjs`(관리자 수동 해제만 가능)로 한다.
 - 배포 전 점검 스크립트는 다음 경우 실패한다.
@@ -114,6 +114,16 @@ dry-run은 실제 함수를 배포하지 않지만 프로젝트의 API를 활성
 
 dry-run 성공만으로 운영 배포의 안전성이 보장되지는 않는다.
 
+### 4-1. Contact 브리프 (2026-11 추가)
+
+새 함수 `onContactBriefUploaded`(Storage 트리거)와 `onContactCreated`(Drive 폴더 링크 메일)를 함께 배포한다. 규칙 → 함수 → 웹 순서를 지킨다. 설정·권한·확인 방법은 [Contact 브리프 → Google 공유 드라이브](../integrations/google-drive-briefs.md).
+
+`firebase deploy --project <PROJECT_ID> --only firestore:rules,storage`
+
+`firebase deploy --project <PROJECT_ID> --only functions:default:onContactCreated,functions:default:onContactBriefUploaded`
+
+배포 전에 운영 규칙이 main과 같은지 비교한다(다르면 main에 없는 규칙이 사라진다). Storage 규칙 첫 배포 때 교차 서비스 IAM 역할 부여를 묻으면 Y.
+
 ## 5. Node.js 22 운영 배포 절차
 
 1. main 병합과 대상 커밋을 확인한다.
@@ -140,6 +150,7 @@ dry-run 성공만으로 운영 배포의 안전성이 보장되지는 않는다.
 - [ ] 기존 운영 함수가 누락되지 않음
 - [ ] 승인되지 않은 신규 함수가 생성되지 않음
 - [ ] Firestore 신규 문의 → Channel Talk 연동 정상
+- [ ] (브리프 배포 시) 첨부 문의 → Drive 폴더·파일, `briefArchive.status`, 임시 파일 삭제, 관리자 메일 폴더 링크
 - [ ] 대시보드 주문 → Channel Talk 연동 정상
 - [ ] Channel Talk 재시도 스케줄 정상
 - [ ] lastContactAt 웹훅: 설정 점검(`--compare-deployed`)이 통과하고, 로그(`channelTalkLastContact`)에 `alert`·`halt_check_failed`가 없음

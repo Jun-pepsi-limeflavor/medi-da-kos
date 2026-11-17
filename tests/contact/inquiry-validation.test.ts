@@ -60,7 +60,7 @@ test("a form with only the required fields filled has no errors", () => {
   assert.deepEqual(Object.keys(v.validateInquiry({ ...values, fullName: "" })), ["fullName"]);
 });
 
-test("brief files: allowed types, 10 MiB each, max 3, no duplicates", () => {
+test("brief files: allowed types, 50 MiB each, max 3, no duplicates", () => {
   const file = (name: string, size = 1000, lastModified = 1) => ({ name, size, lastModified });
   const four = ["a.pdf", "b.DOCX", "c.xlsx", "d.png"].map((n) => file(n));
   let r = v.addBriefFiles([], four);
@@ -71,7 +71,7 @@ test("brief files: allowed types, 10 MiB each, max 3, no duplicates", () => {
   assert.deepEqual(r.files.map((f) => f.name), ["y.jpeg"]);
   assert.equal(r.error, v.BRIEF_FILE_MESSAGES.type);
 
-  r = v.addBriefFiles([], [file("big.pptx", 10 * 1024 * 1024 + 1), file("ok.pptx", 10 * 1024 * 1024)]);
+  r = v.addBriefFiles([], [file("big.pptx", 50 * 1024 * 1024 + 1), file("ok.pptx", 50 * 1024 * 1024)]);
   assert.deepEqual(r.files.map((f) => f.name), ["ok.pptx"]);
   assert.equal(r.error, v.BRIEF_FILE_MESSAGES.size);
 
@@ -79,6 +79,30 @@ test("brief files: allowed types, 10 MiB each, max 3, no duplicates", () => {
   r = v.addBriefFiles([one], [file("brief.pdf")]);
   assert.equal(r.files.length, 1);
   assert.equal(r.error, v.BRIEF_FILE_MESSAGES.duplicate);
+
+  // Rules require size > 0.
+  r = v.addBriefFiles([], [file("empty.pdf", 0), file("ok.pdf")]);
+  assert.deepEqual(r.files.map((f) => f.name), ["ok.pdf"]);
+  assert.equal(r.error, v.BRIEF_FILE_MESSAGES.empty);
+});
+
+test("brief file declaration: content type from the extension, rules-sized name", () => {
+  const types: Record<string, string> = {
+    "a.pdf": "application/pdf",
+    "b.DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "c.xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "d.pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "e.JPG": "image/jpeg",
+    "f.jpeg": "image/jpeg",
+    "g.png": "image/png",
+  };
+  for (const [name, contentType] of Object.entries(types)) {
+    assert.deepEqual(v.toBriefFileMeta({ name, size: 10 }), { name, size: 10, contentType }, name);
+  }
+  // Names over 200 characters are cut but keep their extension.
+  const long = v.toBriefFileMeta({ name: `${"가".repeat(300)}.pptx`, size: 1 });
+  assert.equal(long.name.length, 200);
+  assert.ok(long.name.endsWith(".pptx"));
 });
 
 test("form notice follows the current field errors", () => {

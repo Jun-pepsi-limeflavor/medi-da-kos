@@ -202,7 +202,7 @@ test("브리프: 1~3개 선언과 허용 형식 6종을 받는다", async () => 
   }));
   await assertSucceeds(addDoc(anon(env), {
     ...v2(),
-    briefFiles: [brief({ name: "x.jpg", contentType: "image/jpeg" }), brief({ name: "y.png", contentType: "image/png", size: 10485760 })],
+    briefFiles: [brief({ name: "x.jpg", contentType: "image/jpeg" }), brief({ name: "y.png", contentType: "image/png", size: 52428800 })],
   }));
 });
 
@@ -216,7 +216,7 @@ test("브리프: 빈 목록·4개 이상·목록이 아닌 값을 거부한다",
 test("브리프: 크기·형식·이름·필드가 규칙을 벗어나면 거부한다(어느 위치든)", async () => {
   const env = await getTestEnv();
   const bad = [
-    brief({ size: 10485761 }),
+    brief({ size: 52428801 }),
     brief({ size: 0 }),
     brief({ size: 1.5 }),
     brief({ size: "100" }),
