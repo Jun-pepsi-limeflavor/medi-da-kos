@@ -12,7 +12,7 @@
     "start:local": "node scripts/local-firebase.mjs start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "firebase emulators:exec --only firestore --project demo-medidakos 'out=$(node --test 2>&1); ec=$?; printf \"%s\\n\" \"$out\"; [ $ec -ne 0 ] && exit $ec; printf \"%s\\n\" \"$out\" | grep -qE \"tests [1-9]\" || { echo \"NO TESTS DISCOVERED\" >&2; exit 1; }'",
+    "test": "firebase emulators:exec --only firestore,storage --project demo-medidakos 'out=$(node --test 2>&1); ec=$?; printf \"%s\\n\" \"$out\"; [ $ec -ne 0 ] && exit $ec; printf \"%s\\n\" \"$out\" | grep -qE \"tests [1-9]\" || { echo \"NO TESTS DISCOVERED\" >&2; exit 1; }'",
     "test:rules": "JAVA_HOME=/private/tmp/medidakos-jdk21-runtime/jdk-21.0.12.1+1/Contents/Home firebase emulators:exec --only firestore \"node --test tests/rules/landing-requests.test.ts\""
   },
   "dependencies": {

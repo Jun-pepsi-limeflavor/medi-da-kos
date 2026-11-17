@@ -183,3 +183,62 @@ test("기존 형식으로 리뉴얼 검사를 우회할 수 없다", async () =>
   // 기존 형식은 여전히 Message가 필수다(운영 폼 그대로)
   await assertFails(addDoc(anon(env), { ...valid, message: "" }));
 });
+
+// ---------- 리뉴얼 Contact 브리프 첨부 선언 (briefFiles, 2026-11) ----------
+
+const PDF = "application/pdf";
+const brief = (over = {}) => ({ name: "brief.pdf", size: 2097152, contentType: PDF, ...over });
+
+test("브리프: 1~3개 선언과 허용 형식 6종을 받는다", async () => {
+  const env = await getTestEnv();
+  await assertSucceeds(addDoc(anon(env), { ...v2(), briefFiles: [brief()] }));
+  await assertSucceeds(addDoc(anon(env), {
+    ...v2(),
+    briefFiles: [
+      brief({ name: "a.docx", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
+      brief({ name: "b.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+      brief({ name: "c.pptx", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }),
+    ],
+  }));
+  await assertSucceeds(addDoc(anon(env), {
+    ...v2(),
+    briefFiles: [brief({ name: "x.jpg", contentType: "image/jpeg" }), brief({ name: "y.png", contentType: "image/png", size: 10485760 })],
+  }));
+});
+
+test("브리프: 빈 목록·4개 이상·목록이 아닌 값을 거부한다", async () => {
+  const env = await getTestEnv();
+  await assertFails(addDoc(anon(env), { ...v2(), briefFiles: [] }));
+  await assertFails(addDoc(anon(env), { ...v2(), briefFiles: [brief(), brief(), brief(), brief()] }));
+  await assertFails(addDoc(anon(env), { ...v2(), briefFiles: brief() }));
+});
+
+test("브리프: 크기·형식·이름·필드가 규칙을 벗어나면 거부한다(어느 위치든)", async () => {
+  const env = await getTestEnv();
+  const bad = [
+    brief({ size: 10485761 }),
+    brief({ size: 0 }),
+    brief({ size: 1.5 }),
+    brief({ size: "100" }),
+    brief({ contentType: "application/zip" }),
+    brief({ contentType: "text/html" }),
+    brief({ name: "" }),
+    brief({ name: "x".repeat(201) }),
+    brief({ url: "https://evil.example" }),
+    { name: "brief.pdf", size: 100 },
+  ];
+  for (const b of bad) {
+    await assertFails(addDoc(anon(env), { ...v2(), briefFiles: [b] }));
+    await assertFails(addDoc(anon(env), { ...v2(), briefFiles: [brief(), brief(), b] }));
+  }
+});
+
+test("브리프: 기존 형식 문의에는 briefFiles를 넣을 수 없다", async () => {
+  const env = await getTestEnv();
+  await assertFails(addDoc(anon(env), { ...valid, briefFiles: [brief()] }));
+});
+
+test("브리프: 클라이언트가 서버 전용 briefArchive를 쓸 수 없다", async () => {
+  const env = await getTestEnv();
+  await assertFails(addDoc(anon(env), { ...v2(), briefFiles: [brief()], briefArchive: { status: "completed" } }));
+});
