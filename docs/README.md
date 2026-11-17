@@ -33,7 +33,7 @@ src/
     channel-talk/         Channel Talk 위젯 boot
   hooks/                  use-utm-params
   lib/
-    firebase/             client(웹 SDK), admin(Admin SDK, 서버 전용), firestore-service(회원·Contact 저장), sanitize
+    firebase/             client(웹 SDK), admin(Admin SDK, 서버 전용), firestore-service(회원·Contact 저장), storage-service(Contact 브리프 업로드), sanitize
     channel-talk/         client(위젯 SDK), intake(제출 문서 식별 필드), member-hash(서버)
     analytics/            events(GA4·Meta 전환 이벤트), meta-pixel, ga-client-id
     auth/                 auth-context(Firebase Auth), mock-auth(로컬 mock 로그인)
@@ -42,8 +42,9 @@ src/
     utils/                env-flags(운영/테스트 환경 판정)
     types.ts              UserProfile, ContactSubmission
 functions/
-  index.js                onUserSignup, onContactCreated + Channel Talk 함수 export
+  index.js                onUserSignup, onContactCreated, onContactBriefUploaded + Channel Talk 함수 export
   gmail-notify.js         관리자·회원 메일 발송 큐
+  drive/                  Contact 브리프 → Google 공유 드라이브(이름 규칙·Drive REST·보관 처리·Storage 트리거)
   channeltalk/            Channel Talk 접수 연동(트리거·재시도·내부 대화·lastContactAt·V2 이전 도구)
   scripts/                Channel Talk 운영 스크립트(수동 실행)
   test/                   Functions 단위 테스트
@@ -52,7 +53,7 @@ tests/
   esm-alias-loader.mjs    테스트용 "@/" 별칭 리졸버
 docs/
   operations/             운영·배포 (Functions 배포 가이드, 컬렉션·메일, dev → 운영 전환 마스터 문서)
-  integrations/           외부 연동 (Channel Talk V2, Meta Pixel)
+  integrations/           외부 연동 (Channel Talk V2, Meta Pixel, Contact 브리프 Google Drive)
   plans/                  설계·계획 (운영 전환 체크리스트 포함)
 ```
 
@@ -61,7 +62,7 @@ docs/
 | 기능 | 웹 | 서버 |
 |---|---|---|
 | 로그인·회원가입 | `components/auth`, `lib/auth`, `lib/firebase/firestore-service.ts` | `onUserSignup`, `channelTalkOnUserCreated` |
-| Contact 문의 | `components/contact`, `lib/firebase/firestore-service.ts`, `lib/channel-talk/intake.ts` | `onContactCreated`(관리자 메일), `channelTalkOnContactCreated`(상담·내부 대화), `channelTalkRetry` |
+| Contact 문의 | `components/contact`, `lib/firebase/firestore-service.ts`, `lib/firebase/storage-service.ts`, `lib/channel-talk/intake.ts` | `onContactCreated`(관리자 메일·브리프 폴더 링크), `onContactBriefUploaded`(브리프 → Drive, [문서](integrations/google-drive-briefs.md)), `channelTalkOnContactCreated`(상담·내부 대화), `channelTalkRetry` |
 | Channel Talk 위젯 | `components/channel-talk`, `lib/channel-talk/client.ts`, `app/api/channel-talk` | `channelTalkLastContactWebhook` |
 | GA4·Meta Pixel | `components/analytics`, `lib/analytics` | — |
 | KakaoWork Git 알림 | `.github/workflows`, `.github/scripts` | — |
@@ -99,7 +100,6 @@ docs/
 
 구현 전 확인 필요(디자인에 정보 없음)
 - Privacy Policy·Terms·Sign Up의 URL
-- Contact 폼의 새 필드(선택 항목, Brief 파일 업로드)는 Firestore `contact` 규칙·Storage 규칙·Channel Talk 내부 대화 양식 변경이 필요하다. 데이터 모양과 규칙안을 먼저 승인받는다.
 - 쿠키 동의 도입 시 GA4·Meta Pixel 로드 조건(동의 전 미로드)을 함께 정한다.
 - 카테고리 이름·개수가 화면마다 다르다. Home 타일은 Facial care, Cleansing, Mask/Pad, Sun care, Body care, Hair care, Makeup이고, Portfolio 필터 칩은 All, Skincare, Cleanser, Mask, Sun Care, Lip Care, Body Care, Hair Care(프레임 이름은 "All + 11 categories")다. 제품·카테고리 데이터 기준을 먼저 정한다.
 

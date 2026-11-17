@@ -80,10 +80,42 @@ service cloud.firestore {
         && validLandingOptionalString('userAgent', 1000);
     }
 
+    // briefFiles: 리뉴얼 Contact 첨부 선언(선택, 1~3개). 파일 내용은 Storage contact-briefs/{id}/{index}로 따로 올라오고
+    // storage.rules가 이 목록과 크기·형식을 대조한다. 서버(Functions)가 Drive로 옮긴 뒤 briefArchive를 기록한다.
+    // 'size'는 map의 size()와 헷갈리지 않게 대괄호로 읽는다.
+    function validBriefFile(f) {
+      return f is map
+        && f.keys().hasAll(['name', 'size', 'contentType'])
+        && f.keys().hasOnly(['name', 'size', 'contentType'])
+        && validLandingString(f['name'], 200)
+        && f['size'] is int
+        && f['size'] > 0
+        && f['size'] <= 52428800
+        && f['contentType'] in [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'image/jpeg',
+          'image/png'
+        ];
+    }
+
+    function validBriefFiles(data) {
+      return !('briefFiles' in data)
+        || (data.briefFiles is list
+          && data.briefFiles.size() >= 1
+          && data.briefFiles.size() <= 3
+          && validBriefFile(data.briefFiles[0])
+          && (data.briefFiles.size() < 2 || validBriefFile(data.briefFiles[1]))
+          && (data.briefFiles.size() < 3 || validBriefFile(data.briefFiles[2])));
+    }
+
     function validContactV2() {
       let data = request.resource.data;
       return data.keys().hasAll(['formVersion', 'fullName', 'email', 'companyName', 'country', 'productCategory', 'quantityPerSku', 'targetMarkets', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
-        && data.keys().hasOnly(['formVersion', 'fullName', 'email', 'companyName', 'country', 'productCategory', 'quantityPerSku', 'targetMarkets', 'website', 'launchDate', 'message', 'promoInterest', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'uid', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+        && data.keys().hasOnly(['formVersion', 'fullName', 'email', 'companyName', 'country', 'productCategory', 'quantityPerSku', 'targetMarkets', 'website', 'launchDate', 'message', 'promoInterest', 'briefFiles', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'uid', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
+        && validBriefFiles(data)
         && data.formVersion == 2
         && validLandingString(data.fullName, 100)
         && validLandingString(data.email, 254)

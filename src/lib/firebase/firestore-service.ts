@@ -2,7 +2,8 @@
 
 // Firestore 쓰기(브라우저): users/{uid} 회원 프로필 저장(saveUserProfile)·contact 문의 저장.
 // - submitContactForm: 기존 운영 Contact 형식(formVersion 없음) — 그대로 유지
-// - submitInquiry: 리뉴얼 Contact(formVersion 2, 2026-11). 필드·길이는 firestore.rules의 validContactV2와 맞춘다
+// - submitInquiry: 리뉴얼 Contact(formVersion 2, 2026-11). 필드·길이는 firestore.rules의 validContactV2와 맞춘다.
+//   첨부 선언(briefFiles)도 함께 저장하고, 파일 업로드는 storage-service가 반환된 id로 한다(2026-11-17)
 // - 저장 값은 user-profile-write가 만든다. 기존 문서가 있으면 빈 값으로 덮어쓰지 않는다(2026-11-12)
 // - Mock 모드에서는 아무것도 저장하지 않는다
 import {
@@ -92,7 +93,12 @@ export type InquiryFields = {
   message?: string;
   /** Promotion interest checkbox, only while the promotion runs. */
   promoInterest?: boolean;
+  /** Attached brief files (1–3), declared here; the bytes go to Storage contact-briefs/{id}/{index} afterwards. */
+  briefFiles?: BriefFileMeta[];
 };
+
+/** One `briefFiles` entry — must match firestore.rules validBriefFile and the later Storage upload. */
+export type BriefFileMeta = { name: string; size: number; contentType: string };
 
 export type InquiryPayload = InquiryFields & {
   utmSource?: string;
@@ -119,9 +125,11 @@ function clip(value: string | undefined, max: number): string | undefined {
  * Saves a renewal Contact inquiry to `contact` (formVersion 2). The existing Functions pick it up from there:
  * admin notification mail (onContactCreated) and Channel Talk chat + internal note (channelTalkOnContactCreated).
  * Mock mode logs and saves nothing and returns `saved: false` (conversion events are only sent for `saved: true`).
+ * The id is created before the write (doc()) so it is known even if the write's response is lost;
+ * brief uploads use it as their Storage folder.
  */
 export async function submitInquiry(data: InquiryPayload): Promise<{ id: string; saved: boolean }> {
-  const doc = {
+  const record = {
     ...data,
     utmSource: clip(data.utmSource, 200),
     utmMedium: clip(data.utmMedium, 200),
@@ -139,13 +147,11 @@ export async function submitInquiry(data: InquiryPayload): Promise<{ id: string;
 
   if (isMockAuth()) {
     const id = `mock-inquiry-${Date.now()}`;
-    console.info("[mock] contact inquiry (formVersion 2) — not saved", { id, ...doc });
+    console.info("[mock] contact inquiry (formVersion 2) — not saved", { id, ...record });
     return { id, saved: false };
   }
 
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "contact"),
-    stripUndefined({ ...doc, serverCreatedAt: serverTimestamp() }),
-  );
+  const ref = doc(collection(getFirebaseDb(), "contact"));
+  await setDoc(ref, stripUndefined({ ...record, serverCreatedAt: serverTimestamp() }));
   return { id: ref.id, saved: true };
 }

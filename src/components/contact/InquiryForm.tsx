@@ -24,8 +24,10 @@
 //   (form_id contact-page · lead_type inquiry · UTM)와 Meta Lead(content_name contact-page). 이벤트 오류는 완료 화면에 영향 없음.
 //   실제 Firestore 저장(saved: true)일 때만 보낸다 — Mock 제출은 전환 이벤트를 보내지 않는다(trackContactLead)
 //   gaClientId도 기존처럼 저장(GA 미설정·조회 실패면 생략, 최대 2.5초 대기). 새 이벤트·매개변수는 추가하지 않는다
-// - 브리프 첨부(BriefUpload): Figma UI 그대로 다시 표시(2026-11-13, Google Drive 연동 준비). 저장소 미연결 —
-//   선택한 파일은 브라우저 안에만 있고 제출되지 않는다(files는 submitInquiry로 전달하지 않음). 업로드 연동은 별도 작업
+// - 브리프 첨부(2026-11-17): 문의 저장 때 briefFiles(이름·크기·형식) 선언을 함께 넣고, 저장 성공 후 같은 id로
+//   Storage contact-briefs/{id}/{index}에 업로드(파일별 진행률 표시, 제출 중 추가·삭제 잠금). Functions가 Google Drive로 옮긴다.
+//   업로드는 문의 저장 뒤라, 일부·전부 실패해도 문의는 접수 완료 — 완료 화면에 실패 파일과 이메일 안내를 함께 보여 준다
+//   (다시 제출하면 문의가 중복되므로 재시도 버튼은 두지 않음)
 // - 제출 성공 후: 완료 메시지가 렌더링된 뒤 그 위치(Navbar 72 + 24px 아래)로 한 번 스크롤하고(동작 줄이기 설정이면 즉시),
 //   완료 메시지(tabIndex -1)로 포커스를 옮긴다(추가 스크롤 없음). 검증·저장 실패 시에는 이동하지 않는다
 // - Message 입력칸: 테두리를 inset 그림자 대신 실제 border로 그려 스크롤바가 테두리 안쪽에 오게 하고,
@@ -34,12 +36,13 @@
 //   테두리+여백 합은 기존과 같은 18px·16px
 import Image from "next/image";
 import { useEffect, useId, useRef, useState, type FocusEvent, type FormEvent } from "react";
-import { BriefUpload } from "@/components/contact/BriefUpload";
+import { BriefUpload, type BriefFileStatus } from "@/components/contact/BriefUpload";
 import {
   INQUIRY_FIELDS,
   OPTIONAL_FIELDS,
   formatQuantity,
   inquiryErrorSummary,
+  toBriefFileMeta,
   toInquiryFields,
   validateInquiry,
   validateInquiryField,
@@ -56,6 +59,7 @@ import { getChannelTalkUserId } from "@/lib/channel-talk/client";
 import { contactIdentityFields } from "@/lib/channel-talk/intake";
 import { useMockAuth } from "@/lib/firebase/client";
 import { submitInquiry } from "@/lib/firebase/firestore-service";
+import { uploadBriefFiles } from "@/lib/firebase/storage-service";
 import { readUtmParams } from "@/hooks/use-utm-params";
 import { trackContactLead } from "@/lib/analytics/events";
 import { getGaClientId } from "@/lib/analytics/ga-client-id";
@@ -124,6 +128,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
   const [values, setValues] = useState<InquiryValues>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<InquiryField, string>>>({});
   const [files, setFiles] = useState<File[]>([]);
+  const [fileStatus, setFileStatus] = useState<(BriefFileStatus | undefined)[]>([]);
   const [promoInterest, setPromoInterest] = useState(false);
   // Submission failure (not input validation): kept until the next submit.
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -194,6 +199,8 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
     }
 
     setSubmitting(true);
+    const metas = files.map(toBriefFileMeta);
+    let id: string;
     try {
       const utmParams = readUtmParams();
       // Same as the previous production Contact form: GA client id when GA is set (gives up after 2.5s, then omitted).
@@ -201,6 +208,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
       const gaClientId = gaId ? await getGaClientId(gaId).catch(() => null) : null;
       const result = await submitInquiry({
         ...toInquiryFields(values, showPromo ? promoInterest : undefined),
+        ...(metas.length ? { briefFiles: metas } : {}),
         ...utmParams,
         pageUrl: window.location.href,
         gaClientId: gaClientId ?? undefined,
@@ -208,23 +216,54 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
         // Member's own uid, and the browser's Channel user id only if already available (never waits).
         ...contactIdentityFields({ uid: user?.uid, channelUserId: getChannelTalkUserId() }),
       });
+      id = result.id;
       // Only for a real Firestore save (result.saved) — a mock submission sends no conversion events.
       trackContactLead(result, utmParams);
-      setSent(true);
     } catch (error) {
       console.error("contact inquiry submit failed", error);
       setSubmitError(SUBMIT_FAILED);
-    } finally {
       setSubmitting(false);
+      return;
     }
+
+    // The inquiry is saved from here on: upload problems are reported on the sent screen, never as a failed submit.
+    if (files.length) {
+      setFileStatus(files.map(() => ({ state: "uploading", progress: 0 })));
+      const onProgress = (index: number, progress: number) =>
+        setFileStatus((current) =>
+          current.map((s, i) => (i === index && s?.state === "uploading" ? { state: "uploading", progress } : s)),
+        );
+      try {
+        const results = await uploadBriefFiles(id, files, metas, onProgress);
+        setFileStatus(results.map((state) => ({ state })));
+      } catch (error) {
+        console.error("contact brief upload failed", error);
+        setFileStatus(files.map(() => ({ state: "failed" })));
+      }
+    }
+    setSubmitting(false);
+    setSent(true);
   };
 
   if (sent) {
+    const failed = files.filter((_, i) => fileStatus[i]?.state === "failed");
     return (
-      <div ref={sentRef} tabIndex={-1} data-mock-submission={mock ? "true" : undefined} className="outline-none">
+      <div
+        ref={sentRef}
+        tabIndex={-1}
+        data-mock-submission={mock ? "true" : undefined}
+        className="flex flex-col gap-4 outline-none"
+      >
         <FormMessage type="success" title="Inquiry sent">
           Thanks — we&apos;ve received your inquiry. We&apos;ll reply by email within 5–7 business days.
         </FormMessage>
+        {failed.length ? (
+          <FormMessage type="error">
+            We couldn&apos;t upload {failed.length === 1 ? "this file" : "these files"}:{" "}
+            {failed.map((file) => file.name).join(", ")}. Please email {failed.length === 1 ? "it" : "them"} to{" "}
+            {SUPPORT_EMAIL} with your company name.
+          </FormMessage>
+        ) : null}
       </div>
     );
   }
@@ -350,7 +389,7 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
         <h2 id={`${formId}-brief`} className={SECTION_TITLE}>
           Have a brief? (optional)
         </h2>
-        <BriefUpload files={files} onChange={setFiles} />
+        <BriefUpload files={files} onChange={setFiles} status={fileStatus} locked={submitting} />
         <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-mdk-body text-mdk-charcoal">
           Need a template?
           <a
