@@ -16,6 +16,7 @@ import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
 import { ChannelTalkLauncher } from "@/components/channel-talk/ChannelTalkLauncher";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
+import { ThemeFavicon } from "@/components/seo/ThemeFavicon";
 import { NavigationIntent } from "@/components/layout/NavigationIntent";
 import { CookieConsent } from "@/components/cookie-consent/CookieConsent";
 import { PromoVisit } from "@/components/promo/PromoVisit";
@@ -128,18 +129,20 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      // ICO (light 16/32/48) is the fallback; the SVG switches light/dark via prefers-color-scheme.
+      // sizes="32x32" (not the full 16/32/48 list) so Chrome prefers the scalable SVG over the ICO's exact 16px match.
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icons/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [
       {
-        url: "/apple-touch-icon.png",
+        url: "/icons/apple-touch-icon.png",
         sizes: "180x180",
         type: "image/png",
       },
     ],
-    shortcut: "/favicon.ico",
   },
   manifest: "/manifest.webmanifest",
   ...(googleVerification
@@ -170,6 +173,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <NavigationIntent />
+        <ThemeFavicon />
         <PromoVisit />
         <GoogleAnalytics gaId={gaId} />
         <MetaPixel pixelId={metaPixelId} />
