@@ -55,11 +55,11 @@
 | `CHANNEL_TALK_MEMBER_HASH_SECRET` | `.env.local`에 있음 | 있음(staging 전용, Sensitive) — **다음 배포부터 적용** | 있음(Production과 공용) | 있음 | 2026-11-12 Vercel API. 사용자 등록 11-12 16:19 KST |
 | `NEXT_PUBLIC_GA_ID`, `NEXT_PUBLIC_META_PIXEL_ID` | `.env.local` | 모든 환경 같은 1벌 | 〃 | 〃 | 2026-11-11 Vercel API. dev/운영 분리는 V1.2(2026-11-13 결정, C-9) |
 | Vercel Node 버전 | (로컬 Node 22) | 24.x | 24.x | 24.x | 2026-11-11 Vercel API. 저장소에 `engines`·`.nvmrc` 없음 |
-| 최근 배포 | — | `dev` dc6a449 READY (11-06) | `feat/website-renewal` 29f588b **ERROR** (11-09, `next/font/google`) | `main` a8c15e6 READY (11-06) | 2026-11-12 Vercel API |
+| 최근 배포 | — | `dev` e976d6a READY (11-17, PR #41 Brief·Drive까지) | `feat/website-renewal-v1.1` ca2f8cc READY (11-17) | `main` a8c15e6 READY (11-06) | 2026-11-17 Vercel API |
 | Auth 승인 도메인 | dev: `localhost`, `dev-medidakos-b9b4f.firebaseapp.com`, `dev-medidakos-b9b4f.web.app`, `dev.medidakos.com` | | `*.vercel.app` 없음 | 운영 **미확인** | 2026-11-12 Identity Toolkit API(dev, 읽기 전용) |
 | Auth 로그인 방식(Email/Password·Google) | dev: Email/Password 사용, Google 사용(클라이언트 설정 있음), 이메일 열거 보호 켜짐, 비밀번호 정책 없음(앱이 8자 검사), 차단 함수 없음 | | | 운영 **미확인** | 2026-11-12 Identity Toolkit API(dev, 읽기 전용) |
-| Firestore Rules 배포본 | dev 배포본(2026-11-06)이 레포 `firestore.rules`와 동일 | | | 운영에 `channelTalkControl` 규칙 미배포(인수인계 문서), 운영 배포본 비교 **미확인** | 2026-11-12 Firebase Rules API(dev, 읽기 전용) |
-| Functions | dev 5개 배포(webhook 제외) | | | 운영 13개 | 2026-11-11 `firebase functions:list` |
+| Firestore·Storage Rules 배포본 | dev: 두 규칙 모두 레포와 동일(Firestore 11-17 04:45 UTC, Storage 11-17 03:09) | | | 운영: Firestore 10-06 배포본(리뉴얼 Contact 미포함, `channelTalkControl` 줄 없음), Storage 전부 거부 — 웹 전환 전 배포 필요(전환 문서 2-1단계) | 2026-11-17 Firebase Rules API(읽기 전용) |
+| Functions | dev 6개(webhook 제외, `onContactBriefUploaded` 포함) | | | 운영 13개(10-14~10-21 배포 그대로) | 2026-11-17 `gcloud run services list` |
 | Secret 이름 | dev: Channel Talk 5개 | | | 운영: Channel Talk 5개 + `NOTION_API_KEY` | 2026-11-11 `gcloud secrets list` |
 
 ---
@@ -113,9 +113,9 @@ dev 실제 인증 테스트 절차(승인 후, 테스트 계정 준비 뒤):
 
 | 항목 | 내용 |
 |---|---|
-| dev | 5개 배포(`onUserSignup`, `onContactCreated`, `channelTalkOnUserCreated`, `channelTalkOnContactCreated`, `channelTalkRetry`). `channelTalkLastContactWebhook`은 운영 서비스 계정 고정 때문에 미배포. Contact v2 반영본(`onContactCreated`·`channelTalkOnContactCreated`·`channelTalkRetry`)은 2026-11-13 선택 배포 |
+| dev | 6개 배포(`onUserSignup`, `onContactCreated`, `onContactBriefUploaded`, `channelTalkOnUserCreated`, `channelTalkOnContactCreated`, `channelTalkRetry`). `channelTalkLastContactWebhook`은 운영 서비스 계정 고정 때문에 미배포. Contact v2 반영본은 2026-11-13, Brief·Drive(`onContactCreated`·`onContactBriefUploaded`)와 Channel Talk Brief 표시(`channelTalkOnContactCreated`·`channelTalkRetry`)는 2026-11-17 선택 배포 |
 | 운영 | 13개(리뉴얼 소스에 없는 7개 포함 — 삭제는 별도 승인) |
-| 다르게 설정 | `functions/.env.medidakos` / `.env.dev-medidakos-b9b4f`(Git 제외, 로컬 전용). `CHANNELTALK_INTAKE_API_VERSION` 값이 로컬 두 파일에서 서로 다름(운영 `2026-06-01`, dev `2026-10-01`) — 운영 배포값·로그 확인 필요 |
+| 다르게 설정 | `functions/.env.medidakos` / `.env.dev-medidakos-b9b4f` — **2026-11-17 PR #41부터 Git 추적**(비밀 아닌 배포 파라미터, `DRIVE_BRIEF_ROOT_FOLDER_ID` 포함). 이전 로컬 파일의 `NOTION_*` 키(코드 미사용)는 저장소 버전에 없음. `CHANNELTALK_INTAKE_API_VERSION` 값이 두 파일에서 서로 다름(운영 `2026-06-01`, dev `2026-10-01`) |
 | 주의 | 전체 배포 금지, 함수 이름을 지정한 선택 배포만. dev 메일은 운영 `mail-ingest@medidakos` 계정으로 실제 발송 |
 
 #### Functions 환경변수(파라미터) 관리 — 2026-11-12 확인
@@ -177,7 +177,8 @@ dev 선택 재배포(승인 후, 이 PC에서):
 | 미완료 (별도 작업) | ① ~~GA4·Meta 전환 이벤트~~ → V1.1 로컬 복구 완료(C-9, dev 미반영) ② Brief 업로드 미구현 — 업로드 UI만 표시(2026-11-13 PR #40), 선택한 파일은 제출되지 않음(C-6) |
 | 알려진 동작 | 관리자 메일 제목에 `[TEST]` 표시 없음(기존 동작). Contact 페이지는 정적이라 프로모션 표시 여부가 빌드 시점에 정해짐 |
 | 환경변수 | Firebase 6개(공통) |
-| 배포 상태 | dev: Rules·Functions 3개·staging(PR #39) 반영. 운영: 미배포(전환 때 Rules·Functions 선택 배포) |
+| 예전 Contact 폼 (2026-11-17 정리) | 리뉴얼 브랜치에서 예전 `ContactForm`·`submitContactForm`·`ContactSubmission`을 삭제했다. **웹 코드 정리일 뿐** Firestore 데이터·규칙·Functions 변경은 없다. 예전 형식(`formVersion` 없음) 문서는 그대로 두고 규칙(`validContactLegacy`)·관리자 메일·Channel Talk 내부 대화가 계속 처리한다(운영 `main`이 전환 전까지 이 형식으로 저장) |
+| 배포 상태 | dev: Rules·Functions·staging(PR #39·#41) 반영. 운영: 미배포 — Rules와 `onContactCreated`·`onContactBriefUploaded`는 웹 전환 전(전환 문서 2-1단계), Channel Talk 함수는 웹 전환 후(4단계) |
 
 ### C-5. Channel Talk
 
@@ -251,7 +252,9 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | dev | 업로드 UI(Figma 드롭존·파일 선택·Remove·형식/용량/개수 검증)를 다시 표시(2026-11-13 PR #40, 이사님 요청 — Drive 연동 작업 기반). 별도 안내 문구 없음. **업로드 미연결**: 선택한 파일은 브라우저 안에만 있고 `submitInquiry`로 전달되지 않음(`contact` 문서·Channel Talk 메모·관리자 메일에 파일 정보 없음). 파일 행 표기는 'Selected'. 템플릿 다운로드 표시. Storage SDK·`storage.rules`·`firebase.json` storage 설정 없음 |
 | 결정 (2026-11-13 회의) | 원본 저장 위치는 **회사 Google Drive**. 저장 연동은 이사님 담당. Channel Talk 전달은 ① 상담에 파일 직접 첨부 → ② 상담 내부 메모에 Drive 링크 → ③ 고객 프로필 링크 필드 순으로 구현 가능성 검토 |
 | 정할 것 | Drive 링크를 저장할 데이터 모양(문의 문서 필드 등 — 규칙 변경 승인 필요), 용량·보관 기간·접근 권한 |
-| 배포 상태 | **미완료(V1.1 별도 작업)** |
+| 구현 (2026-11-17, 이사님 PR #41) | 문의 저장 때 `briefFiles`(이름·크기·형식, 1~3개, 파일당 50MB, PDF·DOCX·XLSX·PPTX·JPG·PNG) 선언 → 같은 id로 Storage `contact-briefs/{id}/{0-2}` 업로드 → `onContactBriefUploaded`가 공유 드라이브 문의 폴더로 옮기고 `briefArchive` 기록·임시 파일 삭제. `onContactCreated`가 폴더를 먼저 만들고 관리자 메일에 링크. 업로드 실패해도 문의는 접수. 상세: [google-drive-briefs.md](../integrations/google-drive-briefs.md) |
+| Channel Talk 내부 대화 (2026-11-17) | 리뉴얼 문의에 첨부가 있으면 "■ 브리프"에 개수·파일명과 Drive 폴더 링크(관리자 메일과 같은 `getBriefFolderUrl`). 링크를 못 받으면 안내 문구로 내부 대화를 그대로 만들고 보충 메시지는 보내지 않는다. dev 배포 11-17 06:50 UTC, 실제 `+chtest` 첨부 문의 확인은 **미완료** |
+| 배포 상태 | dev: 규칙 2종·`onContactCreated`·`onContactBriefUploaded`·Channel Talk 2개 반영, staging 웹(PR #41) 반영. 운영: 계정·권한·버킷 수명 규칙·Drive API 준비됨, 공유 드라이브 등록 **확인 필요**, 규칙·함수·웹 미반영(전환 문서 2-1·4단계) |
 
 ### C-7. Instagram API
 
@@ -262,7 +265,8 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | 환경변수 (서버 전용) | `INSTAGRAM_ACCESS_TOKEN`(Sensitive), `INSTAGRAM_USER_ID`. 로컬 `.env.local`, Vercel `staging`·`Production`에만 등록(Preview·Development 없음). 값은 문서·Git에 기록하지 않음. 원본 토큰은 회사 암호 관리 도구 |
 | 토큰 관리 | 구성 만료 설정 '만료 없음'. 실제 토큰 만료는 **미확인**(시스템 사용자 토큰은 `debug_token` 조회 불가 → 앱 관리자로 Access Token Debugger에서 확인). 교체: 새 토큰 발급 → Vercel 두 환경 값 교체·재배포 → 기존 토큰 폐기 |
 | 알려진 한계 | API가 미디어 크기를 주지 않아 모달 비율 기본값(이미지 4:5, 단독 영상 9:16). 3:4 게시물은 좌우 여백이 약간 생김(잘림 없음). CDN 주소는 수일 뒤 만료(`oe`) → 15분 재생성으로 갱신 |
-| 배포 상태 | 코드: `feat/website-renewal-v1.1` 커밋(미푸시, 2026-11-16). 로컬 `localhost:3000` 실제 계정 검증 통과. Vercel 환경변수: staging·Production에 `INSTAGRAM_ACCESS_TOKEN`(Secret)·`INSTAGRAM_USER_ID` 등록 완료(2026-11-16, 사용자 등록·값 미기록) — 다음 배포부터 적용. TikTok은 2차, 1차는 공식 계정 링크 |
+| 배포 상태 | 코드: `feat/website-renewal-v1.1`(origin에 push됨 `ca2f8cc`, `dev` 미병합). 로컬 `localhost:3000` 실제 계정 검증 통과(2026-11-16). Vercel 환경변수: staging·Production에 `INSTAGRAM_ACCESS_TOKEN`(Secret)·`INSTAGRAM_USER_ID` 등록 완료(2026-11-16, 사용자 등록·값 미기록) — 다음 배포부터 적용. TikTok은 2차, 1차는 공식 계정 링크 |
+| API 차단 (2026-11-17 확인) | 로컬 토큰으로 모든 Graph API 호출(`/<id>/media`, `/<id>`, `/me`, `debug_token`)이 `HTTP 400 "API access blocked."`(OAuthException, code 200, subcode 5258005)로 거부됨. 11-16에는 정상 → 개발 서버 15분 캐시로 게시물이 보이다가 캐시를 비운 뒤 빈 상태가 됨. 코드·CSS 정리와 무관(Instagram 코드 변경 없음). 토큰 만료라면 code 190이 나오므로 **토큰 만료가 아니라 앱·계정 단위 차단으로 추정**(원인 미확정). 확인: Meta 앱 대시보드 `Medidakos Website`의 경고·제한·앱 검수/비즈니스 인증 상태, 시스템 사용자·Instagram 계정 연결. 운영 `main`에는 Instagram 코드가 없어 현재 운영 사이트 영향 없음. 전환 전 해결 필요 |
 
 ### C-8. Cookie Consent
 
@@ -294,7 +298,7 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | 현재 | Production: `www.medidakos.com`·`medidakos.com`(둘 다 200, 리다이렉트 없음), staging: `dev.medidakos.com`(팀 로그인 보호) |
 | 운영 전환 때 | 페이지별 metadata·canonical·OG, `robots`·`sitemap`, apex↔www 정책, staging이 검색에 노출되지 않는지 |
 | 기존 URL 리디렉션 | `next.config.ts`에 반영(V1.1 로컬, dev 미반영). 경로별 처리·대표님 컨펌 대기 3개는 [전환 문서 6.1](../plans/website-renewal-production-cutover.md) |
-| 배포 상태 | 페이지별 SEO 최종안 미정 |
+| 배포 상태 | V1.1 로컬 확정(2026-11-17): 페이지별 Title·Description, 공통 OG(`/og/og-image.png`), `robots`·`sitemap`(운영 `VERCEL_ENV=production`만 색인), Login·Sign Up noindex, 404, JSON-LD, Favicon 2C·라이트/다크, manifest 흰색. staging·운영 미반영 |
 
 ---
 
@@ -328,7 +332,9 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | GA4 `generate_lead`·Meta `Lead`(리뉴얼 Contact) | V1.1 로컬 복구 완료(C-9), dev 미반영 | 11/16 dev 반영 후 staging 확인(외부 요청 주의) |
 | GA4 page_view 중복 가능성 | 미확정(C-9) | 운영 배포 후 GA4 데이터로 확인 |
 | Google Ads Dashboard 전환 액션 | 리뉴얼에서 발생 안 함 | 운영 전환 때 보조 전환·목표 제외 검토 |
-| Brief 업로드·Google Drive 저장 | 미구현(업로드 UI만 표시, 파일은 제출되지 않음) | 이사님 Drive 연동 + 전달 방식 검토(C-6) |
+| Brief 업로드·Google Drive 저장 | **dev 구현·배포(2026-11-17, PR #41)**, Channel Talk 내부 대화 표시는 dev 배포·실제 확인 전 | 운영: 웹 전환 전 규칙·함수 배포(전환 문서 2-1단계), 공유 드라이브 등록 확인 |
+| Instagram Graph API `API access blocked` | 2026-11-17 확인, 원인 미확정(C-7) | Meta 앱 대시보드 상태 확인 후 토큰·앱 조치(별도 승인) |
+| 운영 규칙에 리뉴얼 Contact 허용 없음 | 운영 Firestore 10-06·Storage 전부 거부(2026-11-17 Rules API) | 웹 전환 전 배포(전환 문서 2-1단계) |
 | staging 접근 | Vercel 로그인 보호(SSO) 켜짐 | 이사님 공유 방식 결정 |
 | 로그아웃 후 직전 회원 상담 노출(MEM-02) | V1.1은 SDK 기본 동작 유지로 결정(2026-11-16), **즉시 상담 분리 미충족** | 필요 시 Channel Talk 공식 로그아웃 방법 문의 후 재검토 |
 | 폐기 컬렉션 생성 권한(`landingRequests` 비로그인 생성, `orders`·`sampleRequests` 로그인 생성) | 소스에 화면·트리거는 없으나 규칙은 아직 허용 | 운영 전환 9단계에서 차단 |
@@ -394,3 +400,6 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | 2026-11-13 | Channel Talk 런처 | 로컬 | 운영·V1.1 비교, Mock 런처·가짜 SDK 검증(외부 요청 0). 런처를 SDK 연결 성공 뒤에만 표시, 키 없는 운영 빌드에서 Mock 런처 제거. 모바일 메뉴·쿠키 배너 겹침은 C-8에 기록만 | 단위 테스트, 가짜 SDK 브라우저 확인, 키 없는 운영 빌드 확인 |
 | 2026-11-16 | Landing·Dashboard 제거 확인 | 소스(`feat/website-renewal-v1.1`) | 웹 페이지·컴포넌트·주문 등록 코드·주문/랜딩 트리거 **제거 완료**(Functions 진입점은 `onUserSignup`·`onContactCreated`·`channelTalkOnUserCreated`·`channelTalkOnContactCreated`·`channelTalkRetry`·`channelTalkLastContactWebhook`). 남은 것: 실행되지 않는 처리 분기, 폐기 컬렉션 생성 규칙(9단계), 운영 배포 함수(6단계). Contact·회원 동기화·관리자 메일은 유지 | 소스 검색(읽기 전용) |
 | 2026-11-16 | Channel Talk 회원 연동 실사용 | localhost(dev Firebase, 운영 Channel 채널) | MEM-04·MEM-01 통과, MEM-02 부분 통과(익명 재연결 성공, 즉시 상담 분리 미충족 — SDK 기본 동작 유지 결정). 운영 채널에 `[TEST]` 상담 A·B 각 1건 + 관리자 답장 1건 남음 | 사용자 실행, 서버·브라우저 로그, Desk 확인 |
+| 2026-11-17 | Contact Brief → Drive 병합·Channel Talk 표시 | 로컬·dev | `origin/dev`(PR #41) 로컬 병합(충돌 2개 양쪽 통합), Channel Talk 내부 대화 "■ 브리프" 구현(`38cc900`). dev에 `channelTalkOnContactCreated`·`channelTalkRetry` 선택 배포(사용자 실행, 06:50 UTC, Drive 변수 포함 확인) | 테스트, `gcloud run services describe` |
+| 2026-11-17 | 미사용 코드·CSS 정리 | 로컬(`feat/website-renewal-v1.1`, 미커밋) | 예전 Contact 폼·Header·Footer·MarketingShell 등 삭제, Geist 폰트·하늘색 토큰·`--foreground` 제거, manifest·theme-color 흰색. 22개 화면 전후 비교 — Instagram 구간 외 픽셀 차이 0. Firebase 조치 불필요 | 화면 캡처 비교, 테스트 |
+| 2026-11-17 | 환경별 배포 상태 | dev·운영(읽기 전용) | Vercel·Functions·Rules 배포본 확인(전환 문서 1.7). 운영 규칙에 리뉴얼 Contact 미포함 → 웹 전환 전 2-1단계 추가. Instagram API 차단 발견(C-7) | Vercel API, gcloud, Rules API |

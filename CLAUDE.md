@@ -66,14 +66,14 @@ Medidakos 공개 웹사이트 저장소다. Firebase(Auth·Firestore·Functions)
 ## 디렉터리 지도
 
 ```text
-public/images/<페이지>/   페이지별 이미지 (home, about, services, portfolio, categories, common)
+public/images/<페이지>/   페이지별 이미지 (home, about, services, portfolio, categories, promo)
 public/{icons,logos,og,downloads}/  아이콘·로고(logos/certifications 인증 마크)·OG·다운로드 파일
-src/app/(marketing)/      공개 페이지 (Home, About Us, Contact)
-src/app/login/            로그인·회원가입
+src/app/(site)/           공개 페이지 (Home, About Us, Services, Portfolio, FAQ, Contact, Privacy Policy, Terms of Service)
+src/app/(auth)/           로그인·회원가입 (/login, /signup)
 src/app/api/              서버 라우트 (Channel Talk member-hash, KakaoWork callback)
 src/components/<영역>/    layout, home, about, services, portfolio, faq, contact, auth, legal, ui,
                           cookie-consent, analytics, seo, channel-talk
-src/lib/<영역>/           firebase, channel-talk, analytics, auth, contact, config, utils (+ types.ts)
+src/lib/<영역>/           firebase, channel-talk, analytics, auth, config, cookie-consent, promo, social, utils (+ types.ts)
 src/hooks/                공통 React 훅
 functions/                Firebase Functions (알림 메일, Channel Talk 연동)
 tests/<기능>/             node --test (analytics, channel-talk, kakaowork, rules)
