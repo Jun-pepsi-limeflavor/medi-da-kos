@@ -9,29 +9,22 @@ import { AboutTransition } from "@/components/about/AboutTransition";
 import { AboutWhoWeAre } from "@/components/about/AboutWhoWeAre";
 import { AboutWhyApproach } from "@/components/about/AboutWhyApproach";
 import { SiteShell } from "@/components/layout/SiteShell";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 
 export const metadata: Metadata = {
-  title: "About Us — Vetted Korean OEM/ODM Manufacturer Network for Global Brands",
+  title: "About Us — Korean Know-How for Global Beauty Brands",
   description:
-    "Medidakos operates a pre-vetted network of ISO 22716 GMP-certified Korean OEM/ODM manufacturers with global export experience. English-speaking PMs, MFDS-registered facilities, direct global freight.",
+    "From Seoul, Medidakos connects global beauty brands with Korea’s manufacturing expertise through a vetted partner network and end-to-end project management.",
   alternates: {
     canonical: `${SITE_URL}/about-us`,
   },
   openGraph: {
-    title:
-      "About Medidakos — Vetted Korean OEM/ODM Manufacturer Network for Global Brands",
+    ...OPEN_GRAPH_BASE,
+    title: "About Us — Korean Know-How for Global Beauty Brands | Medidakos",
     description:
-      "Pre-vetted ISO 22716 GMP-certified Korean OEM/ODM manufacturers. English-speaking PMs, MFDS-registered facilities, global export experience.",
+      "From Seoul, Medidakos connects global beauty brands with Korea’s manufacturing expertise through a vetted partner network and end-to-end project management.",
     url: `${SITE_URL}/about-us`,
-    images: [
-      {
-        url: "/og-about-us.png",
-        width: 1200,
-        height: 630,
-        alt: "Medidakos — Vetted Korean OEM/ODM Manufacturer Network for Global Beauty Brands",
-      },
-    ],
   },
 };
 

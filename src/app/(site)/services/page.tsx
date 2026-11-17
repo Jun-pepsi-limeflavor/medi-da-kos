@@ -13,11 +13,12 @@ import { ServicesQualityCompliance } from "@/components/services/ServicesQuality
 import { ServicesSamplesMoq } from "@/components/services/ServicesSamplesMoq";
 import { ServicesScope } from "@/components/services/ServicesScope";
 import { ROUTES } from "@/lib/config/routes";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 
 const TITLE = "Services — From Idea to Launch, Fully Coordinated";
 const DESCRIPTION =
-  "Explore what we manage, how each stage works, and what to expect—from samples and MOQs to quality and compliance.";
+  "See what we manage from idea to launch: each project stage, MOQ from 5,000 units per SKU, payment and shipping, and quality and regulatory support.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -26,6 +27,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}${ROUTES.services}`,
   },
   openGraph: {
+    ...OPEN_GRAPH_BASE,
     title: `${TITLE} | Medidakos`,
     description: DESCRIPTION,
     url: `${SITE_URL}${ROUTES.services}`,

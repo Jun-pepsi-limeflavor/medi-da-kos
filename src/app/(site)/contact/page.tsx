@@ -15,20 +15,22 @@ import { SECTION_CONTAINER } from "@/components/home/styles";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { connection } from "next/server";
 import { isYearEndPromoActive } from "@/lib/config/promo";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 import { cx } from "@/lib/utils/cx";
 
 export const metadata: Metadata = {
-  title: "Contact — Get in Touch About Korean OEM/ODM Manufacturing",
+  title: "Contact — Start Your Cosmetics Project",
   description:
-    "Reach out to Medidakos about Korean cosmetics OEM/ODM manufacturing. No login required — tell us about your brand, product category, and timeline.",
+    "Share your product idea with Medidakos. Our project management team reviews every request and replies with next steps for your Korean OEM/ODM project.",
   alternates: {
     canonical: `${SITE_URL}/contact`,
   },
   openGraph: {
-    title: "Contact Medidakos — Korean OEM/ODM for Global Beauty Brands",
+    ...OPEN_GRAPH_BASE,
+    title: "Contact — Start Your Cosmetics Project | Medidakos",
     description:
-      "Get in touch about Korean cosmetics manufacturing. Share your product idea, expected volume, and launch timeline.",
+      "Share your product idea with Medidakos. Our project management team reviews every request and replies with next steps for your Korean OEM/ODM project.",
     url: `${SITE_URL}/contact`,
   },
 };

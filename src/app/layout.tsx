@@ -21,6 +21,7 @@ import { NavigationIntent } from "@/components/layout/NavigationIntent";
 import { CookieConsent } from "@/components/cookie-consent/CookieConsent";
 import { PromoVisit } from "@/components/promo/PromoVisit";
 import { SITE_NAME, SITE_URL } from "@/lib/config/site";
+import { OPEN_GRAPH_BASE, siteRobots, TWITTER_BASE } from "@/lib/config/seo";
 import { ANNOUNCEMENT_DISMISSED_ATTR, ANNOUNCEMENT_DISMISSED_KEY } from "@/lib/config/promo";
 
 /** Runs before first paint; storage errors (private mode, blocked storage) just leave the bar visible. */
@@ -64,66 +65,23 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   authors: [{ name: SITE_NAME, url: SITE_URL }],
   category: "beauty manufacturing",
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
+  // Production (VERCEL_ENV=production) only; staging, Preview and local builds are noindex.
+  robots: siteRobots(),
   title: {
-    default:
-      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
+    default: "Korean Cosmetics OEM & ODM Partner | Medidakos",
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    "Launch your K-beauty line in global markets. Medidakos connects you with GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, and direct global freight. Free consultation.",
-  keywords: [
-    "Korean cosmetics OEM manufacturer",
-    "Korean cosmetics ODM manufacturer",
-    "K-beauty private label",
-    "Korean skincare manufacturer for global brands",
-    "Korean beauty contract manufacturing",
-    "custom K-beauty formulation",
-    "Korean cosmetic white label",
-    "ISO 22716 GMP certified Korea",
-    "K-beauty indie brand manufacturer",
-    "Korean ODM platform",
-    "private label skincare Korea",
-    "K-beauty wholesale",
-    "Korean beauty brand launch",
-  ],
+    "Your idea, made in Korea. Medidakos manages product development to launch for global beauty brands with 300+ Korean manufacturing and packaging partners.",
   openGraph: {
-    type: "website",
-    locale: "en_US",
+    ...OPEN_GRAPH_BASE,
     url: SITE_URL,
-    siteName: SITE_NAME,
-    title:
-      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
+    title: "Korean Cosmetics OEM & ODM Partner | Medidakos",
     description:
-      "Launch your K-beauty line in global markets. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct global freight.",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for Global Beauty Brands",
-        type: "image/png",
-      },
-    ],
+      "Your idea, made in Korea. Medidakos manages product development to launch for global beauty brands with 300+ Korean manufacturing and packaging partners.",
   },
-  twitter: {
-    card: "summary_large_image",
-    site: "@medidakos",
-    title:
-      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
-    description:
-      "Launch your K-beauty line in global markets. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct global freight.",
-    images: ["/og-image.png"],
-  },
+  // No title/description here: Next.js fills Twitter title/description from each page's openGraph.
+  twitter: TWITTER_BASE,
   alternates: {
     canonical: SITE_URL,
   },

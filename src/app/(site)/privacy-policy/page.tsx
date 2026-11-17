@@ -6,11 +6,12 @@ import { LegalDocument } from "@/components/legal/LegalDocument";
 import { PRIVACY_POLICY } from "@/components/legal/privacy-policy-data";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { ROUTES } from "@/lib/config/routes";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 
 const TITLE = "Privacy Policy";
 const DESCRIPTION =
-  "This Privacy Policy explains how we collect, use, disclose, retain, and protect personal information when users visit our website, use our sign-up and login features, contact us, or communicate with us regarding cosmetic product development and manufacturing services.";
+  "How Medidakos collects, uses, retains and protects personal information when you visit our website, create an account or contact us about cosmetic development.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}${ROUTES.privacy}`,
   },
   openGraph: {
+    ...OPEN_GRAPH_BASE,
     title: `${TITLE} | Medidakos`,
     description: DESCRIPTION,
     url: `${SITE_URL}${ROUTES.privacy}`,

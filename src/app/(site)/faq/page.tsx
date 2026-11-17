@@ -9,10 +9,12 @@ import { FaqContactCta } from "@/components/faq/FaqContactCta";
 import { FaqHero } from "@/components/faq/FaqHero";
 import { SamePageHashUrl } from "@/components/layout/SamePageHashUrl";
 import { ROUTES } from "@/lib/config/routes";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 
-const TITLE = "FAQ — Frequently Asked Questions";
-const DESCRIPTION = "Answers to the questions brands ask most before starting a project.";
+const TITLE = "FAQ — Korean Cosmetics OEM & ODM Questions";
+const DESCRIPTION =
+  "Answers to the questions brands ask most before starting a project, from product development and MOQ to production, packaging, shipping and compliance.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -21,6 +23,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}${ROUTES.faq}`,
   },
   openGraph: {
+    ...OPEN_GRAPH_BASE,
     title: `${TITLE} | Medidakos`,
     description: DESCRIPTION,
     url: `${SITE_URL}${ROUTES.faq}`,
