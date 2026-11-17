@@ -1,7 +1,7 @@
 // Terms of Service 본문 정적 데이터(Figma 'Terms of Service — Final Design (1440 · desktop)' 549:1057 › Sections 원문 그대로).
 // - 12개 조항, 조항 id는 Figma 섹션 이름의 앵커(#terms-…)
 // - 문구를 바꾸지 않는다. 추가한 것은 링크뿐: 웹사이트 주소 → Home, 이메일 → mailto, 'Privacy Policy'(3·8조) → Privacy Policy 페이지
-// - 시행일·최종 수정일: 2026년 11월 13일(Figma 영문 프레임도 같은 표기로 갱신)
+// - 시행일·최종 수정일: 2026년 11월 18일(Figma 영문 프레임도 같은 표기로 갱신)
 import type { LegalDocumentData } from "@/components/legal/LegalDocument";
 import { ROUTES } from "@/lib/config/routes";
 
@@ -11,9 +11,9 @@ const PRIVACY_POLICY_LINK = { text: "Privacy Policy", href: ROUTES.privacy };
 
 export const TERMS_OF_SERVICE: LegalDocumentData = {
   title: "Terms of Service",
-  effectiveDate: "November 13, 2026",
+  effectiveDate: "November 18, 2026",
   emailLocation: "terms-of-service",
-  lastUpdated: "November 13, 2026",
+  lastUpdated: "November 18, 2026",
   sections: [
     {
       id: "terms-introduction-and-acceptance-of-terms",
