@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// 기본값은 전부 거부. 아래에 명시한 경로·동작만 허용한다.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // contact-briefs/{contactId}/{fileIndex}: Contact 브리프 임시 업로드(비로그인 가능).
+    // - 새로 만들기만 허용(덮어쓰기·읽기·목록·삭제 불가). Functions가 Drive로 옮긴 뒤 지운다(버킷 lifecycle 7일이 안전망).
+    // - contact/{contactId} 문서가 리뉴얼 형식이고, 생성 30분 이내이며, briefFiles[fileIndex]의 크기·형식과 같아야 한다.
+    //   원본 파일명은 Firestore briefFiles[fileIndex].name에 있다(경로에는 번호만).
+    match /contact-briefs/{contactId}/{fileIndex} {
+      // resource == null: 'create'만으로는 같은 경로 재업로드(덮어쓰기)가 막히지 않아(에뮬레이터 확인) 명시한다.
+      allow create: if resource == null
+        && fileIndex in ['0', '1', '2']
+        && validBriefUpload(contactId, int(fileIndex));
+    }
+
+    function validBriefUpload(contactId, i) {
+      let path = /databases/(default)/documents/contact/$(contactId);
+      return firestore.exists(path)
+        && validBriefAgainst(firestore.get(path).data, i);
+    }
+
+    function validBriefAgainst(contact, i) {
+      return contact.get('formVersion', 0) == 2
+        && contact.get('briefFiles', []).size() > i
+        && request.time < contact.serverCreatedAt + duration.value(30, 'm')
+        && request.resource.size == contact.briefFiles[i]['size']
+        && request.resource.contentType == contact.briefFiles[i]['contentType'];
+    }
+  }
+}

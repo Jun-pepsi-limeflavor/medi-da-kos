@@ -156,3 +156,34 @@ test("기존 운영 Contact 문서는 formVersion이 없으면 예전 양식과 
   const email = buildContactAdminEmail({ contactId: "abc123", contact: { ...normalContact, uid: "u1", channelUserId: "ch1" }, submittedAt: SUBMITTED_AT });
   assert.equal(email.html, legacyHtml("abc123", normalContact, SUBMITTED_AT).replace("We'd", "We&#39;d"));
 });
+
+// ---------- 브리프 첨부 (2026-11-17) ----------
+
+test("브리프: 첨부가 없으면 브리프 줄을 넣지 않는다", () => {
+  const email = buildContactAdminEmail({ contactId: "v2id", contact: contactV2, submittedAt: SUBMITTED_AT });
+  assert.doesNotMatch(email.html, /브리프|Drive 폴더/);
+});
+
+test("브리프: 파일 이름(이스케이프)과 Drive 폴더 링크를 넣는다", () => {
+  const contact = {
+    ...contactV2,
+    briefFiles: [
+      { name: "brief.pdf", size: 10, contentType: "application/pdf" },
+      { name: "<img src=x>.png", size: 20, contentType: "image/png" },
+    ],
+  };
+  const url = "https://drive.google.com/drive/folders/1AbC";
+  const { html } = buildContactAdminEmail({ contactId: "v2id", contact, submittedAt: SUBMITTED_AT, briefFolderUrl: url });
+  assert.match(html, /<strong>브리프:<\/strong> 2개 \(brief\.pdf, &lt;img src=x&gt;\.png\)/);
+  assert.match(html, /<a href="https:\/\/drive\.google\.com\/drive\/folders\/1AbC">/);
+  assert.doesNotMatch(html, /<img/);
+});
+
+test("브리프: 폴더 링크가 없거나 Drive 주소가 아니면 링크 대신 확인 안내", () => {
+  const contact = { ...contactV2, briefFiles: [{ name: "a.pdf", size: 1, contentType: "application/pdf" }] };
+  for (const briefFolderUrl of [null, undefined, "https://evil.example/x", "javascript:alert(1)"]) {
+    const { html } = buildContactAdminEmail({ contactId: "v2id", contact, submittedAt: SUBMITTED_AT, briefFolderUrl });
+    assert.match(html, /폴더를 아직 만들지 못했습니다/);
+    assert.doesNotMatch(html, /<a href/);
+  }
+});

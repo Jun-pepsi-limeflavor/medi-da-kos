@@ -5,7 +5,7 @@
 // - 수량 천 단위 쉼표 표시
 // - 저장 형식 변환(toInquiryFields, 2026-11): 문자열은 앞뒤 공백만 제거(단어 사이 공백 유지), 수량은 정수, 빈 선택 항목은 생략.
 //   키·길이는 firestore.rules validContactV2와 같다(company → companyName, quantity → quantityPerSku)
-// - 브리프 첨부: 허용 확장자·파일당 10 MiB·최대 3개·중복 제외 검증
+// - 브리프 첨부: 허용 확장자·파일당 50 MiB(2026-11-17 10 MiB에서 상향)·최대 3개·중복 제외 검증
 // - 오류 문구는 모두 확정(2026-11-10 승인). 폼 하단 안내 formError·formInvalid도 사용자 최종 검수로 확정(간결한 한 줄 문구)
 // - 폼 하단 안내는 현재 필드 오류에서 계산(inquiryErrorSummary): 필수 누락 → formError, 형식 오류만 → formInvalid, 오류 없음 → 없음
 
@@ -169,8 +169,8 @@ export const BRIEF_FILE_RULES = {
   /** Figma screen copy: PDF, DOCX, XLSX, PPTX, JPG, PNG ("JPG" includes .jpeg). */
   extensions: [".pdf", ".docx", ".xlsx", ".pptx", ".jpg", ".jpeg", ".png"],
   maxFiles: 3,
-  /** 10 MiB (Figma: shown to users as "10 MB"). */
-  maxBytes: 10 * 1024 * 1024,
+  /** 50 MiB, shown to users as "50 MB" (raised from 10 MB on 2026-11-17; firestore.rules validBriefFile matches). */
+  maxBytes: 50 * 1024 * 1024,
 } as const;
 
 /** `accept` attribute for the file input (extensions; the browser picker may still allow "All files"). */
@@ -179,9 +179,11 @@ export const BRIEF_FILE_ACCEPT = BRIEF_FILE_RULES.extensions.join(",");
 /** Approved 2026-11-10 (replaces Figma's outdated ".docx, .xlsx or .pdf" error copy). */
 export const BRIEF_FILE_MESSAGES = {
   type: "This file type isn't supported. Upload a PDF, DOCX, XLSX, PPTX, JPG or PNG file.",
-  size: "Each file must be 10 MB or smaller.",
+  size: "Each file must be 50 MB or smaller.",
   count: "You can upload up to 3 files.",
   duplicate: "This file has already been added.",
+  /** 2026-11-17: firestore.rules/storage.rules require size > 0. */
+  empty: "This file is empty.",
 } as const;
 
 function hasAllowedExtension(name: string): boolean {
@@ -203,6 +205,7 @@ export function addBriefFiles<T extends BriefFile>(current: readonly T[], incomi
   };
   for (const file of incoming) {
     if (!hasAllowedExtension(file.name)) note(BRIEF_FILE_MESSAGES.type);
+    else if (file.size === 0) note(BRIEF_FILE_MESSAGES.empty);
     else if (file.size > BRIEF_FILE_RULES.maxBytes) note(BRIEF_FILE_MESSAGES.size);
     else if (files.some((f) => sameFile(f, file))) note(BRIEF_FILE_MESSAGES.duplicate);
     else if (files.length >= BRIEF_FILE_RULES.maxFiles) note(BRIEF_FILE_MESSAGES.count);
@@ -211,7 +214,35 @@ export function addBriefFiles<T extends BriefFile>(current: readonly T[], incomi
   return { files, error };
 }
 
-/** "842 KB", "3.4 MB" (1 KB = 1024 bytes, matching the 10 MiB limit). */
+/**
+ * Content type per extension — the same 6 types firestore.rules (validBriefFile) allows. Taken from the extension,
+ * not the browser's File.type (often empty or OS-specific), so the declared type and the Storage upload always match.
+ */
+const BRIEF_CONTENT_TYPES: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+};
+
+/** Max file name length in firestore.rules. */
+const BRIEF_NAME_MAX = 200;
+
+/**
+ * Declaration saved with the inquiry (`briefFiles[i]`). Long names keep their extension.
+ * Only call with files that passed addBriefFiles (allowed extension).
+ */
+export function toBriefFileMeta(file: { name: string; size: number }): { name: string; size: number; contentType: string } {
+  const lower = file.name.toLowerCase();
+  const ext = BRIEF_FILE_RULES.extensions.find((e) => lower.endsWith(e)) ?? "";
+  const name = file.name.length > BRIEF_NAME_MAX ? file.name.slice(0, BRIEF_NAME_MAX - ext.length) + ext : file.name;
+  return { name, size: file.size, contentType: BRIEF_CONTENT_TYPES[ext] ?? "" };
+}
+
+/** "842 KB", "3.4 MB" (1 KB = 1024 bytes, matching the 50 MiB limit). */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

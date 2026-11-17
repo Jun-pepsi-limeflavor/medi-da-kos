@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -28,6 +29,7 @@ export function useMockAuth(): boolean {
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let storage: FirebaseStorage | undefined;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured()) {
@@ -42,6 +44,12 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirebaseAuth(): Auth {
   if (!auth) auth = getAuth(getFirebaseApp());
   return auth;
+}
+
+/** Default bucket from NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET (dev: .env.development.local, prod: Vercel). */
+export function getFirebaseStorage(): FirebaseStorage {
+  if (!storage) storage = getStorage(getFirebaseApp());
+  return storage;
 }
 
 export function getFirebaseDb(): Firestore {
