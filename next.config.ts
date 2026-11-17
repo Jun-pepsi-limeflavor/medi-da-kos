@@ -15,11 +15,11 @@ const nextConfig: NextConfig = {
       // Dashboard comes back in V2.1: temporary (307, not cached by browsers). Remove this entry then.
       // `:path*` matches /dashboard itself and every sub-path (/dashboard/orders, /dashboard/tracking).
       { source: "/dashboard/:path*", destination: "/contact", permanent: false },
-      // PENDING — destination awaiting CEO confirmation. Temporary (307) to /contact only so cold-mail links don't
-      // 404 meanwhile; not the final decision.
-      { source: "/korea", destination: "/contact", permanent: false },
-      { source: "/landing/korea", destination: "/contact", permanent: false },
-      { source: "/landing/dashboard", destination: "/contact", permanent: false },
+      // Cold-mail landing pages: destination confirmed 2026-11-17, permanent (308).
+      // Tests: tests/redirects/legacy-urls.test.ts.
+      { source: "/korea", destination: "/portfolio", permanent: true },
+      { source: "/landing/korea", destination: "/portfolio", permanent: true },
+      { source: "/landing/dashboard", destination: "/portfolio", permanent: true },
     ];
   },
   images: {
