@@ -7,7 +7,8 @@
 // - Cookie Settings: 배너 Customize와 Footer 'Cookie Settings'(openCookieSettings 이벤트)에서 연다. 저장값을 불러와 표시
 // - 화면에 그리는 것은 동의 상태가 확인된 뒤(서버 렌더·hydration 전에는 아무것도 없음) — 깜빡임·불일치 방지
 // - 모바일(640px 미만, Figma 정의 없음): 좌우 16px 전체 폭, 버튼 줄바꿈. 오른쪽 아래 채팅 런처를 가리지 않게
-//   배너는 화면 아래에서 88px 위에 둔다(런처: 모바일 아래 16px · 높이 44px)
+//   배너는 화면 아래에서 88px 위에 둔다(런처: 모바일 아래 16px · 높이 44px). 휴대폰이 아닌 기기(폭을 줄인 데스크톱 브라우저)는
+//   런처가 데스크톱 크기·위치(위 끝 약 90.7px)라 100px 위에 둔다(2026-11-16, 기기 판정은 globals.css의 `phone:` 변형 재사용)
 // - GA4·Meta·Channel Talk 실행 제어는 아직 연결하지 않음(consent.ts 참고)
 import Link from "next/link";
 import { useCallback, useEffect, useId, useState } from "react";
@@ -41,7 +42,7 @@ export function CookieConsent() {
         <section
           aria-labelledby={titleId}
           data-cookie-banner=""
-          className="font-mdk fixed right-4 bottom-[88px] left-4 z-40 flex max-h-[calc(100dvh-120px)] flex-col gap-3 sm:max-h-[calc(100dvh-48px)] overflow-y-auto rounded-2xl border border-mdk-light-gray bg-mdk-white p-5 shadow-[0_16px_48px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] sm:right-auto sm:bottom-6 sm:left-6 sm:w-[432px]"
+          className="font-mdk fixed right-4 bottom-[100px] left-4 z-40 flex max-h-[calc(100dvh-132px)] max-sm:phone:bottom-[88px] max-sm:phone:max-h-[calc(100dvh-120px)] flex-col gap-3 sm:max-h-[calc(100dvh-48px)] overflow-y-auto rounded-2xl border border-mdk-light-gray bg-mdk-white p-5 shadow-[0_16px_48px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] sm:right-auto sm:bottom-6 sm:left-6 sm:w-[432px]"
         >
           <h2 id={titleId} className="text-mdk-title text-mdk-charcoal">
             {COOKIE_BANNER.title}
@@ -54,7 +55,7 @@ export function CookieConsent() {
           <Link href={ROUTES.privacy} className={`${COOKIE_LINK_CLASS} self-start`}>
             Privacy Policy
           </Link>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="secondary" size="s" onClick={() => save(ALL_REJECTED)}>
               Reject Optional
             </Button>

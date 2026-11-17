@@ -6,11 +6,12 @@ import { LegalDocument } from "@/components/legal/LegalDocument";
 import { TERMS_OF_SERVICE } from "@/components/legal/terms-of-service-data";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { ROUTES } from "@/lib/config/routes";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION =
-  "These Terms of Service (hereinafter referred to as the “Terms”) apply to the use of our website, user registration and login, the customer dashboard, consultations, quotations, and project-related services.";
+  "The terms that apply to using the Medidakos website, account registration and login, consultations, quotations and project-related services.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}${ROUTES.terms}`,
   },
   openGraph: {
+    ...OPEN_GRAPH_BASE,
     title: `${TITLE} | Medidakos`,
     description: DESCRIPTION,
     url: `${SITE_URL}${ROUTES.terms}`,

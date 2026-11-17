@@ -68,6 +68,8 @@ const CONTACT_KEYS = [
   // Renewal Contact (formVersion 2)
   "formVersion", "fullName", "country", "website", "productCategory", "quantityPerSku", "targetMarkets",
   "launchDate", "promoInterest",
+  // Brief attachments (2026-11): shown in ■ 브리프. briefArchive is written by Functions, not the customer.
+  "briefFiles", "briefArchive",
 ];
 const LANDING_KEYS = [
   "landingVariant", "companyName", "contactName", "email", "country", "expectedVolume", "message",
@@ -236,8 +238,35 @@ function quantityText(value) {
   return typeof value === "number" && Number.isFinite(value) ? `${value.toLocaleString("en-US")}개` : show(value);
 }
 
+// Same check and fallback wording as the admin mail (contact-email.js briefRows).
+const DRIVE_FOLDER_URL = /^https:\/\/drive\.google\.com\/\S+$/;
+const BRIEF_FOLDER_MISSING = "폴더를 아직 만들지 못했습니다(Firestore contact 문서의 briefArchive 확인)";
+
+/** File name on one line: line breaks and control characters become spaces (the note is plain text). */
+function briefFileName(file) {
+  const name = file && typeof file.name === "string" ? file.name.replace(/[\u0000-\u001f\u007f]+/g, " ").trim() : "";
+  return name || "-";
+}
+
+/**
+ * ■ 브리프 — only when briefFiles were attached. Same data as the admin mail: file count and names from
+ * briefFiles, folder link from the inquiry's Drive folder (briefArchive.folderUrl, drive.google.com only).
+ * Channel Desk turns a plain-text URL in a private note into a link (docs/plans/2026-10-01-channeltalk-crm-integration.md).
+ */
+function briefSection(data, briefFolderUrl) {
+  const files = Array.isArray(data.briefFiles) ? data.briefFiles : [];
+  if (!files.length) return null;
+  const folder = typeof briefFolderUrl === "string" && DRIVE_FOLDER_URL.test(briefFolderUrl)
+    ? briefFolderUrl
+    : BRIEF_FOLDER_MISSING;
+  return {
+    title: "■ 브리프",
+    lines: [`브리프: ${files.length}개 (${files.map(briefFileName).join(", ")})`, `Drive 폴더: ${folder}`],
+  };
+}
+
 /** Renewal Contact (formVersion 2). Legacy-only fields are listed only when a document carries them. */
-function contactNoteV2(data) {
+function contactNoteV2(data, { briefFolderUrl } = {}) {
   const customer = [
     `이름: ${show(data.fullName)}`,
     `회사/브랜드: ${show(data.companyName)}`,
@@ -255,11 +284,13 @@ function contactNoteV2(data) {
     `희망 출시 시점: ${show(data.launchDate)}`,
   ];
   if (typeof data.promoInterest === "boolean") project.push(`프로모션 관심: ${show(data.promoInterest)}`);
+  const brief = briefSection(data, briefFolderUrl);
   return {
     line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
     sections: [
       { title: "■ 문의 내용", lines: [show(data.message)] },
       { title: "■ 프로젝트", lines: project },
+      ...(brief ? [brief] : []),
       { title: "■ 고객 정보", lines: customer },
     ],
     leftover: leftovers(data, CONTACT_KEYS),
@@ -267,8 +298,8 @@ function contactNoteV2(data) {
   };
 }
 
-function contactNote(data) {
-  if (data && data.formVersion === 2) return contactNoteV2(data);
+function contactNote(data, options) {
+  if (data && data.formVersion === 2) return contactNoteV2(data, options);
   return {
     line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
     sections: [
@@ -405,6 +436,7 @@ function fitSection(section, budget) {
  * @param {number} [input.orderIndex]          이 고객의 몇 번째 주문인지
  * @param {string} [input.orderId]
  * @param {object} [input.user]                orders일 때 users 문서
+ * @param {string|null} [input.briefFolderUrl] contact에 briefFiles가 있을 때 문의 Drive 폴더 링크(없으면 안내 문구)
  * @param {{maxLength?: number}} [options]
  * @returns {string[]} 내부대화 메시지 목록(보통 1개)
  */
@@ -412,7 +444,7 @@ function buildNotes(input, options = {}) {
   const maxLength = options.maxLength || DEFAULT_MAX_NOTE_LENGTH;
   const data = input.data || {};
   let note;
-  if (input.kind === "contact") note = contactNote(data);
+  if (input.kind === "contact") note = contactNote(data, { briefFolderUrl: input.briefFolderUrl });
   else if (input.kind === "landingRequests") note = landingNote(data);
   else if (input.kind === "orders") note = orderNote(data, input);
   else throw new Error(`지원하지 않는 제출 종류: ${input.kind}`);

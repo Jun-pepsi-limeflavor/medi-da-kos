@@ -2,6 +2,7 @@
 
 - 작성일: 2026-11-05 (운영 상태는 같은 날 gcloud 읽기 전용 조회 기준)
 - 갱신: 2026-11-05 — `lifecycleScan`·Notion 삭제 승인 반영(로컬 소스 삭제 완료), 폴더 구조 정리·문서 경로 변경 반영
+- 갱신: 2026-11-17 — 환경별 실제 배포 상태(1.7), Contact Brief·Drive·Channel Talk 반영, 웹 전환 전 Rules·Brief 함수 선배포(2-1단계), 롤백 대상 규칙 ID
 - 대상: Medidakos 신규 홈페이지 최종 운영 전환
 - 원칙
   - 신규 홈페이지 완성·최종 검증 전에는 `dev → main` 병합을 하지 않는다.
@@ -65,6 +66,23 @@
 - Notion: 삭제 승인됨. 로컬 소스는 모두 삭제했다. 운영 `onOrderCreated`의 Notion 주문 동기화와 `NOTION_API_KEY`는 최종 전환 시 중단·삭제한다.
 - 기존 `orders` 문서의 `notionSync` 필드명은 `functions/channeltalk/notes.js`의 필드 목록에 남아 있다(기존 데이터 구조 표시용, Notion 기능 아님).
 - 운영 함수 대부분에 `NOTION_*`, `NOTION_HISTORY_MAILBOXES` 환경변수가 붙어 있다. 저장소에는 없는 값으로, 마지막 배포 PC의 로컬 env 파일에서 들어간 것으로 보인다(출처 미확인). 저장소 기준으로 재배포하면 해당 함수에서는 빠진다.
+
+### 1.7 환경별 실제 상태 (2026-11-17, 읽기 전용 확인)
+
+1.1 표는 2026-11-05 정리 시점 기록이다. 현재 반영 경로: **로컬 `feat/website-renewal-v1.1` → GitHub `dev`(PR) → Vercel staging(`dev.medidakos.com`) 검증 → `dev → main`(PR, 3단계) → Vercel Production**. Firebase는 브랜치와 무관하게 `firebase deploy -P <dev|prod>` 선택 배포로만 바뀐다.
+
+| 환경 | 현재 상태 | 근거 |
+|---|---|---|
+| GitHub | `main` = `a8c15e6`(기존 운영 사이트). `dev` = `e976d6a`(PR #39·#40·#41까지: 리뉴얼 1차 + Contact v2 + Brief·Drive). 리뉴얼 브랜치는 `dev`를 병합했고, `dev`에 없는 커밋이 12개 있다(GA4·Meta 복구, 쿠키·Channel 런처, Instagram, 리디렉션, Favicon 2C, SEO·OG·404, Channel 내부 대화 Brief 표시 등) + 미커밋 정리분 | `git log origin/dev..HEAD` |
+| Vercel staging | `dev` `e976d6a` READY(11-17). 위 12개 커밋 미반영 | Vercel API |
+| Vercel Production | `main` `a8c15e6` READY(11-06). 리뉴얼 미반영 | Vercel API |
+| dev Firebase | 함수 6개(웹훅 제외). `onContactCreated`(11-17 04:45 UTC)·`onContactBriefUploaded`(11-17 05:30)·`channelTalkOnContactCreated`·`channelTalkRetry`(11-17 06:50, Brief 표시 반영·Drive 변수 포함)는 최신. Firestore·Storage 규칙 배포본 = 저장소 파일 | `gcloud run services list`, Rules API |
+| 운영 Firebase | 함수 13개(10-14~10-21 배포, 리뉴얼 미반영). `onContactBriefUploaded` 없음. Firestore 규칙 = 10-06 배포본(= `main` 규칙에서 `channelTalkControl` 줄만 없음 — 규칙이 없어도 기본 거부라 동작은 같음, **리뉴얼 Contact v2·briefFiles 허용 없음**). Storage 규칙 = 전부 거부(11-16 배포). Drive 준비: `drive-archiver@medidakos` 계정·compute 계정의 토큰 생성 권한·Drive API·버킷 `contact-briefs/` 7일 삭제 규칙 있음. 공유 드라이브 콘텐츠 관리자 등록은 **확인 필요**(Drive 권한 없음) | gcloud·Rules API 읽기 전용 |
+
+웹에서 지운 코드와 운영 리소스의 관계
+
+- 리뉴얼 브랜치에서 지운 예전 페이지·컴포넌트·스타일(2026-11-17 정리: 예전 Contact 폼·Header·Footer·MarketingShell 등)은 **Vercel 배포(3단계)만으로 반영**된다. Firebase 쪽 조치는 필요 없다.
+- 예전 Contact 형식(`formVersion` 없음) 문서는 Firestore에 그대로 두고 마이그레이션하지 않는다. 새 규칙(`validContactLegacy`)·`onContactCreated`·Channel Talk 내부 대화는 두 형식을 모두 처리한다. 3단계 전까지 운영 `main`의 예전 폼이 계속 이 형식으로 저장하므로 이 처리를 지우지 않는다.
 
 ---
 
@@ -162,7 +180,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 
 | 컬렉션 | 현재 규칙(저장소 기준) | 신규 사용 | 전환 후 처리 |
 |---|---|---|---|
-| `contact` | 검증된 create만 허용 | 사용 | **유지** |
+| `contact` | 검증된 create만 허용 | 사용 | **유지**. 리뉴얼 Contact(`formVersion: 2`, `briefFiles`) 규칙 포함본을 **웹 전환 전(2-1단계)** 배포해야 저장됨. 예전 형식도 그대로 허용(dev 검증 2026-11-13·11-17, 마스터 문서 C-2·C-4·C-6) |
 | `users` | 본인 create·update, 읽기 | 사용(회원가입) | **유지** |
 | `landingRequests` | 비로그인 create 허용 | 미사용 | create 차단(`allow create: if false`) |
 | `orders` | 본인 create·read | 미사용 | create 차단. read는 Dashboard V2 계획에 따라 결정 |
@@ -175,7 +193,8 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 | `channelTalkSync`, `channelTalkIdentities`, `channelTalkControl` | 클라이언트 전부 거부 | 서버 사용 | **유지** |
 | `mail`, `lifecycleQueue`, `lifecycleContacts` | 규칙 없음 → 전부 거부(서버 전용) | `mail`만 사용 | 유지(데이터 보존. `lifecycle*`은 `lifecycleScan` 삭제 후 쓰이지 않음) |
 
-- 배포된 규칙이 저장소 규칙과 같은지 **확인 필요**(Firebase 콘솔 → Firestore → 규칙 → 게시 이력).
+- 배포된 규칙 비교(2026-11-17, Rules API 읽기 전용): 운영 Firestore = 10-06 배포본(ruleset `1f511730…`), 저장소와 다름(리뉴얼 Contact 미포함). 운영 Storage = 전부 거부(ruleset `8fa16262…`), 저장소 `storage.rules`(브리프 업로드 허용)와 다름. dev는 둘 다 저장소와 같음.
+- Storage 규칙 `storage.rules`(Contact 브리프)는 Firestore 규칙과 같은 배포에서 `--only firestore:rules,storage`로 올린다. 첫 배포 때 교차 서비스 IAM 질문에 Y([Drive 문서](../integrations/google-drive-briefs.md)).
 - 규칙 배포 예: `firebase deploy --project medidakos --only firestore:rules` (승인 후. `--dry-run`도 실제 반영된 사례가 있어 쓰지 않는다.)
 - 규칙 변경 시 `tests/rules/*`, `tests/firestore-landing-requests.test.ts`를 함께 고치고 `npm test`로 에뮬레이터 검증한다.
 
@@ -206,20 +225,29 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 
 ### 6.1 삭제되는 URL과 SEO·광고
 
-| URL | 처리 결정 필요 |
-|---|---|
-| `/process`, `/compare` (기존 sitemap 포함) | 신규 대응 페이지로 301 또는 404/410 |
-| `/how-it-works`, `/pricing`, `/business` (기존 301) | 신규 페이지로 301 유지 여부 |
-| `/korea`, `/landing/korea`, `/landing/catalog`, `/landing/dashboard` | 콜드메일·광고 URL. 신규 랜딩/Contact로 301 여부 |
-| `/dashboard`, `/dashboard/orders`, `/dashboard/tracking` | 로그인 사용자 북마크. 홈으로 301 또는 404 |
-| `/admin/*`, `/test` | 404 유지 |
+처리 현황(2026-11-13 확정, `next.config.ts` `redirects()`, `feat/website-renewal-v1.1`). 쿼리(UTM 등)는 그대로 넘어가고 1회 이동으로 끝난다(로컬 확인).
+
+| 기존 URL | 처리 | 상태 |
+|---|---|---|
+| `/business` | → `/about-us` (308) | 확정 |
+| `/process`, `/how-it-works` | → `/services#how-it-works` (308) | 확정 |
+| `/landing/catalog` | → `/portfolio` (308) | 확정 |
+| `/compare`, `/pricing` | → `/services` (308) | 확정 |
+| `/dashboard` 및 하위 경로(`/dashboard/orders`, `/dashboard/tracking` 등) | → `/contact` (307 임시) | 확정. V2.1 Dashboard 복구 때 이 리디렉션 제거 |
+| `/korea`, `/landing/korea`, `/landing/dashboard` | → `/portfolio` (308) | 확정(2026-11-17) |
+| `/admin/*`, `/test` | 404 유지 | 확정 |
 
 체크
 - [ ] Google Ads·Meta 광고·콜드메일 템플릿의 최종 URL 목록 확인 후 변경
-- [ ] 리디렉션 정책 확정 → `next.config.ts`에 반영(신규 브랜치)
+- [ ] Google Ads 전환: `Contact 페이지 문의 제출 (GA4)`(`generate_lead`) 기본 전환 유지, `Dashboard 브리프 제출 (GA4)`(`conversion_event_submit_lead_form`, 리뉴얼에서 발생 안 함)은 보조 전환 변경·목표 제외 검토(마스터 문서 C-9)
+- [x] 리디렉션 정책 확정 → `next.config.ts`에 반영(`feat/website-renewal-v1.1`, 컨펌 대기 3개 제외)
+- [x] `/korea`·`/landing/korea`·`/landing/dashboard` 최종 목적지 확정 → `/portfolio` 308 반영(2026-11-17, `tests/redirects/legacy-urls.test.ts`)
+- [ ] `medidakos.com`(apex)이 `www`로 이동하지 않고 200 응답(리뉴얼 전 운영에서도 동일, 2026-11-17 확인). Vercel 도메인 설정 확인 필요
 - [ ] 신규 `sitemap.xml`·`robots.txt` 확인, Search Console에 sitemap 재제출
 - [ ] Search Console에서 404 증가 모니터링(전환 후 2주)
 - [ ] 신규 favicon·Apple 아이콘·manifest 아이콘·OG·Twitter 이미지·JSON-LD 로고 적용 확인(정리 브랜치에서 기존 파일 전부 삭제됨)
+- [ ] 운영에서만 색인 허용 확인: `robots.txt`가 `Allow: /` + sitemap(운영 Vercel 시스템 변수 `VERCEL_ENV=production`에 의존), 페이지 `index, follow`. staging은 `Disallow: /`·`noindex`
+- [ ] manifest·`theme-color` 흰색(`#FFFFFF`), favicon 라이트·다크 전환
 
 ---
 
@@ -249,22 +277,35 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
   - [ ] 현재 `main` 커밋에 태그: `git tag pre-renewal-cutover <main SHA>` 후 push(승인)
   - [ ] 현재 Vercel Production 배포 ID 기록(롤백 대상)
   - [ ] Firestore 내보내기(예): `gcloud firestore export gs://<백업 버킷>/pre-renewal-cutover --project medidakos`
-  - [ ] 배포된 Firestore 규칙 사본 저장(콘솔 → 규칙 → 게시 이력)
+  - [ ] 배포된 Firestore 규칙 사본 저장(콘솔 → 규칙 → 게시 이력). 2026-11-17 기준 운영 Firestore ruleset `1f511730-3435-490f-968a-8a35a514e18a`, Storage ruleset `8fa16262-1066-4de3-b6fa-dadaf7805597` — 롤백 때 이 게시본으로 되돌린다
+  - [ ] 운영 함수별 배포 시각 기록(`gcloud run services list --project medidakos --region asia-northeast3`) — 함수 롤백은 `pre-renewal-cutover` 태그 소스로 재배포
 - 성공: 태그·배포 ID·백업 경로가 기록됨. 실패: 백업 없이 다음 단계로 가지 않는다.
+
+### 2-1단계. 웹 전환 전 Rules·Contact 브리프 함수 선배포 (2026-11-17 추가)
+- 이유: 운영 규칙에 리뉴얼 Contact(`formVersion: 2`·`briefFiles`) 허용이 없고 Storage는 전부 거부라, 웹을 먼저 바꾸면 Contact 저장·Brief 업로드가 실패한다. 또 `onContactBriefUploaded`가 없을 때 올라온 파일은 트리거가 다시 실행되지 않아 7일 뒤 삭제된다. 순서는 **규칙 → 함수 → 웹**([Drive 문서](../integrations/google-drive-briefs.md)).
+- 기존 사이트 영향: 새 규칙은 예전 Contact 형식도 그대로 허용하고(허용 필드 = `main` 폼이 보내는 필드), 다른 컬렉션 규칙은 바뀌지 않는다. 새 `onContactCreated`는 예전 형식 메일을 그대로 만들고, `onContactBriefUploaded`는 업로드가 있을 때만 동작한다.
+- 조건: 2단계 완료, 공유 드라이브에 `drive-archiver@medidakos` 콘텐츠 관리자 등록 확인, `functions/.env.medidakos`의 `DRIVE_BRIEF_ROOT_FOLDER_ID` 확인. 승인.
+- 작업(예)
+  - `firebase deploy -P prod --only firestore:rules,storage`
+  - `firebase deploy -P prod --only functions:default:onContactCreated,functions:default:onContactBriefUploaded`
+- 성공: Rules API·콘솔에서 새 게시본, 두 함수 ACTIVE·갱신 시각 변경. 기존 사이트 Contact 테스트는 5단계에서 함께 확인.
+- 실패: 2단계에 기록한 규칙 게시본으로 되돌리고, `onContactCreated`는 태그 소스로 재배포. `onContactBriefUploaded`는 새 함수라 삭제로 원복.
 
 ### 3단계. 신규 홈페이지 Production 배포
 - 조건: 0~2단계 완료. 승인.
 - 작업: `dev → main` PR 병합 → Vercel이 Production 배포.
 - 성공
   - [ ] www.medidakos.com에 신규 홈페이지 표시, 콘솔 오류 없음
-  - [ ] 로그인·회원가입·로그아웃, Channel Talk 위젯, GA4·Meta Pixel 이벤트 확인
+  - [ ] 로그인·회원가입·로그아웃, Channel Talk 위젯, GA4·Meta Pixel 이벤트 확인(GA4 실시간: page_view·`email_click`·`sign_up`, Meta: PageView·`Contact`). page_view 중복은 이후 GA4 데이터로 확인(마스터 문서 C-9)
   - [ ] 리디렉션 정책대로 동작, 기존 Landing·Dashboard 경로에서 폼 제출 불가
+  - [ ] Home Instagram 게시물 표시(운영 Vercel `INSTAGRAM_*` 사용). 2026-11-17 현재 Graph API가 `API access blocked`로 거부 중 → 해결 전이면 빈 상태 문구가 나온다(마스터 문서 C-7)
   - [ ] 이 시점 Functions는 기존 그대로이므로 Contact 문의는 기존 방식으로 계속 처리됨
 - 실패: Vercel에서 이전 Production 배포로 즉시 롤백(Instant Rollback). Functions는 아직 바꾸지 않았으므로 영향 없음.
 
 ### 4단계. Contact 관련 Functions 선택 재배포
 - 조건: 3단계 성공 후 최소 수 시간 관찰, 신규 `landingRequests`·`orders` 생성이 없는지 확인. 승인.
-- 작업(예, `main` 최신 커밋에서): `firebase deploy --project medidakos --only functions:default:onContactCreated,functions:default:channelTalkOnContactCreated,functions:default:channelTalkRetry,functions:default:onUserSignup,functions:default:channelTalkOnUserCreated`
+- 작업(예, `main` 최신 커밋에서): `firebase deploy --project medidakos --only functions:default:channelTalkOnContactCreated,functions:default:channelTalkRetry,functions:default:onUserSignup,functions:default:channelTalkOnUserCreated` (`onContactCreated`·`onContactBriefUploaded`는 2-1단계에서 배포). Channel Talk 내부 대화의 "■ 브리프"(파일명·Drive 폴더 링크)는 이 배포부터 적용된다. 3단계와 이 단계 사이에는 리뉴얼 문의가 예전 함수로 처리돼 내부 대화 형식이 단순해지므로 간격을 짧게 둔다
+- 환경 파라미터: `functions/.env` + `functions/.env.medidakos`(2026-11-17부터 Git 추적)로 배포된다. 배포 전 두 파일이 `main`과 같은지 확인
 - 성공
   - [ ] `gcloud functions list`에서 해당 함수 UPDATE_TIME 갱신, ACTIVE
   - [ ] `firebase functions:log --project medidakos --only channelTalkRetry` 오류 없음
@@ -277,9 +318,12 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
   - [ ] `channelTalkSync/contact_<id>` status `success`, steps 전부 done
   - [ ] Channel Talk에 `[TEST]` 상담 생성 **그리고** 내부 대화에 고객 정보·문의 내용 등록
   - [ ] `ADMIN_EMAILS`로 "[문의]" 알림 메일 수신
+  - [ ] 첨부 1~2개 문의: 메일과 내부 대화의 "브리프: N개 (파일명)"·Drive 폴더 링크, 공유 드라이브에 문의 폴더·파일(운영은 `_test` 아님 — 테스트 문의는 `isTest`로 `_test` 아래), `contact.briefArchive.status` `completed`, 임시 파일 삭제
+  - [ ] `contact` 문서에 `gaClientId` 저장, GA4 `generate_lead`(`form_id: contact-page`)·Meta `Lead` 수집 확인. 이 테스트 문의는 Google Ads 전환 1건으로 집계될 수 있다(`is_test`로 걸러지지 않음)
 - 실패: 4단계 함수를 `pre-renewal-cutover` 태그 소스로 다시 배포해 원복하고 원인 분석. 테스트 상담은 Channel Desk에서 정리.
 
 ### 6단계. Landing·주문용 Functions 삭제
+- 배경(2026-11-16 확인): 이 함수들의 소스·호출 코드·주문 등록 화면은 V1.1 소스에서 이미 제거됐다. 운영에만 배포돼 남아 있으므로 이 단계에서 삭제한다.
 - 조건: 5단계 통과. 승인.
 - 작업(예)
   - `firebase functions:delete channelTalkOnLandingCreated channelTalkOnOrderCreated --region asia-northeast3 --project medidakos`
@@ -301,6 +345,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 - 실패: 태그 소스로 재배포.
 
 ### 9단계. Firestore Rules 정리
+- 배경(2026-11-16 확인): 현재 규칙은 `landingRequests`(**비로그인 생성 허용**)·`orders`·`sampleRequests`(로그인 본인 생성)·`cmBriefs`·`tracking`을 아직 열어 둔다. 화면·트리거는 없지만 API로 직접 쓰면 문서가 생기고, 6단계 전에는 운영의 예전 함수가 반응할 수 있다. 이 단계에서 생성을 차단한다(데이터는 삭제하지 않음).
 - 조건: 5장 규칙안 승인, 에뮬레이터 테스트 통과.
 - 작업: 규칙 PR → `firebase deploy --project medidakos --only firestore:rules`
 - 성공: Contact 문의·회원가입 정상, `landingRequests` 등 쓰기 거부 확인(에뮬레이터·콘솔 Rules Playground).
@@ -326,6 +371,7 @@ KakaoWork Git 알림의 `KAKAOWORK_*` 값은 Vercel이 아니라 GitHub 저장�
 
 | 승인 항목 | 해당 단계 | 승인자 | 승인일 |
 |---|---|---|---|
+| 운영 Firestore·Storage Rules 배포, `onContactCreated`·`onContactBriefUploaded` 배포 | 2-1 | | |
 | 신규 홈페이지 최종 Production 배포(`dev → main`) | 3 | | |
 | Firebase Functions 수정 배포 | 4 | | |
 | 운영 Contact 테스트 문의 1건 제출 | 5 | | |

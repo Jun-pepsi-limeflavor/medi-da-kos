@@ -9,23 +9,3 @@ export interface UserProfile {
   role?: "admin" | "user";
   createdAt: string;
 }
-
-export interface ContactSubmission {
-  id: string;
-  companyName: string;
-  email: string;
-  referralSource?: string;
-  businessType?: string;
-  message: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
-  pageUrl?: string;
-  gaClientId?: string;
-  userAgent?: string;
-  isTest?: boolean;
-  status: "submitted";
-  createdAt: string;
-}

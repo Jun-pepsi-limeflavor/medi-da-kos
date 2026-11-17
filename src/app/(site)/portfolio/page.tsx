@@ -9,11 +9,12 @@ import { PortfolioCatalog } from "@/components/portfolio/PortfolioCatalog";
 import { PortfolioCtaBand } from "@/components/portfolio/PortfolioCtaBand";
 import { PortfolioHero } from "@/components/portfolio/PortfolioHero";
 import { ROUTES } from "@/lib/config/routes";
+import { OPEN_GRAPH_BASE } from "@/lib/config/seo";
 import { SITE_URL } from "@/lib/config/site";
 
-const TITLE = "Portfolio — Your Next Bestseller Starts Here";
+const TITLE = "Portfolio — Cosmetic Categories We Develop";
 const DESCRIPTION =
-  "Explore the product categories and formulas we can develop for your brand with our Korean manufacturing partners.";
+  "Explore the products and formulas we can develop with our Korean manufacturing partners, from facial care, cleansing and sun care to body, hair care and makeup.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
     canonical: `${SITE_URL}${ROUTES.portfolio}`,
   },
   openGraph: {
+    ...OPEN_GRAPH_BASE,
     title: `${TITLE} | Medidakos`,
     description: DESCRIPTION,
     url: `${SITE_URL}${ROUTES.portfolio}`,

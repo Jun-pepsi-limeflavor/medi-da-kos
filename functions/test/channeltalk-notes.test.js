@@ -273,3 +273,52 @@ test("기존 운영 Contact(formVersion 없음)는 예전 메모 그대로", () 
   assert.ok(note.includes("유입 경로(고객 선택): Social Media"));
   assert.ok(!note.includes("이름:"));
 });
+
+// ── Contact v2 브리프 첨부(2026-11): ■ 브리프 = 관리자 메일과 같은 개수·파일명·Drive 폴더 링크 ──
+const briefFiles = [
+  { name: "brief.pdf", size: 1200, contentType: "application/pdf" },
+  { name: "packaging.png", size: 3400, contentType: "image/png" },
+];
+const FOLDER = "https://drive.google.com/drive/folders/folder-123";
+
+test("Contact v2 브리프: 개수·파일명과 Drive 폴더 링크를 프로젝트 다음에 보여 주고 기타 항목에 원본 JSON을 남기지 않는다", () => {
+  const data = { ...contactV2, briefFiles, briefArchive: { status: "pending", folderUrl: FOLDER } };
+  const [note] = buildNotes({ kind: "contact", docId: "b1", data, receivedAt, profileResult, briefFolderUrl: FOLDER });
+  const l = lines(note);
+  const at = l.indexOf("■ 브리프");
+  assert.ok(at > l.indexOf("■ 프로젝트") && at < l.indexOf("■ 고객 정보"));
+  assert.equal(l[at + 1], "브리프: 2개 (brief.pdf, packaging.png)");
+  assert.equal(l[at + 2], `Drive 폴더: ${FOLDER}`);
+  assert.ok(!note.includes("■ 기타 항목"));
+  assert.ok(!note.includes("contentType"));
+  assert.equal(l[l.length - 1], "기록: contact/b1");
+});
+
+test("Contact v2 브리프: 1개·3개 모두 표시", () => {
+  const three = [...briefFiles, { name: "spec.xlsx", size: 10, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }];
+  const one = buildNotes({ kind: "contact", docId: "b2", data: { ...contactV2, briefFiles: briefFiles.slice(0, 1) }, receivedAt, profileResult, briefFolderUrl: FOLDER })[0];
+  const all = buildNotes({ kind: "contact", docId: "b3", data: { ...contactV2, briefFiles: three }, receivedAt, profileResult, briefFolderUrl: FOLDER })[0];
+  assert.ok(lines(one).includes("브리프: 1개 (brief.pdf)"));
+  assert.ok(lines(all).includes("브리프: 3개 (brief.pdf, packaging.png, spec.xlsx)"));
+});
+
+test("Contact v2 브리프: 폴더 링크가 없거나 Drive 주소가 아니면 링크 대신 확인 안내", () => {
+  for (const url of [null, undefined, "", "https://evil.example/drive.google.com/x", "http://drive.google.com/x", "https://drive.google.com/x y"]) {
+    const [note] = buildNotes({ kind: "contact", docId: "b4", data: { ...contactV2, briefFiles }, receivedAt, profileResult, briefFolderUrl: url });
+    assert.ok(lines(note).includes("Drive 폴더: 폴더를 아직 만들지 못했습니다(Firestore contact 문서의 briefArchive 확인)"), String(url));
+  }
+});
+
+test("Contact v2 브리프: 파일명의 줄바꿈·제어 문자는 공백으로 바꿔 한 줄에 둔다", () => {
+  const data = { ...contactV2, briefFiles: [{ name: "a\nb\r\tc.pdf", size: 1, contentType: "application/pdf" }, { size: 1 }] };
+  const [note] = buildNotes({ kind: "contact", docId: "b5", data, receivedAt, profileResult, briefFolderUrl: FOLDER });
+  assert.ok(lines(note).includes("브리프: 2개 (a b c.pdf, -)"));
+});
+
+test("Contact v2 브리프: 첨부가 없으면 브리프 섹션이 없다(링크를 넘겨도)", () => {
+  for (const data of [contactV2, { ...contactV2, briefFiles: [] }]) {
+    const [note] = buildNotes({ kind: "contact", docId: "b6", data, receivedAt, profileResult, briefFolderUrl: FOLDER });
+    assert.ok(!note.includes("■ 브리프"));
+    assert.ok(!note.includes("Drive 폴더"));
+  }
+});

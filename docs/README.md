@@ -6,7 +6,7 @@
 
 ```text
 public/
-  images/{home,about,services,portfolio,categories,common}/   페이지별 이미지 (categories: 제품 카테고리 타일)
+  images/{home,about,services,portfolio,categories,promo}/   페이지별 이미지 (categories: 제품 카테고리 타일)
   logos/certifications/   인증 마크 (FDA, EU CPNP, ISO 22716, ISO 9001, MFDS, ISO 14001, GMP, GMPC)
   logos/                  Medidakos 로고·심볼 원본(현재 최종 로고는 텍스트 워드마크)
   icons/                  lucide에 없는 아이콘 (예: Google 로그인)
@@ -14,22 +14,22 @@ public/
   downloads/              다운로드 파일 (Brief template)
 src/
   app/
-    (marketing)/          공개 페이지: / , /about-us , /contact (공통 레이아웃: layout.tsx)
-    login/                로그인·회원가입
+    (site)/               공개 페이지: / , /about-us , /services , /portfolio , /faq , /contact , /privacy-policy , /terms-of-service (각 Page가 SiteShell로 감쌈)
+    (auth)/               로그인 /login · 회원가입 /signup
     api/channel-talk/     Channel Talk member-hash (서버)
     api/kakaowork/        KakaoWork callback
     layout.tsx            전역 레이아웃·메타데이터, GA4·Meta Pixel·Channel Talk·Auth 연결
-    manifest.ts robots.ts sitemap.ts
+    manifest.ts robots.ts sitemap.ts not-found.tsx
   components/
-    layout/               Header, Footer, MarketingShell
+    layout/               SiteShell, Navbar, SiteFooter, AnnouncementBar
     home/ about/ services/ portfolio/ faq/   페이지 전용 섹션·컴포넌트
     legal/                Privacy Policy·Terms 공통 레이아웃 (목차·본문)
     cookie-consent/       쿠키 배너·쿠키 설정 모달 (전 페이지 공통)
-    contact/              ContactForm
+    contact/              InquiryForm, BriefUpload, inquiry-validation
     auth/                 LoginForm
-    ui/                   2개 이상 페이지에서 쓰는 공통 UI (SocialLinks, SocialIcons, 앞으로 Button·Input 등)
-    analytics/            GoogleAnalytics, MetaPixel, TrackedMailLink
-    seo/                  OrganizationJsonLd
+    ui/                   2개 이상 페이지에서 쓰는 공통 UI (Button, Input, FormMessage, Modal, CloseButton)
+    analytics/            GoogleAnalytics, MetaPixel
+    seo/                  OrganizationJsonLd, ThemeFavicon(라이트·다크 favicon)
     channel-talk/         Channel Talk 위젯 boot
   hooks/                  use-utm-params
   lib/
@@ -37,10 +37,9 @@ src/
     channel-talk/         client(위젯 SDK), intake(제출 문서 식별 필드), member-hash(서버)
     analytics/            events(GA4·Meta 전환 이벤트), meta-pixel, ga-client-id
     auth/                 auth-context(Firebase Auth), mock-auth(로컬 mock 로그인)
-    contact/              form-options(Contact 선택지)
-    config/               site(사이트 상수·SNS), routes(앱 경로)
+    config/               site(사이트 상수·SNS), routes(앱 경로), seo(검색 노출·OG)
     utils/                env-flags(운영/테스트 환경 판정)
-    types.ts              UserProfile, ContactSubmission
+    types.ts              UserProfile
 functions/
   index.js                onUserSignup, onContactCreated, onContactBriefUploaded + Channel Talk 함수 export
   gmail-notify.js         관리자·회원 메일 발송 큐
@@ -77,24 +76,24 @@ docs/
 |---|---|---|---|
 | Home — Final Design | `/` | Hero, Key Metrics, Partner Certifications, Why Medidakos, Product Categories(7개 타일 → `/portfolio?category=`), SNS Content(Instagram·TikTok 탭 + 가로 캐러셀 + 게시물 모달), Client Testimonials(세계 지도 핀 + 후기 카드, 지도는 SVG), CTA Band | `components/home/` |
 | About Us — Final Design | `/about-us` | Hero, The Challenge, Transition, Why Medidakos → Our Approach, Who We Are & Company Information, CTA Band | `components/about/` |
-| Services — Final Design | `/services` (예정) | Hero, 앵커 바(sticky), Scope `#scope`, How It Works `#how-it-works`(9단계 sticky 내비), Samples & MOQ `#samples-moq`, Payment & Shipping `#payment-shipping`, Quality & Compliance `#quality-compliance`, CTA Band | `components/services/` |
-| Portfolio — Final Design (+ 카테고리별 7개 프레임) | `/portfolio`, `?category=` (예정) | Hero, 카테고리 필터 + 제품 그리드(3열, Load more), CTA Band(Brief template 다운로드) | `components/portfolio/` |
-| FAQ — Final Design | `/faq` (예정) | Hero, 토픽 내비(sticky, `#moq` 등 7개) + 아코디언 그룹, Contact CTA | `components/faq/` |
+| Services — Final Design | `/services` | Hero, 앵커 바(sticky), Scope `#scope`, How It Works `#how-it-works`(9단계 sticky 내비), Samples & MOQ `#samples-moq`, Payment & Shipping `#payment-shipping`, Quality & Compliance `#quality-compliance`, CTA Band | `components/services/` |
+| Portfolio — Final Design (+ 카테고리별 7개 프레임) | `/portfolio`, `?category=` | Hero, 카테고리 필터 + 제품 그리드(3열, Load more), CTA Band(Brief template 다운로드) | `components/portfolio/` |
+| FAQ — Final Design | `/faq` | Hero, 토픽 내비(sticky, `#moq` 등 7개) + 아코디언 그룹, Contact CTA | `components/faq/` |
 | Contact — Final Design | `/contact` | Hero, 문의 폼(필수·선택·Brief 업로드), 사이드(프로모션 안내 `?promo=`, 다음 단계, 연락 채널) | `components/contact/` |
-| Privacy Policy / Terms of Service | URL 미정 | Header, 목차(sticky) + 본문 | `components/legal/` |
-| Log In / Sign Up | `/login`, Sign Up URL 미정 | Auth 카드(Google, 이메일 필드) | `components/auth/` |
+| Privacy Policy / Terms of Service | `/privacy-policy`, `/terms-of-service` | Header, 목차(sticky) + 본문 | `components/legal/` |
+| Log In / Sign Up | `/login`, `/signup` | Auth 카드(Google, 이메일 필드) | `components/auth/` |
 | Dashboard | 2차 개발 | — | — |
 
 공통 요소
 
 | 요소 | 사용 범위 | 위치 |
 |---|---|---|
-| Navbar (활성 메뉴 × 로그인 상태 변형) | 전 페이지 | `components/layout/Header.tsx` |
+| Navbar (활성 메뉴 × 로그인 상태 변형) | 전 페이지 | `components/layout/Navbar.tsx` |
 | Announcement Bar | Home, About Us, Services, Portfolio, FAQ (Contact·정책·Auth 제외) | `components/layout/` |
-| Footer (Services·Company·Follow 링크, 법적 링크, Cookie Settings) | Auth·Dashboard 제외 전 페이지 | `components/layout/Footer.tsx` |
+| Footer (Services·Company·Follow 링크, 법적 링크, Cookie Settings) | Auth·Dashboard 제외 전 페이지 | `components/layout/SiteFooter.tsx` |
 | Cookie Banner·Cookie Settings Modal | 전 페이지 | `components/cookie-consent/` |
 | Channel Talk 런처·패널 | 전 페이지(디자인은 자리표시, 실제는 SDK 위젯) | `components/channel-talk/` |
-| Button, Tag, Filter Chip, Input, Select, Textarea, Checkbox, Upload Dropzone, Form Message, Accordion | 여러 페이지 | `components/ui/` |
+| Button, Input, Form Message, Modal (Filter Chip·Upload Dropzone·Accordion 등은 해당 페이지 폴더에 구현) | 여러 페이지 | `components/ui/` |
 | CTA Band | 대부분 페이지 하단(페이지마다 문구·버튼 다름) | 페이지 폴더. 같은 형태가 확인되면 `components/ui/`로 올린다 |
 | Product Card, Category Tile, Cert Mark, SNS Post, Map Pin·Map Testimonial Card, Policy TOC Item | 해당 페이지 전용 | 각 페이지 폴더 |
 

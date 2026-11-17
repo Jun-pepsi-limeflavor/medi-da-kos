@@ -16,6 +16,9 @@ import { SOCIAL_LINKS, SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_HREF, type So
 /**
  * Figma: Design System › Footer (742:2200). off-white, padding 120/120/48/120, 72px between rows.
  * Email is a mailto link (Figma annotation) that also copies the address; measured with the existing email_click event.
+ * Below xl the side padding is 24px, so the legal links reach the fixed chat launcher's column: the bottom padding
+ * lifts them above it when scrolled to the end (launcher top ≈ 91px). Phones: launcher top 60px + safe area and the
+ * cookie banner ends 88px up, so the link text (inside 8px padding) sits in that gap. xl keeps Figma's 48px.
  */
 const linkClass =
   "block w-fit text-mdk-body text-mdk-charcoal underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mdk-charcoal";
@@ -40,7 +43,7 @@ export function SiteFooter() {
   );
 
   return (
-    <footer className="font-mdk bg-mdk-off-white px-6 pt-16 pb-12 lg:pt-30 xl:px-[120px]">
+    <footer className="font-mdk bg-mdk-off-white px-6 pt-16 pb-[104px] phone:pb-[calc(60px_+_env(safe-area-inset-bottom))] lg:pt-30 xl:px-[120px] xl:pb-12">
       <div className="@container mx-auto flex max-w-[1200px] flex-col gap-12 lg:gap-[72px]">
         <div className="flex flex-col gap-10 lg:flex-row">
           <div className="flex min-w-0 flex-1 flex-col gap-3">

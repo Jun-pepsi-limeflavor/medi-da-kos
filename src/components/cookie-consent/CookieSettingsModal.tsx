@@ -79,7 +79,7 @@ function SettingsPanel({ titleId, saved, onClose, onSave }: { titleId: string; s
           <h2 id={titleId} className="text-mdk-title text-mdk-charcoal">
             {COOKIE_SETTINGS_COPY.title}
           </h2>
-          <CloseButton onClick={onClose} label="Close cookie settings" variant="plain" className="-mr-2" />
+          <CloseButton onClick={onClose} label="Close cookie settings" variant="plain" />
         </div>
         <p className="text-mdk-body text-mdk-charcoal-muted">
           {COOKIE_SETTINGS_COPY.description[0]}

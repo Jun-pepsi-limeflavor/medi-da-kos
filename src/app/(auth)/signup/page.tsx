@@ -1,15 +1,10 @@
 // Sign Up 페이지(/signup). AuthShell 안에 회원가입 폼을 렌더링하며 검색 노출 제외(noindex).
-import type { Metadata } from "next";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { SIGNUP_METADATA } from "@/lib/config/seo";
 
-export const metadata: Metadata = {
-  title: "Sign up",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+// noindex + own canonical; does not inherit the Home description, OG or Twitter tags.
+export const metadata = SIGNUP_METADATA;
 
 export default function SignupPage() {
   return (

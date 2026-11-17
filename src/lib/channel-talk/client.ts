@@ -1,4 +1,4 @@
-// Channel Talk SDK boot·종료·페이지 동기화. boot 때 SDK 기본 버튼을 숨기고 사이트 런처(ChannelTalkLauncher)를 커스텀 런처로 연결하며,
+// Channel Talk SDK boot·종료·페이지 동기화. boot 때 SDK 기본 버튼을 숨기고(사이트 런처 ChannelTalkLauncher가 직접 showMessenger·hideMessenger 호출),
 // 메신저 열림·닫힘과 미읽음 수(onBadgeChanged) 콜백을 런처 표시 상태에 넘긴다(lib/channel-talk/launcher).
 // 콜백은 boot 성공 때 등록하고, 다시 boot하기 전 shutdown이 지우므로 중복 등록되지 않는다.
 import {
@@ -17,7 +17,7 @@ import {
   type User,
 } from "@channel.io/channel-web-sdk-loader";
 import { gaBootProfile } from "@/lib/channel-talk/intake";
-import { LAUNCHER_SELECTOR, setChannelUnread, setMessengerOpen } from "@/lib/channel-talk/launcher";
+import { setChannelReady, setChannelUnread, setMessengerOpen } from "@/lib/channel-talk/launcher";
 import type { UserProfile } from "@/lib/types";
 
 export { CHANNEL_TALK_GA_PROFILE_KEY } from "@/lib/channel-talk/intake";
@@ -55,6 +55,7 @@ function runBoot(option: BootOption): Promise<User> {
     const callback: Callback = (error, user) => {
       if (error || !user) {
         lastBootError = error?.message ?? "Channel Talk boot failed";
+        setChannelReady(false);
         lastBootUser = null;
         reject(error ?? new Error(lastBootError));
         return;
@@ -62,6 +63,7 @@ function runBoot(option: BootOption): Promise<User> {
 
       lastBootError = null;
       lastBootUser = user;
+      setChannelReady(true); // the site launcher shows only from here
       // Site launcher (ChannelTalkLauncher) shows the messenger state; shutdown clears these callbacks.
       onShowMessenger(() => setMessengerOpen(true));
       onHideMessenger(() => setMessengerOpen(false));
@@ -70,8 +72,10 @@ function runBoot(option: BootOption): Promise<User> {
       resolve(user);
     };
 
-    // Figma launcher: hide the SDK's default button and use the site launcher instead.
-    boot({ ...option, hideChannelButtonOnBoot: true, customLauncherSelector: LAUNCHER_SELECTOR }, callback);
+    // Figma launcher: hide the SDK's default button; the site launcher opens/closes the messenger itself.
+    // No customLauncherSelector (2026-11-13): the SDK's own click binding did not open the messenger in real Chrome,
+    // and keeping it alongside our showMessenger call would toggle twice.
+    boot({ ...option, hideChannelButtonOnBoot: true }, callback);
   });
 }
 
@@ -118,6 +122,7 @@ export async function bootChannelTalkAsMember(
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
     setChannelUnread(0); // the next boot reports its own count
+    setChannelReady(false);
     bootedMemberId = null;
     bootedAnonymous = false;
   }
@@ -160,6 +165,7 @@ export async function bootChannelTalkAsAnonymous(
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
     setChannelUnread(0); // the next boot reports its own count
+    setChannelReady(false);
     bootedMemberId = null;
     bootedAnonymous = false;
   }
@@ -191,6 +197,7 @@ export function shutdownChannelTalk(): void {
   shutdown();
   setMessengerOpen(false);
   setChannelUnread(0);
+  setChannelReady(false);
   bootedMemberId = null;
   bootedAnonymous = false;
   lastBootError = null;

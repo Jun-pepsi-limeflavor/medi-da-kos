@@ -1,25 +1,26 @@
 /*
  * 전역 스타일과 디자인 토큰.
- * - Tailwind v4 진입점, 기존(레거시) 페이지의 색상·폰트 변수
+ * - Tailwind v4 진입점, 기본 배경(흰색) 변수와 body 기본 폰트(Instrument Sans = font-mdk와 같은 글꼴).
+ *   글자색은 각 화면이 MDK 토큰으로 지정한다(예전 --foreground #0f172a는 2026-11 정리에서 제거)
  * - 리뉴얼용 MDK 토큰(@theme): 색상·모서리·타이포그래피와 `font-mdk` 폰트
  * - Announcement Bar 닫힘(탭 단위) 상태의 숨김 규칙
+ * - `phone:` 변형(2026-11-16): 터치 전용 + 짧은 변 600px 미만 = 휴대폰. Channel Talk SDK가 모바일 메신저를 쓰는 기기
+ *   (User-Agent의 device.type "mobile")를 CSS로 근사한다 — 폭만 줄인 데스크톱 브라우저·태블릿은 해당하지 않는다.
+ *   완전히 같지는 않다(휴대폰의 '데스크톱 사이트' 모드, 펼친 폴더블 등은 다르게 판정될 수 있음)
  */
 
 @import "tailwindcss";
 
-:root {
-  --background: #f6fbff;
-  --foreground: #0f172a;
-  --sky-primary: #38bdf8;
-  --sky-light: #e8f6fc;
-  --cyan-accent: #7dd3fc;
+@custom-variant phone {
+  @media (pointer: coarse) and (hover: none) and (orientation: portrait) and (max-width: 599.98px),
+    (pointer: coarse) and (hover: none) and (orientation: landscape) and (max-height: 599.98px) {
+    @slot;
+  }
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* --background is also mixed into the modal scrim (components/ui/Modal.tsx). */
+:root {
+  --background: #ffffff;
 }
 
 /*
@@ -87,50 +88,11 @@
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-instrument-sans), system-ui, sans-serif;
 }
 
 html {
   scroll-behavior: smooth;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes float-delayed {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-.animate-float {
-  animation: float 4s ease-in-out infinite;
-}
-
-.animate-float-delayed {
-  animation: float-delayed 5s ease-in-out 1.5s infinite;
-}
-
-.animate-float-slow {
-  animation: float 6s ease-in-out 0.8s infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-float,
-  .animate-float-delayed,
-  .animate-float-slow {
-    animation: none !important;
-  }
 }
 
 /* Announcement Bar dismissed in this tab (set before first paint by the root layout script). */

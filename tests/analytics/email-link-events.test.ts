@@ -42,3 +42,31 @@ test("email events are marked as test with ?qa=1", () => {
     { name: "email_copy", params: { link_location: "footer", method: "manual", is_test: true } },
   ]);
 });
+
+test("About Us 'Who We Are' email uses the same events with link_location about", () => {
+  const calls = captureGtag("https://www.medidakos.com/about-us", () => {
+    trackEmailClick("about", "a@b.com");
+    trackEmailCopy("about");
+  });
+  assert.deepEqual(
+    calls.map((c) => [c.name, c.params.link_location]),
+    [
+      ["email_click", "about"],
+      ["email_copy", "about"],
+    ],
+  );
+});
+
+test("Privacy Policy and Terms of Service emails use the same events with their own link_location", () => {
+  const calls = captureGtag("https://www.medidakos.com/privacy-policy", () => {
+    trackEmailClick("privacy-policy", "a@b.com");
+    trackEmailCopy("terms-of-service");
+  });
+  assert.deepEqual(
+    calls.map((c) => [c.name, c.params.link_location]),
+    [
+      ["email_click", "privacy-policy"],
+      ["email_copy", "terms-of-service"],
+    ],
+  );
+});

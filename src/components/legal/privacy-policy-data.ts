@@ -1,7 +1,7 @@
 // Privacy Policy 본문 정적 데이터(Figma 'Privacy Policy — Final Design (1440 · desktop)' 548:1012 › Sections 548:1038 원문 그대로).
 // - 14개 조항, 조항 id는 Figma 섹션 이름의 앵커(#privacy-…)
 // - 문구를 바꾸지 않는다. 추가한 것은 링크뿐: 웹사이트 주소 → Home, 이메일 → mailto, 'Section 2.3'·'Section 5' → 해당 위치
-// - 시행일·최종 수정일: 2026년 11월 13일(Figma 영문 프레임도 같은 표기로 갱신)
+// - 시행일·최종 수정일: 2026년 11월 18일(Figma 영문 프레임도 같은 표기로 갱신)
 import type { LegalDocumentData } from "@/components/legal/LegalDocument";
 
 const WEBSITE = { text: "https://www.medidakos.com/", href: "/" };
@@ -9,8 +9,9 @@ const EMAIL = { text: "support@medidakos.com", href: "mailto:support@medidakos.c
 
 export const PRIVACY_POLICY: LegalDocumentData = {
   title: "Privacy Policy",
-  effectiveDate: "November 13, 2026",
-  lastUpdated: "November 13, 2026",
+  effectiveDate: "November 18, 2026",
+  emailLocation: "privacy-policy",
+  lastUpdated: "November 18, 2026",
   sections: [
     {
       id: "privacy-introduction",

@@ -147,7 +147,7 @@ function ProductGrid({ category }: { category: PortfolioCategory }) {
     // It disappears automatically once products are added to PORTFOLIO_PRODUCTS.
     return (
       <div className="flex min-h-[240px] items-center justify-center rounded-mdk-lg bg-mdk-off-white px-6 py-16 text-center">
-        <p className="text-mdk-body text-mdk-charcoal-muted">No products in this category yet.</p>
+        <p className="text-mdk-body text-mdk-charcoal-muted">This collection is coming soon.</p>
       </div>
     );
   }

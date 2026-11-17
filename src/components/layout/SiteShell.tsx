@@ -13,7 +13,6 @@ import { showsAnnouncementBar } from "@/lib/config/routes";
 /**
  * Renewal layout: Announcement Bar (per-page rule) → sticky Navbar → page → Footer.
  * Each (site) page wraps its content in <SiteShell> (no shared layout), so Next.js scrolls new pages to the very top.
- * Legacy pages keep (marketing)/MarketingShell until each is rebuilt.
  */
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

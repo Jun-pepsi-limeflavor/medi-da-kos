@@ -1,5 +1,5 @@
 // Portfolio 제품 카드(Figma Product Card 273:373).
-// - 1:1 이미지(모서리 12, 회색 바탕) + 카테고리 · 제품명 · 원료 태그. 클릭·Hover 동작 없음(Figma 10/28 결정)
+// - 1:1 이미지(모서리 12, 회색 바탕) + 카테고리 · 제품명 · Key ingredients · 해시태그(Figma 2026-11 갱신). 클릭·Hover 동작 없음(Figma 10/28 결정)
 // - 이미지는 Figma 크롭(crop)이 있으면 그 박스 안에서 cover, 없으면 프레임을 그대로 채운다
 import Image from "next/image";
 import type { Ref } from "react";
@@ -54,7 +54,10 @@ export function PortfolioProductCard({
         <h3 className="text-[22px] leading-7 font-semibold tracking-[-0.015em] text-mdk-charcoal lg:text-[24px] lg:leading-[30px]">
           {product.name}
         </h3>
-        <p className="flex flex-wrap gap-x-2 text-[15px] leading-[22px] tracking-[-0.002em] text-mdk-charcoal">
+        <p className="text-[15px] leading-[22px] tracking-[-0.002em] text-mdk-charcoal">
+          Key ingredients: {product.keyIngredients.join(", ")}
+        </p>
+        <p className="flex flex-wrap gap-x-2 text-[15px] leading-[23px] tracking-[-0.002em] text-mdk-charcoal-muted">
           {product.tags.map((tag) => (
             <span key={tag}>#{tag}</span>
           ))}

@@ -17,6 +17,7 @@ const { createChannelTalkApi } = require("./api");
 const { DEFAULT_MAX_NOTE_LENGTH } = require("./notes");
 const { handleTriggerEvent, runRetryBatch } = require("./processor");
 const { createStore } = require("./store");
+const { getBriefFolderUrl } = require("../drive/triggers");
 
 const REGION = "asia-northeast3";
 const TIMEOUT_SECONDS = 120;
@@ -51,7 +52,8 @@ function buildDeps() {
   const api = enabled
     ? createChannelTalkApi({ accessKey: ACCESS_KEY.value(), accessSecret: ACCESS_SECRET.value(), version: API_VERSION.value() })
     : null;
-  return { store: createStore(getFirestore(), { Timestamp, FieldValue }), api, config };
+  // Contact brief folder link for the internal note — same source as the admin mail (onContactCreated).
+  return { store: createStore(getFirestore(), { Timestamp, FieldValue }), api, config, getBriefFolderUrl };
 }
 
 async function handle(source, event) {
