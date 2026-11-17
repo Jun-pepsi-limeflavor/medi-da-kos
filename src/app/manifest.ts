@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Medidakos — Your Korean Cosmetics OEM & ODM Partner.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f6fbff",
-    theme_color: "#38bdf8",
+    background_color: "#FFFFFF",
+    theme_color: "#FFFFFF",
     icons: [
       {
         src: "/icons/icon-48.png",

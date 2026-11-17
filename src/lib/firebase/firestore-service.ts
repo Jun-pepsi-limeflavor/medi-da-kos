@@ -1,7 +1,7 @@
 "use client";
 
 // Firestore 쓰기(브라우저): users/{uid} 회원 프로필 저장(saveUserProfile)·contact 문의 저장.
-// - submitContactForm: 기존 운영 Contact 형식(formVersion 없음) — 그대로 유지
+// - 예전 Contact 폼(formVersion 없음)의 저장 함수는 2026-11 정리에서 삭제. 그 형식의 기존 문서는 Functions·규칙이 계속 처리한다
 // - submitInquiry: 리뉴얼 Contact(formVersion 2, 2026-11). 필드·길이는 firestore.rules의 validContactV2와 맞춘다.
 //   첨부 선언(briefFiles)도 함께 저장하고, 파일 업로드는 storage-service가 반환된 id로 한다(2026-11-17)
 // - 저장 값은 user-profile-write가 만든다. 기존 문서가 있으면 빈 값으로 덮어쓰지 않는다(2026-11-12)
@@ -11,10 +11,9 @@ import {
   getDoc,
   setDoc,
   collection,
-  addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import type { ContactSubmission, UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/types";
 import { isNonProductionEnv } from "@/lib/utils/env-flags";
 // useMockAuth is a plain env check, not a React hook: aliased so the hooks lint rule does not misfire here.
 import { getFirebaseDb, useMockAuth as isMockAuth } from "@/lib/firebase/client";
@@ -27,54 +26,6 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   const existing = await getDoc(ref);
   // A later Google sign-in must not blank the phone · country · company saved at email sign-up (user-profile-write).
   await setDoc(ref, userProfileWrite(profile, existing.exists(), isNonProductionEnv()), { merge: true });
-}
-
-export type ContactFormPayload = {
-  companyName: string;
-  email: string;
-  referralSource?: string;
-  businessType?: string;
-  message: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
-  pageUrl?: string;
-  gaClientId?: string;
-  userAgent?: string;
-  /** 로그인 회원의 본인 uid(rules가 uid == auth.uid를 요구). 비로그인이면 넣지 않는다. */
-  uid?: string;
-  /** 제출 브라우저에서 boot된 Channel 고객 id. 얻지 못하면 넣지 않는다(서버가 server_lead로 처리). */
-  channelUserId?: string;
-};
-
-export async function submitContactForm(
-  data: ContactFormPayload,
-): Promise<ContactSubmission> {
-  const now = new Date().toISOString();
-  const payload = {
-    ...data,
-    isTest: isNonProductionEnv(),
-    status: "submitted" as const,
-    createdAt: now,
-  };
-
-  if (isMockAuth()) {
-    const id = `mock-contact-${Date.now()}`;
-    console.info("[mock] contact submission", { id, ...payload });
-    return { id, ...payload };
-  }
-
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "contact"),
-    stripUndefined({
-      ...payload,
-      serverCreatedAt: serverTimestamp(),
-    }),
-  );
-
-  return { id: ref.id, ...payload };
 }
 
 /** Renewal Contact form fields (strings trimmed, empty optionals omitted — see toInquiryFields). */
