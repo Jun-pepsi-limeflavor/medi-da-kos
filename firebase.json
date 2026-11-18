@@ -2,6 +2,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "database": {
     "rules": "database.rules.json"
   },
@@ -16,15 +19,11 @@
         "firebase-debug.*.log",
         "*.local"
       ]
-    },
-    {
-      "source": "functions-ingest",
-      "codebase": "ingest",
-      "ignore": ["node_modules", ".git", "*.local"]
     }
   ],
   "emulators": {
     "firestore": { "port": 8080 },
+    "storage": { "port": 9199 },
     "ui": { "enabled": false },
     "singleProjectMode": true
   }

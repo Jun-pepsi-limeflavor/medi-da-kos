@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "medidakos"
+    "default": "dev-medidakos-b9b4f",
+    "dev": "dev-medidakos-b9b4f",
+    "prod": "medidakos"
   }
 }

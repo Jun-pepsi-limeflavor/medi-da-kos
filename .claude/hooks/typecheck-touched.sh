@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # PostToolUse(Edit|Write) — surface type errors in the file just edited.
 #
-# No-ops until a stack exists (AGENTS.md: nothing is chosen yet), and stays quiet
-# about pre-existing errors elsewhere in the repo — it only reports the touched file.
+# No-ops when package.json has no typecheck script, and stays quiet about
+# pre-existing errors elsewhere in the repo — it only reports the touched file.
 # Full test suites do NOT belong here; they belong in CI.
 
 set -uo pipefail

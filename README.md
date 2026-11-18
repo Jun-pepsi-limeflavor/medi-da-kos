@@ -27,12 +27,10 @@ You can also register new accounts or use **Continue with Google** (mock demo us
 1. Copy `.env.example` to `.env.local` and add your Firebase web app config.
 2. Enable **Email/Password** and **Google** sign-in in Firebase Authentication.
 3. Create Firestore collections (rules as needed):
-   - `cmBriefs/{uid}` — custom manufacturing brief (draft/submitted)
-   - `orders/{autoId}` — order history, field `uid` for queries
-   - `tracking/{uid}/entries/{entryId}` — shipment tracking
    - `users/{uid}` — user profiles
+   - `contact/{autoId}` — Contact form submissions
    - `mail/{docId}` — email queue (Cloud Functions send via Gmail API as `support@medidakos.com`)
-4. Deploy Cloud Functions and configure `functions/.env` (`ADMIN_EMAILS`, `NOTIFY_FROM_EMAIL`). See [Firebase collections & mail](docs/firebase-collections-and-mail.md).
+4. Deploy Cloud Functions and configure `functions/.env` (`ADMIN_EMAILS`, `NOTIFY_FROM_EMAIL`). See [Firebase collections & mail](docs/operations/firebase-collections-and-mail.md).
 5. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.
 
 ## Routes
@@ -41,12 +39,8 @@ You can also register new accounts or use **Continue with Google** (mock demo us
 |------|-------------|
 | `/` | Marketing home + hero carousel |
 | `/about-us` | Company & manufacturing network |
-| `/process` | ODM workflow (brief → delivery) |
-| `/compare` | Unit economics & lead-time benchmarks |
+| `/contact` | Contact form (Firestore `contact` → admin mail + Channel Talk) |
 | `/login` | Sign in / register |
-| `/dashboard` | CM Steps 1–6 |
-| `/dashboard/orders` | Orders (empty state) |
-| `/dashboard/tracking` | FedEx / DHL / UPS tracking |
 
 ## Design
 
@@ -54,4 +48,4 @@ Clean, water-inspired UI referencing Samsung Biologics–style trust and K-beaut
 
 ## Documentation
 
-- [Firebase collections & email notifications](docs/firebase-collections-and-mail.md) — when each collection is written, mail triggers, and email templates
+- [Firebase collections & email notifications](docs/operations/firebase-collections-and-mail.md) — when each collection is written, mail triggers, and email templates

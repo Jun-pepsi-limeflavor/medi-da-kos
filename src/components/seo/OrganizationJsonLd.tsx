@@ -1,13 +1,13 @@
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL, SOCIAL_LINKS } from "@/lib/config/site";
 
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "Medidakos",
   url: SITE_URL,
-  logo: `${SITE_URL}/icon-192.png`,
+  logo: `${SITE_URL}/icons/icon-192.png`,
   description:
-    "Korean cosmetics OEM/ODM platform connecting global beauty brands with GMP-certified Korean manufacturers.",
+    "Your idea, made in Korea. Medidakos manages product development to launch for global beauty brands with 300+ Korean manufacturing and packaging partners.",
   areaServed: { "@type": "Place", name: "Worldwide" },
   serviceType: [
     "OEM Cosmetics Manufacturing",
@@ -21,7 +21,8 @@ const organizationSchema = {
     "ISO 22716",
     "GMP manufacturing",
   ],
-  sameAs: ["https://www.linkedin.com/company/medidakos"],
+  // Same official accounts as the Footer (LinkedIn, Facebook, Instagram, TikTok).
+  sameAs: SOCIAL_LINKS.map((link) => link.href),
 };
 
 export function OrganizationJsonLd() {

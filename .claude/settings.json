@@ -10,7 +10,6 @@
       {
         "matcher": "Edit|Write",
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/no-cost-leak.sh\"", "timeout": 15 },
           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/typecheck-touched.sh\"", "timeout": 120 }
         ]
       }

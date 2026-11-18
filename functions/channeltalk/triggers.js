@@ -2,7 +2,8 @@
 /**
  * Channel Talk 웹 접수 연동 트리거. functions/index.js가 그대로 내보낸다.
  *
- * - 기존 트리거(onUserSignup·onContactCreated·onOrderCreated·onLandingRequestCreated)와 별개 함수다.
+ * - 기존 트리거(onUserSignup·onContactCreated)와 별개 함수다.
+ * - landingRequests·orders 트리거는 2026-11 리뉴얼에서 소스에서 뺐다. 운영 함수 삭제는 별도 승인 후 한다.
  *   같은 문서 생성 이벤트에 따로 반응하므로 서로의 실패에 영향을 주지 않는다.
  * - 처리 기록(channelTalkSync)을 만들기 전의 오류만 밖으로 던져 Firebase 자동 재실행(retry: true)에 맡긴다.
  *   처리 기록을 만든 뒤의 오류는 던지지 않고 channelTalkSync에 남기며, 재시도는 channelTalkRetry가 한다.
@@ -16,6 +17,7 @@ const { createChannelTalkApi } = require("./api");
 const { DEFAULT_MAX_NOTE_LENGTH } = require("./notes");
 const { handleTriggerEvent, runRetryBatch } = require("./processor");
 const { createStore } = require("./store");
+const { getBriefFolderUrl } = require("../drive/triggers");
 
 const REGION = "asia-northeast3";
 const TIMEOUT_SECONDS = 120;
@@ -50,7 +52,8 @@ function buildDeps() {
   const api = enabled
     ? createChannelTalkApi({ accessKey: ACCESS_KEY.value(), accessSecret: ACCESS_SECRET.value(), version: API_VERSION.value() })
     : null;
-  return { store: createStore(getFirestore(), { Timestamp, FieldValue }), api, config };
+  // Contact brief folder link for the internal note — same source as the admin mail (onContactCreated).
+  return { store: createStore(getFirestore(), { Timestamp, FieldValue }), api, config, getBriefFolderUrl };
 }
 
 async function handle(source, event) {
@@ -76,8 +79,6 @@ function trigger(collection, source) {
 
 const channelTalkOnUserCreated = trigger("users", "users");
 const channelTalkOnContactCreated = trigger("contact", "contact");
-const channelTalkOnLandingCreated = trigger("landingRequests", "landingRequests");
-const channelTalkOnOrderCreated = trigger("orders", "orders");
 
 const channelTalkRetry = onSchedule(
   { schedule: "every 10 minutes", timeZone: "Asia/Seoul", region: REGION, timeoutSeconds: TIMEOUT_SECONDS, secrets: SECRETS },
@@ -98,8 +99,6 @@ const channelTalkRetry = onSchedule(
 
 module.exports = {
   channelTalkOnContactCreated,
-  channelTalkOnLandingCreated,
-  channelTalkOnOrderCreated,
   channelTalkOnUserCreated,
   channelTalkRetry,
 };

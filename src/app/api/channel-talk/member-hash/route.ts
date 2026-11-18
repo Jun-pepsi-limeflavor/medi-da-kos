@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAdminAuth } from "@/lib/firebase-admin";
-import { memberHashResponse } from "@/lib/channel-talk-member-hash";
+import { getAdminAuth } from "@/lib/firebase/admin";
+import { memberHashResponse } from "@/lib/channel-talk/member-hash";
 
 // 로그인한 본인 uid의 memberHash만 준다(Authorization: Bearer <Firebase ID 토큰>). 판정은 memberHashResponse.
 export async function POST(request: Request) {

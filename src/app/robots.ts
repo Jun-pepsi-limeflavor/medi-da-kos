@@ -1,15 +1,15 @@
+// robots.txt — 운영(VERCEL_ENV=production)만 전체 허용 + sitemap, 그 외 배포는 전체 차단.
+// /login·/signup은 robots로 막지 않는다(막으면 크롤러가 페이지의 noindex를 읽지 못한다).
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL } from "@/lib/config/site";
+import { isIndexableDeployment } from "@/lib/config/seo";
 
 export default function robots(): MetadataRoute.Robots {
+  if (!isIndexableDeployment()) {
+    return { rules: { userAgent: "*", disallow: "/" } };
+  }
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      // /korea — 콜드메일 수신자 전용 랜딩. 검색 유입 대상이 아니고
-      // 기존 페이지와 중복 콘텐츠로 잡힐 이유도 없다.
-      disallow: ["/dashboard/", "/login", "/test", "/korea"],
-    },
+    rules: { userAgent: "*", allow: "/" },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

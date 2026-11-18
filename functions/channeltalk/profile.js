@@ -148,6 +148,18 @@ function buildProfileUpdate({ kind, data, uid, orderId, orderCount, user, existi
     return builder.done();
   }
 
+  if (kind === "contact" && doc.formVersion === 2) {
+    // Renewal Contact (2026-11): name, the person's own country as marketCountry (not targetMarkets).
+    // Quantity, target markets and the rest stay in the internal note only.
+    const name = personName(doc.fullName, doc.companyName);
+    builder.once("name", name.value, name.reason || "empty");
+    builder.once("email", normalizeEmail(doc.email));
+    builder.once("brandCompanyName", text(doc.companyName));
+    addMarket(builder, doc.country);
+    builder.once("firstSource", "contact");
+    return builder.done();
+  }
+
   if (kind === "contact") {
     builder.skip("name", "no_field");
     builder.once("email", normalizeEmail(doc.email));

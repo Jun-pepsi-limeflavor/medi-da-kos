@@ -14,9 +14,8 @@ const { CATEGORY_LABELS } = require("./profile");
 // Channel 메시지 길이 한도는 아직 확인 전이다(구현 테스트에서 확인). 넉넉히 낮게 둔다.
 const DEFAULT_MAX_NOTE_LENGTH = 4000;
 
-// 원본: src/lib/contact-form-options.ts EXPECTED_VOLUMES (korea 랜딩 폼 선택지).
-// functions는 앱 소스를 import할 수 없어 복사해 둔다. 폼 선택지를 추가·변경하면 여기도 같이 고쳐야 한다.
-// 맞추지 않으면 새 코드값은 라벨 없이 코드 그대로 내부대화에 남는다.
+// 기존 korea 랜딩 폼 선택지(웹 소스는 2026-11 리뉴얼 정리에서 삭제). 기존 landingRequests 문서와
+// V2 이전 도구가 쓰므로 남겨 둔다. 라벨이 없는 코드값은 코드 그대로 내부대화에 남는다.
 const EXPECTED_VOLUME_LABELS = {
   "under-5k": "About 5,000 units",
   "5k-10k": "5,000 – 10,000 units",
@@ -66,6 +65,11 @@ const CONTACT_KEYS = [
   "companyName", "email", "message", "referralSource", "businessType",
   "utmSource", "utmMedium", "utmCampaign", "utmContent", "utmTerm",
   "pageUrl", "gaClientId", "userAgent", "uid", "channelUserId",
+  // Renewal Contact (formVersion 2)
+  "formVersion", "fullName", "country", "website", "productCategory", "quantityPerSku", "targetMarkets",
+  "launchDate", "promoInterest",
+  // Brief attachments (2026-11): shown in ■ 브리프. briefArchive is written by Functions, not the customer.
+  "briefFiles", "briefArchive",
 ];
 const LANDING_KEYS = [
   "landingVariant", "companyName", "contactName", "email", "country", "expectedVolume", "message",
@@ -230,7 +234,72 @@ function koreaCountry(value) {
   return show(value);
 }
 
-function contactNote(data) {
+function quantityText(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toLocaleString("en-US")}개` : show(value);
+}
+
+// Same check and fallback wording as the admin mail (contact-email.js briefRows).
+const DRIVE_FOLDER_URL = /^https:\/\/drive\.google\.com\/\S+$/;
+const BRIEF_FOLDER_MISSING = "폴더를 아직 만들지 못했습니다(Firestore contact 문서의 briefArchive 확인)";
+
+/** File name on one line: line breaks and control characters become spaces (the note is plain text). */
+function briefFileName(file) {
+  const name = file && typeof file.name === "string" ? file.name.replace(/[\u0000-\u001f\u007f]+/g, " ").trim() : "";
+  return name || "-";
+}
+
+/**
+ * ■ 브리프 — only when briefFiles were attached. Same data as the admin mail: file count and names from
+ * briefFiles, folder link from the inquiry's Drive folder (briefArchive.folderUrl, drive.google.com only).
+ * Channel Desk turns a plain-text URL in a private note into a link (docs/plans/2026-10-01-channeltalk-crm-integration.md).
+ */
+function briefSection(data, briefFolderUrl) {
+  const files = Array.isArray(data.briefFiles) ? data.briefFiles : [];
+  if (!files.length) return null;
+  const folder = typeof briefFolderUrl === "string" && DRIVE_FOLDER_URL.test(briefFolderUrl)
+    ? briefFolderUrl
+    : BRIEF_FOLDER_MISSING;
+  return {
+    title: "■ 브리프",
+    lines: [`브리프: ${files.length}개 (${files.map(briefFileName).join(", ")})`, `Drive 폴더: ${folder}`],
+  };
+}
+
+/** Renewal Contact (formVersion 2). Legacy-only fields are listed only when a document carries them. */
+function contactNoteV2(data, { briefFolderUrl } = {}) {
+  const customer = [
+    `이름: ${show(data.fullName)}`,
+    `회사/브랜드: ${show(data.companyName)}`,
+    `이메일: ${show(data.email)}`,
+    `국가(고객 소재지): ${show(data.country)}`,
+    `웹사이트·SNS: ${show(data.website)}`,
+    `회원 여부: ${isBlank(data.uid) ? "비회원" : `회원 (${show(data.uid)})`}`,
+  ];
+  if (!isBlank(data.businessType)) customer.push(`비즈니스 유형: ${show(data.businessType)}`);
+  if (!isBlank(data.referralSource)) customer.push(`유입 경로(고객 선택): ${show(data.referralSource)}`);
+  const project = [
+    `제품 카테고리: ${show(data.productCategory)}`,
+    `SKU당 예상 수량: ${quantityText(data.quantityPerSku)}`,
+    `판매 대상 시장: ${show(data.targetMarkets)}`,
+    `희망 출시 시점: ${show(data.launchDate)}`,
+  ];
+  if (typeof data.promoInterest === "boolean") project.push(`프로모션 관심: ${show(data.promoInterest)}`);
+  const brief = briefSection(data, briefFolderUrl);
+  return {
+    line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
+    sections: [
+      { title: "■ 문의 내용", lines: [show(data.message)] },
+      { title: "■ 프로젝트", lines: project },
+      ...(brief ? [brief] : []),
+      { title: "■ 고객 정보", lines: customer },
+    ],
+    leftover: leftovers(data, CONTACT_KEYS),
+    technical: technicalSection(data),
+  };
+}
+
+function contactNote(data, options) {
+  if (data && data.formVersion === 2) return contactNoteV2(data, options);
   return {
     line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
     sections: [
@@ -367,6 +436,7 @@ function fitSection(section, budget) {
  * @param {number} [input.orderIndex]          이 고객의 몇 번째 주문인지
  * @param {string} [input.orderId]
  * @param {object} [input.user]                orders일 때 users 문서
+ * @param {string|null} [input.briefFolderUrl] contact에 briefFiles가 있을 때 문의 Drive 폴더 링크(없으면 안내 문구)
  * @param {{maxLength?: number}} [options]
  * @returns {string[]} 내부대화 메시지 목록(보통 1개)
  */
@@ -374,7 +444,7 @@ function buildNotes(input, options = {}) {
   const maxLength = options.maxLength || DEFAULT_MAX_NOTE_LENGTH;
   const data = input.data || {};
   let note;
-  if (input.kind === "contact") note = contactNote(data);
+  if (input.kind === "contact") note = contactNote(data, { briefFolderUrl: input.briefFolderUrl });
   else if (input.kind === "landingRequests") note = landingNote(data);
   else if (input.kind === "orders") note = orderNote(data, input);
   else throw new Error(`지원하지 않는 제출 종류: ${input.kind}`);

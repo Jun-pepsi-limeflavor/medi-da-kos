@@ -1,27 +1,38 @@
+// 루트 레이아웃. 모든 페이지에 공통 적용된다.
+// - 폰트 변수 등록: Instrument Sans(리뉴얼, body 기본 폰트·font-mdk). 예전 Geist·Geist Mono는 2026-11 정리에서 제거.
+//   Noto Serif는 리뉴얼 화면에서 쓰이지 않아 로드하지 않는다
+//   (2026-11-12 — Vercel 빌드에서 Noto Serif의 next/font/google 처리가 실패해 제거, docs/operations/website-renewal-dev-to-production.md)
+// - 사이트 메타데이터·구조화 데이터, 인증 Provider
+// - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작)
+// - data-scroll-behavior="smooth": 전역 smooth 스크롤을 페이지 이동 때만 끄고 즉시 상단 이동(Next 16)
+// - Announcement Bar를 닫은 탭이면 첫 페인트 전에 <html>에 표시해 바를 숨긴다(sessionStorage)
+// - NavigationIntent: 누른 링크·뒤로가기 시점 기록(FAQ가 일반 진입·딥링크·방문 기록 이동을 구분하는 데 사용)
+// - ChannelTalkLauncher: Figma 물방울 런처(모든 페이지, SDK 기본 버튼 대신 사용 · 키가 없으면 mock 동작)
+// - CookieConsent: 쿠키 동의 배너·Cookie Settings 모달(모든 페이지) · PromoVisit: Promotion 팝업용 새 방문 판정·활동 시각 기록
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
-import { AuthProvider } from "@/lib/auth-context";
+import { Instrument_Sans } from "next/font/google";
+import { AuthProvider } from "@/lib/auth/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
-import { ChannelTalk } from "@/components/support/ChannelTalk";
+import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
+import { ChannelTalkLauncher } from "@/components/channel-talk/ChannelTalkLauncher";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { ThemeFavicon } from "@/components/seo/ThemeFavicon";
+import { NavigationIntent } from "@/components/layout/NavigationIntent";
+import { CookieConsent } from "@/components/cookie-consent/CookieConsent";
+import { PromoVisit } from "@/components/promo/PromoVisit";
+import { SITE_NAME, SITE_URL } from "@/lib/config/site";
+import { OPEN_GRAPH_BASE, siteRobots, TWITTER_BASE } from "@/lib/config/seo";
+import { ANNOUNCEMENT_DISMISSED_ATTR, ANNOUNCEMENT_DISMISSED_KEY } from "@/lib/config/promo";
+
+/** Runs before first paint; storage errors (private mode, blocked storage) just leave the bar visible. */
+const ANNOUNCEMENT_PREPAINT_SCRIPT = `try{if(sessionStorage.getItem(${JSON.stringify(ANNOUNCEMENT_DISMISSED_KEY)})==="1")document.documentElement.setAttribute(${JSON.stringify(ANNOUNCEMENT_DISMISSED_ATTR)},"")}catch(e){}`;
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Renewal font (Figma: Instrument Sans 400/500/600): the body default and `font-mdk` (globals.css).
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const notoSerif = Noto_Serif({
-  variable: "--font-noto-serif",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
 });
 
 const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
@@ -36,7 +47,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#38bdf8",
+  themeColor: "#FFFFFF",
 };
 
 export const metadata: Metadata = {
@@ -44,83 +55,42 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   authors: [{ name: SITE_NAME, url: SITE_URL }],
   category: "beauty manufacturing",
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
+  // Production (VERCEL_ENV=production) only; staging, Preview and local builds are noindex.
+  robots: siteRobots(),
   title: {
-    default:
-      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
+    default: "Korean Cosmetics OEM & ODM Partner | Medidakos",
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    "Launch your K-beauty line in global markets. Medidakos connects you with GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, and direct global freight. Free consultation.",
-  keywords: [
-    "Korean cosmetics OEM manufacturer",
-    "Korean cosmetics ODM manufacturer",
-    "K-beauty private label",
-    "Korean skincare manufacturer for global brands",
-    "Korean beauty contract manufacturing",
-    "custom K-beauty formulation",
-    "Korean cosmetic white label",
-    "ISO 22716 GMP certified Korea",
-    "K-beauty indie brand manufacturer",
-    "Korean ODM platform",
-    "private label skincare Korea",
-    "K-beauty wholesale",
-    "Korean beauty brand launch",
-  ],
+    "Your idea, made in Korea. Medidakos manages product development to launch for global beauty brands with 300+ Korean manufacturing and packaging partners.",
   openGraph: {
-    type: "website",
-    locale: "en_US",
+    ...OPEN_GRAPH_BASE,
     url: SITE_URL,
-    siteName: SITE_NAME,
-    title:
-      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
+    title: "Korean Cosmetics OEM & ODM Partner | Medidakos",
     description:
-      "Launch your K-beauty line in global markets. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct global freight.",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Medidakos — Korean Cosmetics OEM/ODM Platform for Global Beauty Brands",
-        type: "image/png",
-      },
-    ],
+      "Your idea, made in Korea. Medidakos manages product development to launch for global beauty brands with 300+ Korean manufacturing and packaging partners.",
   },
-  twitter: {
-    card: "summary_large_image",
-    site: "@medidakos",
-    title:
-      "Korean Cosmetics OEM & ODM Manufacturer for Global Brands | Medidakos",
-    description:
-      "Launch your K-beauty line in global markets. GMP-certified Korean OEM/ODM manufacturers — custom formulas, MOQ from 3,000 units, direct global freight.",
-    images: ["/og-image.png"],
-  },
+  // No title/description here: Next.js fills Twitter title/description from each page's openGraph.
+  twitter: TWITTER_BASE,
   alternates: {
     canonical: SITE_URL,
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      // ICO (light 16/32/48) is the fallback; the SVG switches light/dark via prefers-color-scheme.
+      // sizes="32x32" (not the full 16/32/48 list) so Chrome prefers the scalable SVG over the ICO's exact 16px match.
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icons/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [
       {
-        url: "/apple-touch-icon.png",
+        url: "/icons/apple-touch-icon.png",
         sizes: "180x180",
         type: "image/png",
       },
     ],
-    shortcut: "/favicon.ico",
   },
   manifest: "/manifest.webmanifest",
   ...(googleVerification
@@ -140,17 +110,26 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} h-full antialiased`}
+      data-scroll-behavior="smooth"
+      // The pre-paint script may add the announcement attribute before hydration.
+      suppressHydrationWarning
+      className={`${instrumentSans.variable} h-full antialiased`}
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: ANNOUNCEMENT_PREPAINT_SCRIPT }} />
         <OrganizationJsonLd />
       </head>
       <body className="min-h-full flex flex-col">
+        <NavigationIntent />
+        <ThemeFavicon />
+        <PromoVisit />
         <GoogleAnalytics gaId={gaId} />
         <MetaPixel pixelId={metaPixelId} />
         <AuthProvider>
           <ChannelTalk pluginKey={channelTalkPluginKey} gaId={gaId} />
           {children}
+          <ChannelTalkLauncher sdk={Boolean(channelTalkPluginKey)} />
+          <CookieConsent />
         </AuthProvider>
       </body>
     </html>
