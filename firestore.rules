@@ -25,37 +25,33 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // cmBriefs/{uid}: 본인만 읽기/쓰기 (setDoc/merge 사용)
+    // 폐기 기능(Dashboard·주문·샘플·트래킹, 2026-11-18 V1.1): 기존 문서는 보존하고 본인 읽기만 남긴다. 클라이언트 쓰기는 모두 거부.
     match /cmBriefs/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid);
+      allow write: if false;
     }
 
-    // orders/{orderId}: 본인 uid로만 생성, 본인 것만 읽기
     match /orders/{orderId} {
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow read:   if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
     }
 
-    // sampleRequests/{requestId}: orders와 동일 패턴
     match /sampleRequests/{requestId} {
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow read:   if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
     }
 
-    // tracking/{uid}/entries/{entryId}: 본인 subcollection만 접근
     match /tracking/{uid} {
       allow read, write: if false;
 
       match /entries/{entryId} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
+        allow write: if false;
       }
     }
 
-    // test/{docId}: 로그인 사용자만
     match /test/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if false;
     }
 
     // contact/{docId}: 문의 폼 — create만 허용. 두 가지 모양을 받는다.
@@ -168,63 +164,9 @@ service cloud.firestore {
       return !(key in request.resource.data) || (request.resource.data[key] is string && request.resource.data[key].size() <= max);
     }
 
-    function validCatalogItem(item) {
-      return item is map
-        && item.keys().hasOnly(['id', 'name', 'category'])
-        && validLandingString(item.id, 200)
-        && validLandingString(item.name, 200)
-        && item.category in ['serum', 'toner', 'cream', 'mist'];
-    }
-
-    function validCatalogItems(items) {
-      return items is list
-        && items.size() > 0
-        && items.size() <= 5
-        && validCatalogItem(items[0])
-        && (items.size() < 2 || validCatalogItem(items[1]))
-        && (items.size() < 3 || validCatalogItem(items[2]))
-        && (items.size() < 4 || validCatalogItem(items[3]))
-        && (items.size() < 5 || validCatalogItem(items[4]));
-    }
-
-    function validLandingCommon() {
-      return request.resource.data.keys().hasAll(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'pageUrl', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
-        && validLandingString(request.resource.data.companyName, 200)
-        && validLandingString(request.resource.data.contactName, 120)
-        && validLandingString(request.resource.data.email, 320)
-        && request.resource.data.email.matches('.*@.*\\..*')
-        && validLandingString(request.resource.data.country, 100)
-        && validLandingString(request.resource.data.expectedVolume, 40)
-        && validLandingString(request.resource.data.pageUrl, 2000)
-        && request.resource.data.isTest is bool
-        && request.resource.data.status == 'new'
-        && validLandingString(request.resource.data.createdAt, 64)
-        && request.resource.data.serverCreatedAt is timestamp
-        && validLandingOptionalString('message', 5000)
-        && validLandingOptionalString('referralSource', 200)
-        && validLandingOptionalString('businessType', 200)
-        && validLandingOptionalString('positioningArm', 200)
-        && validLandingOptionalString('utmSource', 200)
-        && validLandingOptionalString('utmMedium', 200)
-        && validLandingOptionalString('utmCampaign', 200)
-        && validLandingOptionalString('utmContent', 200)
-        && validLandingOptionalString('utmTerm', 200)
-        && validLandingOptionalString('gaClientId', 200)
-        && validLandingOptionalString('userAgent', 1000)
-        && validLandingOptionalString('channelUserId', 64);
-    }
-
+    // landingRequests: 폐기된 랜딩 폼(2026-11-18 V1.1). 기존 문서는 보존, 클라이언트 접근은 모두 거부.
     match /landingRequests/{requestId} {
-      allow create: if validLandingCommon()
-        && ((request.resource.data.landingVariant == 'catalog'
-          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'catalogItems', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
-          && validCatalogItems(request.resource.data.catalogItems))
-          || (request.resource.data.landingVariant == 'dashboard'
-          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'dashboardBrief', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])
-          && request.resource.data.dashboardBrief is map)
-          || (request.resource.data.landingVariant == 'korea'
-          && request.resource.data.keys().hasOnly(['landingVariant', 'companyName', 'contactName', 'email', 'country', 'expectedVolume', 'message', 'referralSource', 'businessType', 'positioningArm', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm', 'pageUrl', 'gaClientId', 'userAgent', 'channelUserId', 'isTest', 'status', 'createdAt', 'serverCreatedAt'])));
-      allow read, update, delete: if false;
+      allow read, write: if false;
     }
 
     // 백오피스 원장 — 클라이언트는 어느 쪽에서도 닿을 수 없다.
