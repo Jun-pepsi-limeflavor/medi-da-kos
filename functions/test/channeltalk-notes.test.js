@@ -45,7 +45,7 @@ test("한국 시간 표기", () => {
 test("Contact: 첫 줄·접수 시각·섹션 순서·기록 줄", () => {
   const [note] = buildNotes({ kind: "contact", docId: "c1", data: contact, label: null, identitySource: "browser", receivedAt, profileResult });
   const l = lines(note);
-  assert.equal(l[0], "[Contact 문의] Acme Beauty · buyer@example.com");
+  assert.equal(l[0], "[Contact 문의] Acme Beauty");
   assert.equal(l[1], "접수: 2026-10-01 16:32 KST");
   const order = ["■ 문의 내용", "■ 고객 정보", "■ 프로필 반영", "■ 기술 정보"].map((title) => note.indexOf(title));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
@@ -56,8 +56,31 @@ test("Contact: 첫 줄·접수 시각·섹션 순서·기록 줄", () => {
   assert.ok(note.includes("반영: 이메일, 회사명 / 미반영: 이름(폼에 항목 없음), MOQ(정확한 숫자 아님)"));
   assert.ok(!note.includes("referralSource(")); // 입력 없음은 미반영 목록에 넣지 않는다
   assert.ok(!note.includes("■ 기타 항목"));
-  assert.equal(l[l.length - 1], "기록: contact/c1");
+  assert.equal(l[l.length - 2], "기록: contact/c1");
+  assert.equal(l[l.length - 1], "이메일: buyer@example.com");
+  assert.equal(note.split("buyer@example.com").length - 1, 1); // 이메일은 마지막 줄에만
   assert.ok(!note.includes("[연동 참고]"));
+});
+
+// 2026-11-19: Channel Desk 자동 번역이 이메일 링크 뒤 내용을 빠뜨린다(T1~T3 실측). 이메일은 기록 줄 다음 맨 끝에만 둔다.
+test("Contact: 이메일은 첫 줄·고객 정보에 없고 기록 줄 다음 마지막 줄에 원문 그대로 한 번만", () => {
+  const email = "Zach.R+test@Example.co.uk";
+  for (const data of [{ ...contact, email }, { ...contactV2, email }, { ...contactV2, email, uid: "uid-1" }]) {
+    const [note] = buildNotes({ kind: "contact", docId: "e1", data, receivedAt, profileResult });
+    const l = lines(note);
+    assert.ok(!l[0].includes("@"), l[0]);
+    assert.deepEqual(l.slice(-2), ["기록: contact/e1", `이메일: ${email}`]);
+    assert.equal(note.split(email).length - 1, 1);
+    assert.equal(l.filter((line) => line.startsWith("이메일:")).length, 1);
+  }
+});
+
+test("Contact: 이메일이 없으면 '-'로 표시하고 가짜 주소를 만들지 않는다", () => {
+  const { email, ...noEmail } = contact;
+  void email;
+  const [note] = buildNotes({ kind: "contact", docId: "e2", data: noEmail, receivedAt, profileResult });
+  assert.equal(lines(note).at(-1), "이메일: -");
+  assert.ok(!note.includes("@"));
 });
 
 test("[TEST]·[내부] 표시는 첫 줄 앞에 붙는다", () => {
@@ -193,13 +216,22 @@ test("한도를 넘으면 섹션 경계에서 나누고 (n/m)과 부분별 기�
   notes.forEach((note, index) => {
     assert.ok(note.length <= 800, `part ${index + 1} length ${note.length}`);
     const l = lines(note);
-    assert.equal(l[0], `[TEST] [Contact 문의] Acme Beauty · buyer@example.com (${index + 1}/${notes.length})`);
+    assert.equal(l[0], `[TEST] [Contact 문의] Acme Beauty (${index + 1}/${notes.length})`);
     assert.equal(l[1], "접수: 2026-10-01 16:32 KST");
-    assert.equal(l[l.length - 1], "기록: contact/c9");
+    const last = index === notes.length - 1;
+    // 이메일 줄은 마지막 부분의 기록 줄 다음에만 붙는다.
+    assert.equal(l[l.length - (last ? 2 : 1)], "기록: contact/c9");
+    if (last) assert.equal(l[l.length - 1], "이메일: buyer@example.com");
   });
+  assert.equal(notes.join("\n").split("buyer@example.com").length - 1, 1);
   assert.equal(lines(notes[0])[2], NOTICE_SERVER_LEAD);
   const joined = notes.join("\n");
-  for (let i = 0; i < 40; i += 1) assert.ok(joined.includes(`line ${i} `), `line ${i}`);
+  // 긴 본문은 글자 단위로도 나뉠 수 있다. 각 부분의 "■ 문의 내용" 조각을 이어 붙이면 원문과 같아야 한다.
+  const bodyChunks = notes.map((note) => {
+    const block = note.split("\n\n").find((b) => b.startsWith("■ 문의 내용"));
+    return block ? block.slice(block.indexOf("\n") + 1) : "";
+  });
+  assert.equal(bodyChunks.join(""), long.message);
   assert.ok(joined.includes("■ 기술 정보"));
 });
 
@@ -239,7 +271,7 @@ const contactV2 = {
 test("Contact v2: 새 항목을 읽기 쉽게 표시하고 기타 항목이 생기지 않는다", () => {
   const [note] = buildNotes({ kind: "contact", docId: "c2", data: contactV2, label: "[TEST]", identitySource: "browser", receivedAt, profileResult });
   const l = lines(note);
-  assert.equal(l[0], "[TEST] [Contact 문의] Acme Beauty · buyer@example.com");
+  assert.equal(l[0], "[TEST] [Contact 문의] Acme Beauty");
   const order = ["■ 문의 내용", "■ 프로젝트", "■ 고객 정보", "■ 프로필 반영", "■ 기술 정보"].map((title) => note.indexOf(title));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(order.every((index) => index > 0));
@@ -251,7 +283,7 @@ test("Contact v2: 새 항목을 읽기 쉽게 표시하고 기타 항목이 생�
   assert.ok(!note.includes("비즈니스 유형"));
   assert.ok(!note.includes("유입 경로(고객 선택)"));
   assert.ok(!note.includes("■ 기타 항목"));
-  assert.equal(l[l.length - 1], "기록: contact/c2");
+  assert.deepEqual(l.slice(-2), ["기록: contact/c2", "이메일: buyer@example.com"]);
 });
 
 test("Contact v2: 선택 항목이 없으면 '-', 프로모션 미표시 기간에는 관심 줄이 없다", () => {
@@ -291,7 +323,7 @@ test("Contact v2 브리프: 개수·파일명과 Drive 폴더 링크를 프로�
   assert.equal(l[at + 2], `Drive 폴더: ${FOLDER}`);
   assert.ok(!note.includes("■ 기타 항목"));
   assert.ok(!note.includes("contentType"));
-  assert.equal(l[l.length - 1], "기록: contact/b1");
+  assert.deepEqual(l.slice(-2), ["기록: contact/b1", "이메일: buyer@example.com"]);
 });
 
 test("Contact v2 브리프: 1개·3개 모두 표시", () => {
