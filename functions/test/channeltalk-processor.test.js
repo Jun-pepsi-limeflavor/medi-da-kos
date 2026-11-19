@@ -236,8 +236,8 @@ test("Contact 정상: 브라우저 고객 → 프로필 → 상담 → 내부대
   const chat = api.chats.get(sync.userChatId);
   assert.equal(chat.state, "opened");
   assert.equal(chat.messages[0].botName, "웹 접수");
-  assert.ok(chat.messages[0].plainText.startsWith("[Contact 문의] Acme Beauty · buyer@example.com"));
-  assert.ok(chat.messages[0].plainText.endsWith("기록: contact/c1"));
+  assert.ok(chat.messages[0].plainText.startsWith("[Contact 문의] Acme Beauty\n"));
+  assert.ok(chat.messages[0].plainText.endsWith("기록: contact/c1\n이메일: buyer@example.com"));
   assert.deepEqual(customerVisibleMessages(api), []);
   assert.equal(store.identities.get(emailKey("buyer@example.com")).channelUserId, anon.id);
   assert.deepEqual(store.sources.contact.c1, data); // 원본 제출은 바뀌지 않는다
@@ -479,7 +479,7 @@ test("상담 생성이 애매하게 실패하면 creating으로 남고, 다음 �
   // 새 상담에서 내부대화·열기가 정상 진행되고, 남은 상담은 메시지 없는 initial 그대로
   const chat = api.chats.get(sync.userChatId);
   assert.equal(chat.state, "opened");
-  assert.ok(chat.messages[0].plainText.endsWith("기록: contact/c7"));
+  assert.ok(chat.messages[0].plainText.includes("\n기록: contact/c7\n이메일: "));
   assert.deepEqual(sync.steps, { identity: "done", profile: "done", chat: "done", note: "done", open: "done", dupTag: "skipped" });
   const orphan = api.chats.get(orphanId);
   assert.equal(orphan.state, "initial");

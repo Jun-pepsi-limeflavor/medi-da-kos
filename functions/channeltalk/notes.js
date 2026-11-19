@@ -270,7 +270,6 @@ function contactNoteV2(data, { briefFolderUrl } = {}) {
   const customer = [
     `이름: ${show(data.fullName)}`,
     `회사/브랜드: ${show(data.companyName)}`,
-    `이메일: ${show(data.email)}`,
     `국가(고객 소재지): ${show(data.country)}`,
     `웹사이트·SNS: ${show(data.website)}`,
     `회원 여부: ${isBlank(data.uid) ? "비회원" : `회원 (${show(data.uid)})`}`,
@@ -286,7 +285,7 @@ function contactNoteV2(data, { briefFolderUrl } = {}) {
   if (typeof data.promoInterest === "boolean") project.push(`프로모션 관심: ${show(data.promoInterest)}`);
   const brief = briefSection(data, briefFolderUrl);
   return {
-    line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
+    line1: `[Contact 문의] ${show(data.companyName)}`,
     sections: [
       { title: "■ 문의 내용", lines: [show(data.message)] },
       { title: "■ 프로젝트", lines: project },
@@ -295,20 +294,28 @@ function contactNoteV2(data, { briefFolderUrl } = {}) {
     ],
     leftover: leftovers(data, CONTACT_KEYS),
     technical: technicalSection(data),
+    trailer: contactEmailTrailer(data),
   };
+}
+
+/**
+ * Contact email goes on the very last line, after `기록:` (2026-11-19). Channel Desk turns an email into a link,
+ * and its auto-translation drops the text that follows an email link; at the end nothing follows it.
+ */
+function contactEmailTrailer(data) {
+  return `이메일: ${show(data.email)}`;
 }
 
 function contactNote(data, options) {
   if (data && data.formVersion === 2) return contactNoteV2(data, options);
   return {
-    line1: `[Contact 문의] ${show(data.companyName)} · ${show(data.email)}`,
+    line1: `[Contact 문의] ${show(data.companyName)}`,
     sections: [
       { title: "■ 문의 내용", lines: [show(data.message)] },
       {
         title: "■ 고객 정보",
         lines: [
           `회사/브랜드: ${show(data.companyName)}`,
-          `이메일: ${show(data.email)}`,
           `회원 여부: ${isBlank(data.uid) ? "비회원" : `회원 (${show(data.uid)})`}`,
           `비즈니스 유형: ${show(data.businessType)}`,
           `유입 경로(고객 선택): ${show(data.referralSource)}`,
@@ -317,6 +324,7 @@ function contactNote(data, options) {
     ],
     leftover: leftovers(data, CONTACT_KEYS),
     technical: technicalSection(data),
+    trailer: contactEmailTrailer(data),
   };
 }
 
@@ -463,12 +471,16 @@ function buildNotes(input, options = {}) {
   if (note.technical) sections.push(note.technical);
   if (note.leftover.length) sections.push({ title: "■ 기타 항목", lines: note.leftover });
 
-  const render = (head, body) => [...head, "", ...body.map(sectionText).flatMap((text) => [text, ""]), footer].join("\n");
-  const single = render([line1, line2, ...notices], sections);
+  // Contact만 `기록:` 다음 줄에 이메일을 둔다(나눠 보낼 때는 마지막 메시지에만).
+  const trailer = note.trailer ? [note.trailer] : [];
+  const render = (head, body, tail = []) =>
+    [...head, "", ...body.map(sectionText).flatMap((text) => [text, ""]), footer, ...tail].join("\n");
+  const single = render([line1, line2, ...notices], sections, trailer);
   if (single.length <= maxLength) return [single];
 
   // 나눠야 한다. 머리말("(99/99)" 자리 포함)과 꼬리말을 뺀 만큼을 섹션 예산으로 쓴다.
-  const headLength = [`${line1} (99/99)`, line2, ...notices].join("\n").length + footer.length + 4;
+  const tailLength = trailer.length ? trailer[0].length + 1 : 0;
+  const headLength = [`${line1} (99/99)`, line2, ...notices].join("\n").length + footer.length + tailLength + 4;
   const budget = Math.max(200, maxLength - headLength);
   const pieces = sections.flatMap((section) => fitSection(section, budget));
   const groups = [];
@@ -488,7 +500,7 @@ function buildNotes(input, options = {}) {
   return groups.map((group, index) => {
     const head = [`${line1} (${index + 1}/${total})`, line2];
     if (index === 0) head.push(...notices);
-    return render(head, group);
+    return render(head, group, index === total - 1 ? trailer : []);
   });
 }
 
