@@ -62,7 +62,7 @@ import { submitInquiry } from "@/lib/firebase/firestore-service";
 import { uploadBriefFiles } from "@/lib/firebase/storage-service";
 import { readUtmParams } from "@/hooks/use-utm-params";
 import { trackContactLead } from "@/lib/analytics/events";
-import { getGaClientId } from "@/lib/analytics/ga-client-id";
+import { getActiveGaClientId } from "@/lib/analytics/ga-client-id";
 import { isNonProductionEnv } from "@/lib/utils/env-flags";
 import { cx } from "@/lib/utils/cx";
 
@@ -203,9 +203,9 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
     let id: string;
     try {
       const utmParams = readUtmParams();
-      // Same as the previous production Contact form: GA client id when GA is set (gives up after 2.5s, then omitted).
-      const gaId = process.env.NEXT_PUBLIC_GA_ID;
-      const gaClientId = gaId ? await getGaClientId(gaId).catch(() => null) : null;
+      // Same as the previous production Contact form: GA client id when GA is on (gives up after 2.5s, then omitted).
+      // Uses the GA4 ID loaded for this environment (analytics-env.ts); GA off → null, no lookup.
+      const gaClientId = await getActiveGaClientId().catch(() => null);
       const result = await submitInquiry({
         ...toInquiryFields(values, showPromo ? promoInterest : undefined),
         ...(metas.length ? { briefFiles: metas } : {}),

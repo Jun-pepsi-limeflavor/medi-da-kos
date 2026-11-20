@@ -24,8 +24,17 @@ function bareHost(host: string): string {
  */
 export function isNonProductionEnv(): boolean {
   if (typeof window === "undefined") return true;
-  if (bareHost(window.location.hostname) !== bareHost(new URL(SITE_URL).hostname)) {
-    return true;
-  }
+  if (!isProductionHost(window.location.hostname)) return true;
+  return isQaVisit();
+}
+
+/** 운영 도메인(`medidakos.com`, `www.` 포함)인가. */
+export function isProductionHost(hostname: string): boolean {
+  return bareHost(hostname) === bareHost(new URL(SITE_URL).hostname);
+}
+
+/** 현재 URL에 `?qa=1` 수동 테스트 표시가 있는가. 서버에서는 false. */
+export function isQaVisit(): boolean {
+  if (typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).has(QA_PARAM);
 }
