@@ -1,4 +1,4 @@
-import { isNonProductionEnv } from "@/lib/utils/env-flags";
+import { isQaVisit } from "@/lib/utils/env-flags";
 
 declare global {
   interface Window {
@@ -10,23 +10,18 @@ declare global {
 export type MetaStandardEvent = "Lead" | "Contact" | "CompleteRegistration" | "SubmitApplication";
 
 /**
- * 운영 도메인의 실제 방문일 때만 Meta로 보낼지 판정한다.
+ * 개인정보(이메일·회사명 등)는 params에 넣지 않는다.
  *
- * GA는 `is_test`로 나중에 걸러내지만 Meta 광고 최적화는 그런 필터가 없어
- * 테스트 전환이 그대로 학습된다. 그래서 보내지 않는 쪽으로 막는다.
+ * 어느 픽셀로 갈지는 MetaPixel이 정한다: 운영 빌드·운영 도메인이면 운영 픽셀, 개발 빌드·그 밖의 호스트면 개발 픽셀,
+ * 그 밖에는 로드하지 않는다(analytics-env.ts). 픽셀이 로드되지 않았거나 `?qa=1`이면 보내지 않는다 —
+ * Meta 광고 최적화에는 GA `is_test` 같은 필터가 없어 테스트 전환이 운영 픽셀에 그대로 학습되기 때문이다.
  */
-export function shouldSendToMeta(): boolean {
-  return !isNonProductionEnv();
-}
-
-/** 개인정보(이메일·회사명 등)는 params에 넣지 않는다. */
 export function trackMetaEvent(event: MetaStandardEvent, params?: Record<string, unknown>) {
   if (typeof window === "undefined") return;
-  if (!shouldSendToMeta()) {
-    // 로컬·프리뷰·?qa=1 에서 연결 확인용
-    console.info("[meta] skipped (test env)", event, params ?? {});
+  if (typeof window.fbq !== "function" || isQaVisit()) {
+    // 픽셀 미로드(ID 없음·환경 불일치)·?qa=1 에서 연결 확인용
+    console.info("[meta] skipped (pixel not loaded or qa)", event, params ?? {});
     return;
   }
-  if (typeof window.fbq !== "function") return;
   window.fbq("track", event, params);
 }

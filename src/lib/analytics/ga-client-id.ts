@@ -1,3 +1,5 @@
+import { getActiveGaId } from "@/lib/analytics/analytics-env";
+
 const GA_CLIENT_ID_STORAGE_KEY = "medidakos_ga_client_id";
 
 function readGaCookieClientId(): string | null {
@@ -61,4 +63,13 @@ export function getGaClientId(gaId?: string): Promise<string | null> {
       finish(readGaCookieClientId() ?? readCachedGaClientId());
     }, 2500);
   });
+}
+
+/**
+ * GA client id for the GA4 ID this page actually loaded (analytics-env.ts). GA off — no ID, invalid ID or
+ * environment/host mismatch — resolves null without any lookup.
+ */
+export function getActiveGaClientId(): Promise<string | null> {
+  const gaId = getActiveGaId();
+  return gaId ? getGaClientId(gaId) : Promise.resolve(null);
 }

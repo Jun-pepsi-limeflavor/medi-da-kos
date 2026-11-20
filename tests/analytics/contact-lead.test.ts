@@ -61,8 +61,16 @@ test("a mock submission (saved: false) sends nothing, even on the production dom
   assert.deepEqual(capture("https://www.medidakos.com/contact", () => trackContactLead({ saved: false }, utm)), []);
 });
 
-test("off the production domain: GA marked is_test, Meta not sent", () => {
+test("off the production domain: GA marked is_test, Meta Lead goes to the (dev) pixel loaded there", () => {
   const calls = capture("https://dev.medidakos.com/contact", () => trackContactLead({ saved: true }, {}));
+  assert.deepEqual(calls.map((c) => [c.tool, c.name, c.params?.is_test]), [
+    ["gtag", "generate_lead", true],
+    ["fbq", "Lead", undefined],
+  ]);
+});
+
+test("with ?qa=1: GA marked is_test, Meta not sent", () => {
+  const calls = capture("https://www.medidakos.com/contact?qa=1", () => trackContactLead({ saved: true }, {}));
   assert.deepEqual(calls.map((c) => [c.tool, c.name, c.params.is_test]), [["gtag", "generate_lead", true]]);
 });
 

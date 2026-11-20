@@ -3,7 +3,7 @@
 //   Noto Serif는 리뉴얼 화면에서 쓰이지 않아 로드하지 않는다
 //   (2026-11-12 — Vercel 빌드에서 Noto Serif의 next/font/google 처리가 실패해 제거, docs/operations/website-renewal-dev-to-production.md)
 // - 사이트 메타데이터·구조화 데이터, 인증 Provider
-// - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작)
+// - GA4·Meta Pixel·Channel Talk 연결(각 환경변수가 있을 때만 동작). GA4·Meta는 환경별 ID를 analytics-env.ts가 고른다
 // - data-scroll-behavior="smooth": 전역 smooth 스크롤을 페이지 이동 때만 끄고 즉시 상단 이동(Next 16)
 // - Announcement Bar를 닫은 탭이면 첫 페인트 전에 <html>에 표시해 바를 숨긴다(sessionStorage)
 // - NavigationIntent: 누른 링크·뒤로가기 시점 기록(FAQ가 일반 진입·딥링크·방문 기록 이동을 구분하는 데 사용)
@@ -14,6 +14,7 @@ import { Instrument_Sans } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
+import { resolveAnalyticsIds } from "@/lib/analytics/analytics-env";
 import { ChannelTalk } from "@/components/channel-talk/ChannelTalk";
 import { ChannelTalkLauncher } from "@/components/channel-talk/ChannelTalkLauncher";
 import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
@@ -103,8 +104,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const gaId = process.env.NEXT_PUBLIC_GA_ID;
-  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  // Environment-specific IDs, fail-closed (src/lib/analytics/analytics-env.ts).
+  const analytics = resolveAnalyticsIds({
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    NEXT_PUBLIC_GA_ID: process.env.NEXT_PUBLIC_GA_ID,
+    NEXT_PUBLIC_GA_DEV_ID: process.env.NEXT_PUBLIC_GA_DEV_ID,
+    NEXT_PUBLIC_META_PIXEL_ID: process.env.NEXT_PUBLIC_META_PIXEL_ID,
+    NEXT_PUBLIC_META_PIXEL_DEV_ID: process.env.NEXT_PUBLIC_META_PIXEL_DEV_ID,
+  });
+  const gaId = analytics.gaId;
   const channelTalkPluginKey = process.env.NEXT_PUBLIC_CHANNEL_TALK_PLUGIN_KEY;
 
   return (
@@ -123,8 +131,8 @@ export default function RootLayout({
         <NavigationIntent />
         <ThemeFavicon />
         <PromoVisit />
-        <GoogleAnalytics gaId={gaId} />
-        <MetaPixel pixelId={metaPixelId} />
+        <GoogleAnalytics gaId={gaId} tier={analytics.tier} />
+        <MetaPixel pixelId={analytics.metaPixelId} tier={analytics.tier} />
         <AuthProvider>
           <ChannelTalk pluginKey={channelTalkPluginKey} gaId={gaId} />
           {children}
