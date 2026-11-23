@@ -23,12 +23,12 @@ import {
 import type { UserProfile } from "@/lib/types";
 import { getFirebaseAuth, useMockAuth } from "@/lib/firebase/client";
 import {
+  cleanupMockStorage,
   mockGetSession,
   mockGoogleSignIn,
   mockLogin,
   mockLogout,
   mockRegister,
-  seedMockAdmin,
 } from "@/lib/auth/mock-auth";
 import { saveUserProfile } from "@/lib/firebase/firestore-service";
 import { trackConversionEvent } from "@/lib/analytics/events";
@@ -75,13 +75,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isMockMode = useMockAuth();
 
   useEffect(() => {
-    seedMockAdmin();
+    try {
+      cleanupMockStorage(window.localStorage, isMockMode);
+    } catch {
+      // localStorage unavailable (blocked by the browser): nothing to clean.
+    }
     if (isMockMode) {
       setUser(mockGetSession());
       setLoading(false);
       return;
     }
-    const auth = getFirebaseAuth();
+    let auth;
+    try {
+      auth = getFirebaseAuth();
+    } catch (error) {
+      // Firebase config missing in a non-mock build: stay signed out (login/signup show an error), no mock fallback.
+      console.error("[auth] Firebase is not configured; set NEXT_PUBLIC_FIREBASE_* or NEXT_PUBLIC_USE_MOCK_AUTH=true.", error);
+      setLoading(false);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser ? mapFirebaseUser(firebaseUser) : null);
       setLoading(false);

@@ -20,10 +20,12 @@ export function isFirebaseConfigured(): boolean {
   );
 }
 
+/**
+ * Mock auth only when NEXT_PUBLIC_USE_MOCK_AUTH is exactly "true". Unset, "false" or anything else means real
+ * Firebase: missing Firebase config is an error (getFirebaseApp throws), never a silent fallback to mock accounts.
+ */
 export function useMockAuth(): boolean {
-  if (process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true") return true;
-  if (process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "false") return false;
-  return !isFirebaseConfigured();
+  return process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
 }
 
 let app: FirebaseApp | undefined;

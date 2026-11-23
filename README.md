@@ -11,16 +11,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Local mock admin (no Firebase required)
+## Local mock mode (no Firebase required)
 
-When Firebase env vars are empty, the app runs in **mock mode** (localStorage).
+Run `NEXT_PUBLIC_USE_MOCK_AUTH=true npm run dev` to use mock auth (localStorage, nothing sent to Firebase).
+Mock mode is explicit opt-in only; without Firebase config and without this flag, `npm run dev` stops.
 
-| Field | Value |
-|-------|--------|
-| Email | `admin@medidakos.com` |
-| Password | `MediDaKos2024!` |
-
-You can also register new accounts or use **Continue with Google** (mock demo user).
+There is no pre-made account: create one at `/signup`, or use **Continue with Google** (mock demo user).
 
 ## Firebase setup
 
@@ -31,7 +27,7 @@ You can also register new accounts or use **Continue with Google** (mock demo us
    - `contact/{autoId}` — Contact form submissions
    - `mail/{docId}` — email queue (Cloud Functions send via Gmail API as `support@medidakos.com`)
 4. Deploy Cloud Functions and configure `functions/.env` (`ADMIN_EMAILS`, `NOTIFY_FROM_EMAIL`). See [Firebase collections & mail](docs/operations/firebase-collections-and-mail.md).
-5. Set `NEXT_PUBLIC_USE_MOCK_AUTH=false` when ready for production auth.
+5. Leave `NEXT_PUBLIC_USE_MOCK_AUTH` unset or `false` outside local mock development.
 
 ## Routes
 
