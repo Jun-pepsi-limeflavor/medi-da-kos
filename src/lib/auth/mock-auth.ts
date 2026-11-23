@@ -1,7 +1,7 @@
 "use client";
 
 // 로컬 개발용 Mock 인증. Mock 모드에서 Firebase Auth 대신 사용한다.
-// - 사용자·세션을 localStorage에 저장하고 Mock 관리자 계정을 준비
+// - NEXT_PUBLIC_USE_MOCK_AUTH=true일 때만 사용. 사용자·세션을 localStorage에 저장(미리 만든 계정·자격 증명 없음, /signup으로 생성)
 // - 오류에 Firebase와 같은 code를 붙여 같은 문구로 변환되게 함
 import type { UserProfile } from "@/lib/types";
 
@@ -23,33 +23,33 @@ function write<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-export const MOCK_ADMIN = {
-  email: "admin@medidakos.com",
-  password: "MediDaKos2024!",
-  profile: {
-    uid: "mock-admin-uid",
-    email: "admin@medidakos.com",
-    displayName: "Admin User",
-    phone: "+82-10-0000-0000",
-    country: "South Korea",
-    companyName: "Medi Da Kos",
-    provider: "email" as const,
-    role: "admin" as const,
-    createdAt: new Date().toISOString(),
-  } satisfies UserProfile,
-};
+/** uid of the Mock admin entry older builds seeded into every browser. No credential is kept in code. */
+const LEGACY_SEEDED_ADMIN_UID = "mock-admin-uid";
 
-export function seedMockAdmin() {
-  const users = read<Record<string, UserProfile & { password?: string }>>(
-    USERS_KEY,
-    {},
-  );
-  if (!users[MOCK_ADMIN.email]) {
-    users[MOCK_ADMIN.email] = {
-      ...MOCK_ADMIN.profile,
-      password: MOCK_ADMIN.password,
-    };
-    write(USERS_KEY, users);
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+/**
+ * Mock 전용 localStorage 정리 (2026-11 Mock 관리자 자동 생성 제거 후속, V2.1 이후 제거 검토).
+ * - Firebase 모드: mdk_users·mdk_session 삭제. Mock 인증만 쓰는 키이며, 예전 코드가 모든 방문자에게 mdk_users를 만들었다.
+ * - Mock 모드: 예전에 자동 생성된 관리자 항목과 그 세션만 삭제하고, 개발자가 만든 Mock 계정·세션은 유지한다.
+ * Firebase Auth 저장소는 건드리지 않는다. 저장소 접근 실패·손상된 값은 그대로 둔다.
+ */
+export function cleanupMockStorage(storage: StorageLike, mockMode: boolean): void {
+  try {
+    if (!mockMode) {
+      storage.removeItem(USERS_KEY);
+      storage.removeItem(SESSION_KEY);
+      return;
+    }
+    const users = JSON.parse(storage.getItem(USERS_KEY) ?? "null") as Record<string, { uid?: string }> | null;
+    if (users && typeof users === "object") {
+      const kept = Object.fromEntries(Object.entries(users).filter(([, u]) => u?.uid !== LEGACY_SEEDED_ADMIN_UID));
+      if (Object.keys(kept).length !== Object.keys(users).length) storage.setItem(USERS_KEY, JSON.stringify(kept));
+    }
+    const session = JSON.parse(storage.getItem(SESSION_KEY) ?? "null") as { uid?: string } | null;
+    if (session?.uid === LEGACY_SEEDED_ADMIN_UID) storage.removeItem(SESSION_KEY);
+  } catch {
+    // Storage blocked or malformed JSON: leave it as is.
   }
 }
 
@@ -72,7 +72,6 @@ export function mockRegister(
   password: string,
   profile: Omit<UserProfile, "uid" | "email" | "createdAt" | "provider">,
 ): UserProfile {
-  seedMockAdmin();
   const users = read<Record<string, UserProfile & { password?: string }>>(
     USERS_KEY,
     {},
@@ -93,7 +92,6 @@ export function mockRegister(
 }
 
 export function mockLogin(email: string, password: string): UserProfile {
-  seedMockAdmin();
   const users = read<Record<string, UserProfile & { password?: string }>>(
     USERS_KEY,
     {},

@@ -323,7 +323,7 @@ staging Channel Talk 연결 절차(다음 단계, 승인 후):
 | dev 배포 함수의 `CHANNELTALK_TEST_DOMAIN` 값이 `(techasset.co.kr)`(괄호 포함) → `+chtest` 주소도 테스트로 인식되지 않아 Channel Talk 전송을 건너뜀(`skipReason: is_test`). 로컬 `functions/.env.dev-medidakos-b9b4f`는 괄호 없음(미배포) | **해결(2026-11-12 dev 3개 함수 재배포)**. 원인은 다른 PC의 로컬 env 파일(추정) | `+chtest` 가입 1건으로 `[TEST]` 동기화 확인(다음 단계). 이사님 PC env 파일 값 확인 결과 회신 대기 |
 | 가입 시 Auth 계정 생성 후 `users` 저장이 실패하면 문서 없이 계정만 남음(이후 로그인으로 복구되지 않음) | 기존 동작 | 처리 방식 결정 |
 | `contact` 규칙 Message 필수 | **해결(2026-11-13 Contact v2 규칙, dev 배포)** | 운영 전환 때 규칙 배포 |
-| Mock 관리자 테스트 비밀번호가 클라이언트 번들에 포함 | 미결정 | 제거 또는 개발 빌드 한정 |
+| Mock 관리자 테스트 비밀번호가 클라이언트 번들에 포함 | **수정 코드 작성(2026-11-23 `fix/remove-mock-admin-seed`, 미배포)**: `MOCK_ADMIN`·`seedMockAdmin()` 제거, Mock은 `NEXT_PUBLIC_USE_MOCK_AUTH=true`일 때만, 방문자 `mdk_users`·`mdk_session` 정리. 비밀번호는 실제 계정에 쓰이지 않음(사용자 확인), 공개 Git 이력에는 남음 | staging·운영 반영 후 배포 청크에서 0건 확인. Vercel `NEXT_PUBLIC_USE_MOCK_AUTH`(Production·Preview) 값 확인 |
 | staging Channel Talk 환경변수 | **적용(2026-11-13 PR #39 staging 배포)** | — |
 | staging 리뉴얼 코드 미반영 | **해결(2026-11-13 PR #39, `dev` = `19da17d`, staging READY)** | — |
 | staging `FIREBASE_SERVICE_ACCOUNT_B64`가 dev 키인지 | 미확인(Sensitive) | 연결 후 회원 boot 성공으로 간접 확인 |
