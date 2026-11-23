@@ -65,7 +65,7 @@ function scanBuild() {
   }
   if (found.size > 1) return { label: "both", projectId: "dev와 운영이 섞임" };
   const [label] = found;
-  if (!label) return { label: "none", projectId: "Firebase 설정 없음(Mock)" };
+  if (!label) return { label: "none", projectId: "Firebase 설정 없음" };
   return { label, projectId: fp[label].projectId };
 }
 
