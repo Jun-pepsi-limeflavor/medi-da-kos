@@ -55,14 +55,16 @@ const gaEnv = await import("../../src/lib/analytics/analytics-env.ts");
 const gaClient = await import("../../src/lib/analytics/ga-client-id.ts");
 const utm = await import("../../src/hooks/use-utm-params.ts");
 
+const CONSENT_ID = "0b6f2d64-3f1a-4c5e-9d2b-7a1e5c3b9f00";
+/** A choice the server has already confirmed (P2), so this file tests only the P1 enforcement. */
 function choose(choices: { analytics: boolean; marketing: boolean }) {
-  local.setItem(consent.CONSENT_STORAGE_KEY, JSON.stringify(consent.createConsent(choices)));
+  local.setItem(consent.CONSENT_STORAGE_KEY, JSON.stringify(consent.createConsent(choices, new Date(), { consentId: CONSENT_ID, confirmed: choices })));
 }
 
 test("policy version 2 has only Analytics and Marketing; a version-1 record (with functional) asks again", () => {
   assert.equal(consent.POLICY_VERSION, 2);
   assert.deepEqual(consent.OPTIONAL_COOKIE_CATEGORIES, ["analytics", "marketing"]);
-  const v1 = { version: 1, analytics: true, marketing: true, functional: true, savedAt: new Date().toISOString(), expiresAt: "2099-01-01T00:00:00.000Z" };
+  const v1 = { version: 1, consentId: CONSENT_ID, confirmed: { analytics: true, marketing: true }, analytics: true, marketing: true, functional: true, savedAt: new Date().toISOString(), expiresAt: "2099-01-01T00:00:00.000Z" };
   assert.equal(consent.parseConsent(JSON.stringify(v1)), null);
 });
 
@@ -74,17 +76,16 @@ test("no choice yet means nothing optional runs", () => {
 });
 
 test("GPC always wins over Marketing, before and after saving", () => {
-  const all = consent.createConsent(consent.ALL_ACCEPTED);
+  const all = consent.createConsent(consent.ALL_ACCEPTED, new Date(), { consentId: CONSENT_ID, confirmed: consent.ALL_ACCEPTED });
   assert.deepEqual(consent.effectiveChoices(all, true), { analytics: true, marketing: false });
   assert.deepEqual(consent.applyGpc(consent.ALL_ACCEPTED, true), { analytics: true, marketing: false });
   assert.deepEqual(consent.applyGpc(consent.ALL_ACCEPTED, false), consent.ALL_ACCEPTED);
 
   gpc = true;
   try {
-    const saved = consent.saveConsent(consent.ALL_ACCEPTED); // Accept All with GPC on
-    assert.equal(saved.marketing, false);
-    assert.equal(saved.analytics, true);
+    choose(consent.ALL_ACCEPTED); // stored all-on, but the browser now sends GPC
     assert.equal(consent.hasCookieConsent("marketing"), false);
+    assert.equal(consent.hasCookieConsent("analytics"), true);
   } finally {
     gpc = false;
   }

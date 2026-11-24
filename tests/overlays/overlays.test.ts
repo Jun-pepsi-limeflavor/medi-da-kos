@@ -9,12 +9,13 @@ const visit = await import("../../src/lib/promo/visit.ts");
 const social = await import("../../src/lib/social/types.ts");
 
 const NOW = new Date("2026-11-11T09:00:00Z");
+const IDS = { consentId: "0b6f2d64-3f1a-4c5e-9d2b-7a1e5c3b9f00", confirmed: { analytics: true, marketing: true } };
 
 test("a saved choice is kept for 6 months, then the visitor is asked again", () => {
-  const saved = consent.createConsent(consent.ALL_ACCEPTED, NOW);
+  const saved = consent.createConsent(consent.ALL_ACCEPTED, NOW, IDS);
   assert.equal(saved.version, consent.POLICY_VERSION);
   assert.equal(saved.expiresAt, "2027-05-11T09:00:00.000Z");
-  assert.deepEqual(Object.keys(saved).sort(), ["analytics", "expiresAt", "marketing", "savedAt", "version"]);
+  assert.deepEqual(Object.keys(saved).sort(), ["analytics", "confirmed", "consentId", "expiresAt", "marketing", "savedAt", "version"]);
   const raw = JSON.stringify(saved);
   assert.deepEqual(consent.parseConsent(raw, Date.parse("2027-05-11T08:59:59Z")), saved);
   assert.equal(consent.parseConsent(raw, Date.parse("2027-05-11T09:00:00Z")), null);
@@ -25,11 +26,13 @@ test("6 months later clamps to the month's last day", () => {
 });
 
 test("an outdated policy version or a malformed record counts as no choice", () => {
-  const saved = consent.createConsent(consent.ALL_REJECTED, NOW);
+  const saved = consent.createConsent(consent.ALL_REJECTED, NOW, IDS);
   const now = NOW.getTime();
   assert.equal(consent.parseConsent(JSON.stringify({ ...saved, version: consent.POLICY_VERSION + 1 }), now), null);
   assert.equal(consent.parseConsent(JSON.stringify({ ...saved, version: consent.POLICY_VERSION - 1 }), now), null);
   assert.equal(consent.parseConsent(JSON.stringify({ ...saved, analytics: "yes" }), now), null);
+  assert.equal(consent.parseConsent(JSON.stringify({ ...saved, consentId: "not-a-uuid" }), now), null);
+  assert.equal(consent.parseConsent(JSON.stringify({ ...saved, confirmed: undefined }), now), null);
   assert.equal(consent.parseConsent("not json", now), null);
   assert.equal(consent.parseConsent(null, now), null);
 });

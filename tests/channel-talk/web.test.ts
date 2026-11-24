@@ -275,7 +275,7 @@ test("boot은 SDK 기본 버튼을 숨기고 customLauncherSelector는 넘기지
 
 function consentStorage(choices: { analytics: boolean; marketing: boolean } | null) {
   const raw = choices
-    ? JSON.stringify({ version: 2, ...choices, savedAt: "2026-11-23T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z" })
+    ? JSON.stringify({ version: 2, consentId: "0b6f2d64-3f1a-4c5e-9d2b-7a1e5c3b9f00", ...choices, confirmed: choices, savedAt: "2026-11-23T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z" })
     : null;
   return { getItem: (key: string) => (key === "mdk:cookie-consent" ? raw : null), setItem() {}, removeItem() {} };
 }

@@ -17,6 +17,16 @@ function getServiceAccount() {
   }
 }
 
+/** project_id of the configured service account (FIREBASE_SERVICE_ACCOUNT_B64), or null when missing or unreadable. */
+export function getServiceAccountProjectId(): string | null {
+  try {
+    const id = getServiceAccount().project_id;
+    return typeof id === "string" && id ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getAdminApp(): App {
   if (!app) {
     // getApps()[0] would grab whichever app happens to be first — not

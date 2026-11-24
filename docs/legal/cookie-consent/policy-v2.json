@@ -1,0 +1,93 @@
+{
+  "policyVersion": 2,
+  "noticeHash": "ead197f9533b3c4303d416e51c9468d78c59d8007cb8ff84d469cc6846a9c938",
+  "hashOf": "SHA-256 of JSON.stringify(notice), UTF-8, hex",
+  "notice": {
+    "policyVersion": 2,
+    "choiceValidityMonths": 6,
+    "banner": {
+      "title": "We Value Your Privacy",
+      "description": [
+        "We use essential cookies and similar technologies to operate our website. With your consent, we also use optional technologies to analyze website usage and measure advertising performance.",
+        "You can accept all optional cookies, reject them, or manage your preferences at any time."
+      ]
+    },
+    "settings": {
+      "title": "Cookie Settings",
+      "description": [
+        "Manage your preferences for optional cookies and similar technologies.",
+        "You can change or withdraw your consent at any time."
+      ]
+    },
+    "essential": {
+      "name": "Essential Cookies",
+      "description": "These technologies are necessary for essential website functions, such as authentication and security."
+    },
+    "optional": [
+      {
+        "key": "analytics",
+        "name": "Analytics Cookies",
+        "description": "These technologies help us understand how visitors use our website and measure website performance."
+      },
+      {
+        "key": "marketing",
+        "name": "Marketing Cookies",
+        "description": "These technologies help measure advertising performance and support personalized advertising activities."
+      }
+    ],
+    "details": [
+      {
+        "title": "Analytics Cookies",
+        "items": [
+          {
+            "name": "_ga",
+            "provider": "Google Analytics",
+            "purpose": "Distinguishes visitors to help measure website usage.",
+            "expiration": "2 years (default)"
+          },
+          {
+            "name": "_ga_NQPD9VE63R",
+            "provider": "Google Analytics",
+            "purpose": "Stores session information for website analytics.",
+            "expiration": "2 years (default)"
+          }
+        ]
+      },
+      {
+        "title": "Marketing Cookies",
+        "items": [
+          {
+            "name": "_fbp",
+            "provider": "Meta",
+            "purpose": "Helps identify browsers for advertising measurement.",
+            "expiration": "90 days"
+          }
+        ]
+      },
+      {
+        "title": "Channel Talk Cookies — Classification Pending",
+        "items": [
+          {
+            "name": "ch-session-248070",
+            "provider": "Channel Talk",
+            "purpose": "Maintains authentication for the live chat session.",
+            "expiration": "30 minutes, renewable"
+          },
+          {
+            "name": "ch-veil-id",
+            "provider": "Channel Talk",
+            "purpose": "Recognizes returning chat visitors and helps restore previous conversations.",
+            "expiration": "1 year, renewable"
+          },
+          {
+            "name": "_dd_s_v2",
+            "provider": "Datadog via Channel Talk",
+            "purpose": "Supports monitoring of errors in the live chat widget.",
+            "expiration": "Up to 1 year"
+          }
+        ]
+      }
+    ],
+    "gpcNotice": "Your browser's Global Privacy Control signal is honored, so marketing technologies stay off."
+  }
+}
