@@ -384,3 +384,53 @@ test("다른 탭 로그아웃도 같은 경로: 탭마다 한 번만 지우고 �
   // 이미 지워졌거나 없으면 아무것도 쓰지 않는다
   assert.deepEqual(ct.clearChannelSessionCookies(), []);
 });
+
+// ---- 런처 열림 상태(2026-11-24): 메신저를 연 채 로그인·로그아웃해도 재시작 뒤 런처가 다시 보인다 ----
+
+/** SDK가 boot 때 등록한 onShowMessenger 콜백을 불러 "메신저 열림"을 흉내 낸다. */
+function openMessengerViaSdk(channel: ReturnType<typeof fakeChannel>) {
+  const show = channel.of("onShowMessenger").at(-1)?.args[0] as (() => void) | undefined;
+  assert.ok(show, "boot 성공 때 onShowMessenger를 등록한다");
+  show();
+}
+
+test("메신저를 연 채 로그아웃(회원 → 비회원): shutdown 직후 열림 상태를 닫힘으로 되돌리고 런처가 다시 보인다", async () => {
+  const { isMessengerOpen, isChannelReady, setMessengerOpen } = await import("../../src/lib/channel-talk/launcher.ts");
+  setMessengerOpen(false);
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  openMessengerViaSdk(channel);
+  assert.equal(isMessengerOpen(), true);
+
+  const atBoot: boolean[] = [];
+  const { ChannelIO } = (globalThis as unknown as { window: { ChannelIO: (m: string, ...a: unknown[]) => void } }).window;
+  (globalThis as unknown as { window: { ChannelIO: unknown } }).window.ChannelIO = (method: string, ...args: unknown[]) => {
+    if (method === "boot") atBoot.push(isMessengerOpen());
+    ChannelIO(method, ...args);
+  };
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  assert.deepEqual(atBoot, [false], "비회원 boot 전에 이미 닫힘");
+  assert.equal(isMessengerOpen(), false);
+  assert.equal(isChannelReady(), true, "런처 표시 조건(ready && !open) 충족");
+  assert.equal(channel.of("cookie").length, 1, "세션 쿠키 초기화는 그대로");
+});
+
+test("비회원 메신저를 연 채 로그인(비회원 → 회원): 회원 boot 뒤 런처가 다시 보인다", async () => {
+  const { isMessengerOpen, isChannelReady, setMessengerOpen } = await import("../../src/lib/channel-talk/launcher.ts");
+  setMessengerOpen(false);
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  openMessengerViaSdk(channel);
+  assert.equal(isMessengerOpen(), true);
+
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  assert.equal(isMessengerOpen(), false);
+  assert.equal(isChannelReady(), true);
+  assert.equal(channel.of("cookie").length, 0, "로그인은 세션 쿠키를 지우지 않는다(자동 통합 유지)");
+});

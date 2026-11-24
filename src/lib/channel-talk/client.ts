@@ -158,6 +158,7 @@ export async function bootChannelTalkAsMember(
 
   if (bootedMemberId || bootedAnonymous) {
     shutdown();
+    setMessengerOpen(false); // shutdown drops the hide callback; a messenger left open would keep the launcher hidden
     setChannelUnread(0); // the next boot reports its own count
     setChannelReady(false);
     bootedMemberId = null;
@@ -204,6 +205,7 @@ export async function bootChannelTalkAsAnonymous(
     shutdown();
     // Member → anonymous (logout, here or in another tab): drop the member's session so this boot starts a new visitor.
     if (wasMember) clearChannelSessionCookies();
+    setMessengerOpen(false); // shutdown drops the hide callback; a messenger left open would keep the launcher hidden
     setChannelUnread(0); // the next boot reports its own count
     setChannelReady(false);
     bootedMemberId = null;

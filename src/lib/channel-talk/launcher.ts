@@ -23,6 +23,10 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+export function isMessengerOpen(): boolean {
+  return messengerOpen;
+}
+
 export function useMessengerOpen(): boolean {
   return useSyncExternalStore(subscribe, () => messengerOpen, () => false);
 }
