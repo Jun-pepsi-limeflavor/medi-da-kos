@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
+import { hasCookieConsent } from "@/lib/cookie-consent/consent";
 
 const UTM_STORAGE_KEY = "medidakos_utm_params";
 
@@ -13,8 +14,10 @@ export interface UtmParams {
   utmTerm?: string;
 }
 
+// UTM은 캠페인 성과 측정(귀속) 정보라 Analytics 동의가 있을 때만 저장·전달한다(2026-11-23). 동의가 없으면 빈 값.
+
 function readStoredUtmParams(): UtmParams {
-  if (typeof window === "undefined") return {};
+  if (typeof window === "undefined" || !hasCookieConsent("analytics")) return {};
   try {
     const raw = sessionStorage.getItem(UTM_STORAGE_KEY);
     if (!raw) return {};
@@ -25,7 +28,7 @@ function readStoredUtmParams(): UtmParams {
 }
 
 function storeUtmParams(params: UtmParams) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !hasCookieConsent("analytics")) return;
   const hasValue = Object.values(params).some(Boolean);
   if (!hasValue) return;
   try {
@@ -58,7 +61,7 @@ export function useUtmParams(): UtmParams {
     const fromUrl = parseUtmFromSearchParams(searchParams);
     const hasUrlParams = Object.values(fromUrl).some(Boolean);
 
-    if (hasUrlParams) {
+    if (hasUrlParams && hasCookieConsent("analytics")) {
       storeUtmParams(fromUrl);
       return fromUrl;
     }
@@ -72,7 +75,7 @@ export function useUtmParams(): UtmParams {
  * so a statically rendered page (the renewal Contact) needs no Suspense boundary.
  */
 export function readUtmParams(): UtmParams {
-  if (typeof window === "undefined") return {};
+  if (typeof window === "undefined" || !hasCookieConsent("analytics")) return {};
   const fromUrl = parseUtmFromSearchParams(new URLSearchParams(window.location.search));
   if (Object.values(fromUrl).some(Boolean)) {
     storeUtmParams(fromUrl);

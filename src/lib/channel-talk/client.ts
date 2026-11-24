@@ -1,6 +1,8 @@
 // Channel Talk SDK boot·종료·페이지 동기화. boot 때 SDK 기본 버튼을 숨기고(사이트 런처 ChannelTalkLauncher가 직접 showMessenger·hideMessenger 호출),
 // 메신저 열림·닫힘과 미읽음 수(onBadgeChanged) 콜백을 런처 표시 상태에 넘긴다(lib/channel-talk/launcher).
 // 콜백은 boot 성공 때 등록하고, 다시 boot하기 전 shutdown이 지우므로 중복 등록되지 않는다.
+// 쿠키 동의(2026-11-23): SDK 실행·상담·회원 식별은 동의와 무관하게 그대로. 추적 기능(기본 PageView·UTM/referrer 수집,
+// 라우트 이동 PageView)만 Marketing 동의가 있을 때 켠다. hidePopup은 상담 메시지 알림 팝업도 숨기므로 쓰지 않는다.
 import {
   boot,
   loadScript,
@@ -17,6 +19,7 @@ import {
   type User,
 } from "@channel.io/channel-web-sdk-loader";
 import { gaBootProfile } from "@/lib/channel-talk/intake";
+import { hasCookieConsent } from "@/lib/cookie-consent/consent";
 import { setChannelReady, setChannelUnread, setMessengerOpen } from "@/lib/channel-talk/launcher";
 import type { UserProfile } from "@/lib/types";
 
@@ -48,6 +51,11 @@ function baseProfile(gaClientId: string | null): Profile {
   return gaBootProfile(gaClientId);
 }
 
+/** Channel Talk tracking boot options: on only with Marketing consent (support chat works either way). */
+export function channelTrackingOptions(marketing: boolean): Pick<BootOption, "trackDefaultEvent" | "trackUtmSource"> {
+  return { trackDefaultEvent: marketing, trackUtmSource: marketing };
+}
+
 function runBoot(option: BootOption): Promise<User> {
   loadScript();
 
@@ -75,7 +83,7 @@ function runBoot(option: BootOption): Promise<User> {
     // Figma launcher: hide the SDK's default button; the site launcher opens/closes the messenger itself.
     // No customLauncherSelector (2026-11-13): the SDK's own click binding did not open the messenger in real Chrome,
     // and keeping it alongside our showMessenger call would toggle twice.
-    boot({ ...option, hideChannelButtonOnBoot: true }, callback);
+    boot({ ...option, ...channelTrackingOptions(hasCookieConsent("marketing")), hideChannelButtonOnBoot: true }, callback);
   });
 }
 
@@ -210,13 +218,13 @@ export function syncChannelTalkRoute(pathname: string): void {
 
   const page = pathname || "/";
   setPage(page);
-  track("PageView");
+  if (hasCookieConsent("marketing")) track("PageView");
 }
 
 export function resetChannelTalkPage(): void {
   if (!isChannelTalkBooted()) return;
   resetPage();
-  track("PageView");
+  if (hasCookieConsent("marketing")) track("PageView");
 }
 
 export function getChannelTalkDebugState() {

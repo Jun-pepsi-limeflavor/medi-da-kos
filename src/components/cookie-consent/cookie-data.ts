@@ -1,12 +1,14 @@
 // Cookie Banner · Cookie Settings 문구와 쿠키 목록(Figma 'Cookie & Chat — Components (Final)' 742:1662 원문 그대로).
-// - 카테고리 4종: Essential(항상 허용) · Analytics · Marketing · Functional — Figma에 없는 카테고리·문구는 추가하지 않는다
+// - 카테고리 3종: Essential(항상 허용) · Analytics · Marketing (2026-11-23 Functional 제거, POLICY_VERSION 2).
+//   배너 설명의 "support additional features"(Functional 설명)도 함께 뺐다. 그 밖의 문구는 Figma 그대로
+// - GPC_NOTICE: GPC 신호가 켜진 브라우저의 Marketing 행에만 표시(Figma에 없음, 2026-11-23 추가)
 // - Cookie Details: 그룹 3개·쿠키 6개(Channel Talk 그룹 제목의 'Classification Pending'도 Figma 문구 그대로)
 import type { OptionalCookieCategory } from "@/lib/cookie-consent/consent";
 
 export const COOKIE_BANNER = {
   title: "We Value Your Privacy",
   description: [
-    "We use essential cookies and similar technologies to operate our website. With your consent, we also use optional technologies to analyze website usage, measure advertising performance, and support additional features.",
+    "We use essential cookies and similar technologies to operate our website. With your consent, we also use optional technologies to analyze website usage and measure advertising performance.",
     "You can accept all optional cookies, reject them, or manage your preferences at any time.",
   ],
 } as const;
@@ -36,13 +38,10 @@ export const OPTIONAL_CATEGORIES: readonly { key: OptionalCookieCategory; name: 
     name: "Marketing Cookies",
     description: "These technologies help measure advertising performance and support personalized advertising activities.",
   },
-  {
-    key: "functional",
-    name: "Functional Cookies",
-    description:
-      "These technologies support additional website features, including optional chat-related functions and user preferences.",
-  },
 ];
+
+/** Shown under Marketing when the browser sends a Global Privacy Control signal (Marketing stays off). */
+export const GPC_NOTICE = "Your browser's Global Privacy Control signal is honored, so marketing technologies stay off.";
 
 export type CookieDetail = { name: string; provider: string; purpose: string; expiration: string };
 

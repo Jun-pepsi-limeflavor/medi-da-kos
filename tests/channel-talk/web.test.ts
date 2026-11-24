@@ -270,3 +270,39 @@ test("boot은 SDK 기본 버튼을 숨기고 customLauncherSelector는 넘기지
   assert.equal(option.hideChannelButtonOnBoot, true);
   assert.ok(!("customLauncherSelector" in option));
 });
+
+// ---- 쿠키 동의(2026-11-23): 상담·식별은 그대로, 추적 옵션만 Marketing 동의 ----
+
+function consentStorage(choices: { analytics: boolean; marketing: boolean } | null) {
+  const raw = choices
+    ? JSON.stringify({ version: 2, ...choices, savedAt: "2026-11-23T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z" })
+    : null;
+  return { getItem: (key: string) => (key === "mdk:cookie-consent" ? raw : null), setItem() {}, removeItem() {} };
+}
+
+test("Marketing 동의가 없으면 boot는 그대로 하되 PageView·UTM 추적과 라우트 PageView를 끈다", async () => {
+  const channel = fakeChannel();
+  (globalThis as { window: Record<string, unknown> }).window.localStorage = consentStorage(null);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const option = channel.of("boot")[0].args[0] as Record<string, unknown>;
+  assert.equal(option.pluginKey, "plugin-key");
+  assert.equal(option.trackDefaultEvent, false);
+  assert.equal(option.trackUtmSource, false);
+  assert.ok(!("hidePopup" in option), "상담 알림 팝업은 숨기지 않는다");
+  ct.syncChannelTalkRoute("/contact");
+  assert.equal(channel.of("setPage").length, 1);
+  assert.equal(channel.of("track").length, 0);
+});
+
+test("Marketing 동의가 있으면 Channel Talk 추적 옵션과 라우트 PageView를 켠다", async () => {
+  const channel = fakeChannel();
+  (globalThis as { window: Record<string, unknown> }).window.localStorage = consentStorage({ analytics: false, marketing: true });
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const option = channel.of("boot")[0].args[0] as Record<string, unknown>;
+  assert.equal(option.trackDefaultEvent, true);
+  assert.equal(option.trackUtmSource, true);
+  ct.syncChannelTalkRoute("/contact");
+  assert.deepEqual(channel.of("track").map((c) => c.args[0]), ["PageView"]);
+});

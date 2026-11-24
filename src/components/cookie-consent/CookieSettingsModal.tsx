@@ -1,7 +1,8 @@
 "use client";
 
 // Cookie Settings 모달(Figma 'Cookie Settings — Final (Prototype Overlay)' 714:14 · 'Cookie Settings Modal' 742:2167).
-// - 640×784 흰 패널(radius 20): Header(제목·설명·X) → Body(카테고리 4행 + Cookie Details, 최대 560px 내부 스크롤) → Footer(Privacy Policy · 버튼 3개)
+// - 640×784 흰 패널(radius 20): Header(제목·설명·X) → Body(카테고리 3행 + Cookie Details, 최대 560px 내부 스크롤) → Footer(Privacy Policy · 버튼 3개)
+// - GPC 신호가 켜진 브라우저: Marketing 토글을 끈 채 비활성화하고 GPC_NOTICE를 표시(저장 시에도 Marketing은 꺼짐, consent.ts applyGpc)
 // - 열 때 저장값을 임시값(draft)으로 복사, 토글은 draft만 바꾼다. Save Preferences = draft 저장 · Accept All / Reject Optional = 즉시 저장
 //   X·ESC·배경 클릭은 저장 없이 닫기(동의로 처리하지 않음). 저장 기록이 없으면 draft는 모두 꺼짐에서 시작
 // - Essential은 'Always Active'(토글 없음). Cookie Details는 한 번 클릭으로 쿠키 6개 전체 펼침(중첩 아코디언 없음)
@@ -10,12 +11,12 @@
 // - 작은 화면: 패널이 화면 높이 안에 들어가고 Body만 스크롤, Footer 버튼은 줄바꿈
 import Link from "next/link";
 import { useId, useState } from "react";
-import { COOKIE_DETAIL_GROUPS, COOKIE_SETTINGS_COPY, ESSENTIAL_CATEGORY, OPTIONAL_CATEGORIES } from "@/components/cookie-consent/cookie-data";
+import { COOKIE_DETAIL_GROUPS, COOKIE_SETTINGS_COPY, ESSENTIAL_CATEGORY, GPC_NOTICE, OPTIONAL_CATEGORIES } from "@/components/cookie-consent/cookie-data";
 import { Button } from "@/components/ui/Button";
 import { CloseButton } from "@/components/ui/CloseButton";
 import { Modal } from "@/components/ui/Modal";
 import { ROUTES } from "@/lib/config/routes";
-import { ALL_ACCEPTED, ALL_REJECTED, type CookieChoices, type CookieConsent } from "@/lib/cookie-consent/consent";
+import { ALL_ACCEPTED, ALL_REJECTED, isGpcEnabled, type CookieChoices, type CookieConsent } from "@/lib/cookie-consent/consent";
 import { cx } from "@/lib/utils/cx";
 
 /** Figma: each row has a 1px light-gray TOP border (no bottom border). */
@@ -23,16 +24,17 @@ const ROW = "flex flex-col gap-1.5 border-t border-mdk-light-gray py-5";
 const LINK = "text-mdk-label text-mdk-charcoal underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mdk-charcoal";
 
 /** Figma: Consent Toggle (742:1673) — 44×24 track, 20px white knob. Off light-gray, On charcoal. */
-function ConsentToggle({ checked, onChange, labelledBy }: { checked: boolean; onChange: (next: boolean) => void; labelledBy: string }) {
+function ConsentToggle({ checked, onChange, labelledBy, disabled = false }: { checked: boolean; onChange: (next: boolean) => void; labelledBy: string; disabled?: boolean }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-labelledby={labelledBy}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
-        "relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mdk-charcoal",
+        "relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mdk-charcoal disabled:cursor-not-allowed disabled:opacity-50",
         checked ? "bg-mdk-charcoal" : "bg-mdk-light-gray",
       )}
     >
@@ -65,8 +67,9 @@ export function CookieSettingsModal({ open, saved, onClose, onSave }: CookieSett
 }
 
 function SettingsPanel({ titleId, saved, onClose, onSave }: { titleId: string; saved: CookieConsent | null; onClose: () => void; onSave: (choices: CookieChoices) => void }) {
+  const [gpc] = useState(isGpcEnabled);
   const [draft, setDraft] = useState<CookieChoices>(() =>
-    saved ? { analytics: saved.analytics, marketing: saved.marketing, functional: saved.functional } : ALL_REJECTED,
+    saved ? { analytics: saved.analytics, marketing: saved.marketing && !gpc } : ALL_REJECTED,
   );
   const [detailsOpen, setDetailsOpen] = useState(false);
   const idBase = useId();
@@ -98,6 +101,7 @@ function SettingsPanel({ titleId, saved, onClose, onSave }: { titleId: string; s
         </div>
         {OPTIONAL_CATEGORIES.map(({ key, name, description }) => {
           const nameId = `${idBase}-${key}`;
+          const lockedByGpc = gpc && key === "marketing";
           return (
             <div key={key} className={ROW}>
               <div className="flex items-center justify-between gap-4">
@@ -107,10 +111,12 @@ function SettingsPanel({ titleId, saved, onClose, onSave }: { titleId: string; s
                 <ConsentToggle
                   checked={draft[key]}
                   labelledBy={nameId}
+                  disabled={lockedByGpc}
                   onChange={(next) => setDraft((current) => ({ ...current, [key]: next }))}
                 />
               </div>
               <p className="text-mdk-body text-mdk-charcoal-muted">{description}</p>
+              {lockedByGpc ? <p className="text-mdk-caption text-mdk-charcoal-muted">{GPC_NOTICE}</p> : null}
             </div>
           );
         })}

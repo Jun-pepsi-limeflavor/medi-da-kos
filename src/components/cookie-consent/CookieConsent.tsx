@@ -9,7 +9,7 @@
 // - 모바일(640px 미만, Figma 정의 없음): 좌우 16px 전체 폭, 버튼 줄바꿈. 오른쪽 아래 채팅 런처를 가리지 않게
 //   배너는 화면 아래에서 88px 위에 둔다(런처: 모바일 아래 16px · 높이 44px). 휴대폰이 아닌 기기(폭을 줄인 데스크톱 브라우저)는
 //   런처가 데스크톱 크기·위치(위 끝 약 90.7px)라 100px 위에 둔다(2026-11-16, 기기 판정은 globals.css의 `phone:` 변형 재사용)
-// - GA4·Meta·Channel Talk 실행 제어는 아직 연결하지 않음(consent.ts 참고)
+// - GA4·Meta·Channel Talk 추적은 저장된 선택을 따른다(consent.ts). 축소·철회 정리는 ConsentEnforcer
 import Link from "next/link";
 import { useCallback, useEffect, useId, useState } from "react";
 import { COOKIE_BANNER } from "@/components/cookie-consent/cookie-data";

@@ -14,7 +14,7 @@ test("a saved choice is kept for 6 months, then the visitor is asked again", () 
   const saved = consent.createConsent(consent.ALL_ACCEPTED, NOW);
   assert.equal(saved.version, consent.POLICY_VERSION);
   assert.equal(saved.expiresAt, "2027-05-11T09:00:00.000Z");
-  assert.deepEqual(Object.keys(saved).sort(), ["analytics", "expiresAt", "functional", "marketing", "savedAt", "version"]);
+  assert.deepEqual(Object.keys(saved).sort(), ["analytics", "expiresAt", "marketing", "savedAt", "version"]);
   const raw = JSON.stringify(saved);
   assert.deepEqual(consent.parseConsent(raw, Date.parse("2027-05-11T08:59:59Z")), saved);
   assert.equal(consent.parseConsent(raw, Date.parse("2027-05-11T09:00:00Z")), null);

@@ -8,7 +8,7 @@
 // - Announcement Bar를 닫은 탭이면 첫 페인트 전에 <html>에 표시해 바를 숨긴다(sessionStorage)
 // - NavigationIntent: 누른 링크·뒤로가기 시점 기록(FAQ가 일반 진입·딥링크·방문 기록 이동을 구분하는 데 사용)
 // - ChannelTalkLauncher: Figma 물방울 런처(모든 페이지, SDK 기본 버튼 대신 사용 · 키가 없으면 mock 동작)
-// - CookieConsent: 쿠키 동의 배너·Cookie Settings 모달(모든 페이지) · PromoVisit: Promotion 팝업용 새 방문 판정·활동 시각 기록
+// - CookieConsent: 쿠키 동의 배너·Cookie Settings 모달(모든 페이지) · ConsentEnforcer: 동의 축소·철회 시 추적 저장소 정리 · PromoVisit: Promotion 팝업용 새 방문 판정·활동 시각 기록
 import type { Metadata, Viewport } from "next";
 import { Instrument_Sans } from "next/font/google";
 import { AuthProvider } from "@/lib/auth/auth-context";
@@ -21,6 +21,7 @@ import { OrganizationJsonLd } from "@/components/seo/OrganizationJsonLd";
 import { ThemeFavicon } from "@/components/seo/ThemeFavicon";
 import { NavigationIntent } from "@/components/layout/NavigationIntent";
 import { CookieConsent } from "@/components/cookie-consent/CookieConsent";
+import { ConsentEnforcer } from "@/components/cookie-consent/ConsentEnforcer";
 import { PromoVisit } from "@/components/promo/PromoVisit";
 import { SITE_NAME, SITE_URL } from "@/lib/config/site";
 import { OPEN_GRAPH_BASE, siteRobots, TWITTER_BASE } from "@/lib/config/seo";
@@ -131,6 +132,7 @@ export default function RootLayout({
         <NavigationIntent />
         <ThemeFavicon />
         <PromoVisit />
+        <ConsentEnforcer />
         <GoogleAnalytics gaId={gaId} tier={analytics.tier} />
         <MetaPixel pixelId={analytics.metaPixelId} tier={analytics.tier} />
         <AuthProvider>

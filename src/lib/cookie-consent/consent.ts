@@ -1,12 +1,15 @@
-// 쿠키 동의 상태(선택 쿠키 3종: Analytics·Marketing·Functional) 저장·조회. 필수 쿠키는 항상 허용이라 저장하지 않는다.
+// 쿠키 동의 상태(선택 카테고리 2종: Analytics·Marketing) 저장·조회. 필수(Essential)는 항상 허용이라 저장하지 않는다.
 // - 확정 정책(2026-11-06): 동의·거부 기록 6개월 보관 → 만료 시 재동의, 쿠키 목적·정책의 중요한 변경(POLICY_VERSION 변경) 시 재동의
 // - 저장값: 정책 버전 · 카테고리별 선택 · 저장 시각 · 만료 시각만(개인정보·식별자 없음), localStorage 'mdk:cookie-consent'
 // - 화면·스크립트는 useCookieConsent()/hasCookieConsent()로 읽는다. 유효한 기록이 없으면 null = 아직 선택 전(선택 쿠키 불허)
+// - GPC(Global Privacy Control) 신호가 켜진 브라우저는 저장값과 관계없이 Marketing을 거부로 본다(신호 우선, 2026-11-23)
+// - 정책 버전 2(2026-11-23): Functional 카테고리 제거, GA4·Meta·Channel Talk 추적을 실제로 동의에 연결 → 버전 1 기록은 무효(재동의)
 // - 같은 탭의 변경은 즉시, 다른 탭의 변경은 storage 이벤트로 반영
-// - 실제 GA4·Meta Pixel·Channel Talk 실행 제어(동의 전 차단)는 운영 연동 단계에서 이 상태를 읽어 적용한다(아직 연결하지 않음)
+// - 실행 제어: GA4(GoogleAnalytics)·Meta Pixel(MetaPixel)·Channel Talk 추적 옵션·Contact 분석 정보가 이 상태를 읽고,
+//   축소·철회 정리는 ConsentEnforcer가 맡는다
 import { useSyncExternalStore } from "react";
 
-export type OptionalCookieCategory = "analytics" | "marketing" | "functional";
+export type OptionalCookieCategory = "analytics" | "marketing";
 export type CookieChoices = Record<OptionalCookieCategory, boolean>;
 
 export type CookieConsent = CookieChoices & {
@@ -18,13 +21,13 @@ export type CookieConsent = CookieChoices & {
 };
 
 /** Bump when the cookie purposes or policy change materially: every stored choice becomes invalid. */
-export const POLICY_VERSION = 1;
+export const POLICY_VERSION = 2;
 export const CONSENT_STORAGE_KEY = "mdk:cookie-consent";
 export const CONSENT_RETENTION_MONTHS = 6;
 
-export const OPTIONAL_COOKIE_CATEGORIES: readonly OptionalCookieCategory[] = ["analytics", "marketing", "functional"];
-export const ALL_REJECTED: CookieChoices = { analytics: false, marketing: false, functional: false };
-export const ALL_ACCEPTED: CookieChoices = { analytics: true, marketing: true, functional: true };
+export const OPTIONAL_COOKIE_CATEGORIES: readonly OptionalCookieCategory[] = ["analytics", "marketing"];
+export const ALL_REJECTED: CookieChoices = { analytics: false, marketing: false };
+export const ALL_ACCEPTED: CookieChoices = { analytics: true, marketing: true };
 
 /** Same calendar day 6 months later (clamped to the month's last day, e.g. Aug 31 → Feb 28/29). */
 export function addMonths(date: Date, months: number): Date {
@@ -42,7 +45,6 @@ export function createConsent(choices: CookieChoices, now: Date = new Date()): C
     version: POLICY_VERSION,
     analytics: choices.analytics,
     marketing: choices.marketing,
-    functional: choices.functional,
     savedAt: now.toISOString(),
     expiresAt: addMonths(now, CONSENT_RETENTION_MONTHS).toISOString(),
   };
@@ -90,7 +92,7 @@ export function readConsent(): CookieConsent | null {
 }
 
 export function saveConsent(choices: CookieChoices): CookieConsent {
-  const consent = createConsent(choices);
+  const consent = createConsent(applyGpc(choices, isGpcEnabled()));
   try {
     window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(consent));
   } catch {
@@ -122,7 +124,37 @@ export function useCookieConsent(): CookieConsent | null | undefined {
   return useSyncExternalStore(subscribe, readConsent, () => undefined);
 }
 
-/** For scripts that must wait for consent (GA4 → analytics, Meta Pixel → marketing, optional chat storage → functional). */
+// ---------- Effective consent (what scripts may actually do) ----------
+
+/** Browser Global Privacy Control signal (navigator.globalPrivacyControl). */
+export function isGpcEnabled(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+}
+
+/** Saved choice → what may run. No valid choice = nothing optional. GPC always wins over Marketing. */
+export function effectiveChoices(consent: CookieConsent | null | undefined, gpc: boolean): CookieChoices {
+  return {
+    analytics: consent?.analytics === true,
+    marketing: consent?.marketing === true && !gpc,
+  };
+}
+
+/** GPC forces Marketing off before saving, so the stored record matches what actually runs. */
+export function applyGpc(choices: CookieChoices, gpc: boolean): CookieChoices {
+  return gpc ? { ...choices, marketing: false } : choices;
+}
+
+/**
+ * undefined before hydration (unknown — load nothing yet), otherwise the effective choices.
+ * For GA4 (analytics), Meta Pixel (marketing) and Channel Talk tracking options (marketing).
+ */
+export function useEffectiveConsent(): CookieChoices | undefined {
+  const consent = useCookieConsent();
+  return consent === undefined ? undefined : effectiveChoices(consent, isGpcEnabled());
+}
+
+/** Non-React read for code that runs on demand (Contact submit, Channel Talk boot). */
 export function hasCookieConsent(category: OptionalCookieCategory): boolean {
-  return readConsent()?.[category] === true;
+  return effectiveChoices(readConsent(), isGpcEnabled())[category];
 }

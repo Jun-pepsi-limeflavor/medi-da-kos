@@ -23,7 +23,7 @@
 // - 전환 이벤트(2026-11-13 복구): 저장 성공 직후 한 번만 기존 운영 Contact와 같은 GA4 generate_lead
 //   (form_id contact-page · lead_type inquiry · UTM)와 Meta Lead(content_name contact-page). 이벤트 오류는 완료 화면에 영향 없음.
 //   실제 Firestore 저장(saved: true)일 때만 보낸다 — Mock 제출은 전환 이벤트를 보내지 않는다(trackContactLead)
-//   gaClientId도 기존처럼 저장(GA 미설정·조회 실패면 생략, 최대 2.5초 대기). 새 이벤트·매개변수는 추가하지 않는다
+//   gaClientId·UTM은 Analytics 동의가 있을 때만 저장(동의 없음·GA 미설정·조회 실패면 생략, 최대 2.5초 대기). 새 이벤트·매개변수는 추가하지 않는다
 // - 브리프 첨부(2026-11-17): 문의 저장 때 briefFiles(이름·크기·형식) 선언을 함께 넣고, 저장 성공 후 같은 id로
 //   Storage contact-briefs/{id}/{index}에 업로드(파일별 진행률 표시, 제출 중 추가·삭제 잠금). Functions가 Google Drive로 옮긴다.
 //   업로드는 문의 저장 뒤라, 일부·전부 실패해도 문의는 접수 완료 — 완료 화면에 실패 파일과 이메일 안내를 함께 보여 준다
@@ -61,6 +61,7 @@ import { useMockAuth } from "@/lib/firebase/client";
 import { submitInquiry } from "@/lib/firebase/firestore-service";
 import { uploadBriefFiles } from "@/lib/firebase/storage-service";
 import { readUtmParams } from "@/hooks/use-utm-params";
+import { hasCookieConsent } from "@/lib/cookie-consent/consent";
 import { trackContactLead } from "@/lib/analytics/events";
 import { getActiveGaClientId } from "@/lib/analytics/ga-client-id";
 import { isNonProductionEnv } from "@/lib/utils/env-flags";
@@ -210,7 +211,8 @@ export function InquiryForm({ showPromo }: { showPromo: boolean }) {
         ...toInquiryFields(values, showPromo ? promoInterest : undefined),
         ...(metas.length ? { briefFiles: metas } : {}),
         ...utmParams,
-        pageUrl: window.location.href,
+        // Without Analytics consent the query string (UTM, click ids) is dropped; the page path stays for context.
+        pageUrl: hasCookieConsent("analytics") ? window.location.href : `${window.location.origin}${window.location.pathname}`,
         gaClientId: gaClientId ?? undefined,
         userAgent: navigator.userAgent,
         // Member's own uid, and the browser's Channel user id only if already available (never waits).
