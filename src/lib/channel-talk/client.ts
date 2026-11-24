@@ -3,6 +3,9 @@
 // 콜백은 boot 성공 때 등록하고, 다시 boot하기 전 shutdown이 지우므로 중복 등록되지 않는다.
 // 쿠키 동의(2026-11-23): SDK 실행·상담·회원 식별은 동의와 무관하게 그대로. 추적 기능(기본 PageView·UTM/referrer 수집,
 // 라우트 이동 PageView)만 Marketing 동의가 있을 때 켠다. hidePopup은 상담 메시지 알림 팝업도 숨기므로 쓰지 않는다.
+// 로그아웃(2026-11-24): 회원 → 비회원으로 바뀔 때만 shutdown 뒤 ch-session-* 쿠키를 지우고 boot한다. 이 쿠키(30분)가 남으면
+// 비회원 boot가 직전 회원 세션을 이어받아 그 상담이 보인다(로컬 실측 E0·E1b). ch-veil-id·localStorage는 지우지 않는다.
+// SDK shutdown이 메모리 세션 토큰도 비우므로(core의 AuthStorageService.init) 새로고침 없이 처리한다.
 import {
   boot,
   loadScript,
@@ -19,11 +22,37 @@ import {
   type User,
 } from "@channel.io/channel-web-sdk-loader";
 import { gaBootProfile } from "@/lib/channel-talk/intake";
+import { cookieDomainsFor } from "@/lib/cookie-consent/cleanup";
 import { hasCookieConsent } from "@/lib/cookie-consent/consent";
 import { setChannelReady, setChannelUnread, setMessengerOpen } from "@/lib/channel-talk/launcher";
 import type { UserProfile } from "@/lib/types";
 
 export { CHANNEL_TALK_GA_PROFILE_KEY } from "@/lib/channel-talk/intake";
+
+const CHANNEL_SESSION_COOKIE_PREFIX = "ch-session-";
+
+/**
+ * Channel 세션 쿠키(ch-session-{channelId})를 지운다. 설정 도메인을 알 수 없어 호스트 전용·현재 호스트·상위 도메인으로 모두 만료시킨다.
+ * 회원 로그아웃 직후에만 부른다. 지운 쿠키 이름을 돌려준다(값은 다루지 않는다).
+ */
+export function clearChannelSessionCookies(): string[] {
+  if (typeof document === "undefined") return [];
+  const names = [
+    ...new Set(
+      document.cookie
+        .split(";")
+        .map((part) => part.trim().split("=")[0])
+        .filter((name) => name.startsWith(CHANNEL_SESSION_COOKIE_PREFIX)),
+    ),
+  ];
+  const hostname = typeof location === "undefined" ? "" : location.hostname;
+  for (const name of names) {
+    for (const domain of cookieDomainsFor(hostname)) {
+      document.cookie = `${name}=; Max-Age=0; Path=/${domain ? `; Domain=${domain}` : ""}`;
+    }
+  }
+  return names;
+}
 
 let bootedMemberId: string | null = null;
 let bootedAnonymous = false;
@@ -171,7 +200,10 @@ export async function bootChannelTalkAsAnonymous(
   }
 
   if (bootedMemberId || bootedAnonymous) {
+    const wasMember = Boolean(bootedMemberId);
     shutdown();
+    // Member → anonymous (logout, here or in another tab): drop the member's session so this boot starts a new visitor.
+    if (wasMember) clearChannelSessionCookies();
     setChannelUnread(0); // the next boot reports its own count
     setChannelReady(false);
     bootedMemberId = null;
