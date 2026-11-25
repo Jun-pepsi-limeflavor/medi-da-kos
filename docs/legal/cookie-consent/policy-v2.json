@@ -1,6 +1,6 @@
 {
   "policyVersion": 2,
-  "noticeHash": "ead197f9533b3c4303d416e51c9468d78c59d8007cb8ff84d469cc6846a9c938",
+  "noticeHash": "89b8127d86e4163b826645310cd383a6c16c54aac0cf599cf8665c30e354a3c9",
   "hashOf": "SHA-256 of JSON.stringify(notice), UTF-8, hex",
   "notice": {
     "policyVersion": 2,
@@ -37,6 +37,29 @@
     ],
     "details": [
       {
+        "title": "Essential Cookies",
+        "items": [
+          {
+            "name": "ch-session-248070",
+            "provider": "Channel Talk",
+            "purpose": "Maintains and manages the live chat session.",
+            "expiration": "30 minutes, renewable"
+          },
+          {
+            "name": "ch-veil-id",
+            "provider": "Channel Talk",
+            "purpose": "Identifies returning chat visitors to keep previous conversations available.",
+            "expiration": "1 year, renewable"
+          },
+          {
+            "name": "_dd_s_v2",
+            "provider": "Datadog via Channel Talk",
+            "purpose": "Monitors errors and performance of the live chat widget. Set by Channel Talk and cannot be turned off separately from live chat.",
+            "expiration": "Up to 1 year"
+          }
+        ]
+      },
+      {
         "title": "Analytics Cookies",
         "items": [
           {
@@ -61,29 +84,6 @@
             "provider": "Meta",
             "purpose": "Helps identify browsers for advertising measurement.",
             "expiration": "90 days"
-          }
-        ]
-      },
-      {
-        "title": "Channel Talk Cookies — Classification Pending",
-        "items": [
-          {
-            "name": "ch-session-248070",
-            "provider": "Channel Talk",
-            "purpose": "Maintains authentication for the live chat session.",
-            "expiration": "30 minutes, renewable"
-          },
-          {
-            "name": "ch-veil-id",
-            "provider": "Channel Talk",
-            "purpose": "Recognizes returning chat visitors and helps restore previous conversations.",
-            "expiration": "1 year, renewable"
-          },
-          {
-            "name": "_dd_s_v2",
-            "provider": "Datadog via Channel Talk",
-            "purpose": "Supports monitoring of errors in the live chat widget.",
-            "expiration": "Up to 1 year"
           }
         ]
       }
