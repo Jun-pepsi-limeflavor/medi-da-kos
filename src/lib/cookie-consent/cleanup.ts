@@ -1,15 +1,19 @@
 // 동의가 없거나 철회된 카테고리의 브라우저 저장소 정리(쿠키·sessionStorage·localStorage).
 // - Analytics: GA4 쿠키(_ga, _ga_*, _gid, _gat*), GA client id 캐시, Contact용 UTM 캐시
-// - Marketing: Meta 쿠키(_fbp, _fbc)와 Meta가 남기는 것으로 보이는 localStorage 키(lastExternalReferrer*, 출처 미확인),
-//   Google 광고 쿠키(_gcl_*)
+// - Marketing: Meta 쿠키(_fbp, _fbc)와 Meta Pixel의 localStorage(lastExternalReferrer*, P1 실험으로 Meta 생성 확인)
+// - Google Ads(_gcl_* 쿠키, _gcl_ls localStorage)는 두 카테고리 모두에서 지운다: GA4 태그가 Analytics·Marketing 동의가 모두 있을 때만
+//   만들고 읽으므로, 하나라도 빠지면 쓰이지 않는 광고 클릭 정보를 남기지 않는다(2026-11-26 결정). Cookie Details에서는 Marketing 행
 // - Essential(로그인·Channel Talk 상담·동의 기록·프로모션 상태)은 건드리지 않는다
 // - 쿠키는 설정한 도메인을 알 수 없어 호스트 전용·현재 호스트·상위 도메인(.medidakos.com 등)으로 모두 지운다
 
 export type StorageCategory = "analytics" | "marketing";
 
+const GOOGLE_ADS_COOKIES = [/^_gcl_/];
+const GOOGLE_ADS_LOCAL_KEYS = ["_gcl_ls"];
+
 const COOKIE_PATTERNS: Record<StorageCategory, readonly RegExp[]> = {
-  analytics: [/^_ga$/, /^_ga_/, /^_gid$/, /^_gat/],
-  marketing: [/^_fbp$/, /^_fbc$/, /^_gcl_/],
+  analytics: [/^_ga$/, /^_ga_/, /^_gid$/, /^_gat/, ...GOOGLE_ADS_COOKIES],
+  marketing: [/^_fbp$/, /^_fbc$/, ...GOOGLE_ADS_COOKIES],
 };
 
 const SESSION_KEYS: Record<StorageCategory, readonly string[]> = {
@@ -18,9 +22,14 @@ const SESSION_KEYS: Record<StorageCategory, readonly string[]> = {
 };
 
 const LOCAL_KEYS: Record<StorageCategory, readonly string[]> = {
-  analytics: [],
-  marketing: ["lastExternalReferrer", "lastExternalReferrerTime"],
+  analytics: [...GOOGLE_ADS_LOCAL_KEYS],
+  marketing: ["lastExternalReferrer", "lastExternalReferrerTime", ...GOOGLE_ADS_LOCAL_KEYS],
 };
+
+/** localStorage and sessionStorage keys the category's cleanup removes (Cookie Details consistency test). */
+export function storageKeysFor(category: StorageCategory): { local: readonly string[]; session: readonly string[] } {
+  return { local: LOCAL_KEYS[category], session: SESSION_KEYS[category] };
+}
 
 /** Cookie names in a `document.cookie` string that belong to the category. */
 export function cookieNamesFor(category: StorageCategory, cookieString: string): string[] {

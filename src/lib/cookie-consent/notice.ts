@@ -26,4 +26,4 @@ export const CONSENT_NOTICE = {
 } as const;
 
 /** SHA-256 of JSON.stringify(CONSENT_NOTICE). Kept as a constant so the browser needs no hashing code. */
-export const NOTICE_HASH = "89b8127d86e4163b826645310cd383a6c16c54aac0cf599cf8665c30e354a3c9";
+export const NOTICE_HASH = "6b611377f0372242a390fe4701601af288a0e3d724a2bf30daf75748027c6b9a";

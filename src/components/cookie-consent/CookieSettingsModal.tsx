@@ -5,7 +5,8 @@
 // - GPC 신호가 켜진 브라우저: Marketing 토글을 끈 채 비활성화하고 GPC_NOTICE를 표시(저장 시에도 Marketing은 꺼짐, consent.ts applyGpc)
 // - 열 때 저장값을 임시값(draft)으로 복사, 토글은 draft만 바꾼다. Save Preferences = draft 저장 · Accept All / Reject Optional = 즉시 저장
 //   X·ESC·배경 클릭은 저장 없이 닫기(동의로 처리하지 않음). 저장 기록이 없으면 draft는 모두 꺼짐에서 시작
-// - Essential은 'Always Active'(토글 없음). Cookie Details는 한 번 클릭으로 쿠키 6개 전체 펼침(중첩 아코디언 없음)
+// - Essential은 'Always Active'(토글 없음). Cookie Details는 한 번 클릭으로 14개 항목 전체 펼침(중첩 아코디언 없음).
+//   항목마다 Name·Type(Cookie·Local storage·Session storage)·Provider·Purpose·Expiration(2026-11-26 Type 추가)
 // - 구분선은 Figma처럼 각 행·Cookie Details 헤더·Footer의 위쪽 1px만(접힌 헤더 아래·펼친 마지막 항목 아래 선 없음).
 //   설명은 두 문장을 줄바꿈해 표시(문단 간격 없음, 2026-11-11 Figma)
 // - 작은 화면: 패널이 화면 높이 안에 들어가고 Body만 스크롤, Footer 버튼은 줄바꿈
@@ -140,9 +141,9 @@ function SettingsPanel({ titleId, saved, onClose, onSave }: { titleId: string; s
                 <h4 className="text-[14px] leading-5 font-medium text-mdk-charcoal">{group.title}</h4>
                 {group.items.map((item) => (
                   <dl key={item.name} className="flex flex-col gap-2.5 rounded-xl bg-mdk-off-white p-4">
-                    <dt className="sr-only">Cookie</dt>
+                    <dt className="sr-only">Name</dt>
                     <dd className="text-mdk-label text-mdk-charcoal [overflow-wrap:anywhere]">{item.name}</dd>
-                    {([["Provider", item.provider], ["Purpose", item.purpose], ["Expiration", item.expiration]] as const).map(([label, value]) => (
+                    {([["Type", item.type], ["Provider", item.provider], ["Purpose", item.purpose], ["Expiration", item.expiration]] as const).map(([label, value]) => (
                       <div key={label} className="flex gap-4">
                         <dt className="w-[88px] shrink-0 pt-0.5 text-mdk-caption text-mdk-charcoal-muted">{label}</dt>
                         <dd className="min-w-0 text-[14px] leading-5 tracking-[-0.1px] text-mdk-charcoal">{value}</dd>

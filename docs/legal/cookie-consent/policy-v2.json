@@ -1,6 +1,6 @@
 {
   "policyVersion": 2,
-  "noticeHash": "89b8127d86e4163b826645310cd383a6c16c54aac0cf599cf8665c30e354a3c9",
+  "noticeHash": "6b611377f0372242a390fe4701601af288a0e3d724a2bf30daf75748027c6b9a",
   "hashOf": "SHA-256 of JSON.stringify(notice), UTF-8, hex",
   "notice": {
     "policyVersion": 2,
@@ -21,7 +21,7 @@
     },
     "essential": {
       "name": "Essential Cookies",
-      "description": "These technologies are necessary for essential website functions, such as authentication and security."
+      "description": "These technologies are necessary for essential website functions, such as authentication, security, consent management, and live chat support, including monitoring of the chat service."
     },
     "optional": [
       {
@@ -41,18 +41,21 @@
         "items": [
           {
             "name": "ch-session-248070",
+            "type": "Cookie",
             "provider": "Channel Talk",
             "purpose": "Maintains and manages the live chat session.",
             "expiration": "30 minutes, renewable"
           },
           {
             "name": "ch-veil-id",
+            "type": "Cookie",
             "provider": "Channel Talk",
             "purpose": "Identifies returning chat visitors to keep previous conversations available.",
             "expiration": "1 year, renewable"
           },
           {
             "name": "_dd_s_v2",
+            "type": "Cookie",
             "provider": "Datadog via Channel Talk",
             "purpose": "Monitors errors and performance of the live chat widget. Set by Channel Talk and cannot be turned off separately from live chat.",
             "expiration": "Up to 1 year"
@@ -64,15 +67,31 @@
         "items": [
           {
             "name": "_ga",
+            "type": "Cookie",
             "provider": "Google Analytics",
             "purpose": "Distinguishes visitors to help measure website usage.",
-            "expiration": "2 years (default)"
+            "expiration": "Up to 2 years (browsers may set a shorter limit)"
           },
           {
             "name": "_ga_NQPD9VE63R",
+            "type": "Cookie",
             "provider": "Google Analytics",
             "purpose": "Stores session information for website analytics.",
-            "expiration": "2 years (default)"
+            "expiration": "Up to 2 years (browsers may set a shorter limit)"
+          },
+          {
+            "name": "medidakos_ga_client_id",
+            "type": "Session storage",
+            "provider": "Medidakos",
+            "purpose": "Keeps your Google Analytics visitor ID in this tab so inquiries can be linked to website analytics.",
+            "expiration": "Until the browser tab is closed"
+          },
+          {
+            "name": "medidakos_utm_params",
+            "type": "Session storage",
+            "provider": "Medidakos",
+            "purpose": "Keeps the campaign (UTM) parameters of your landing page in this tab so inquiries can be attributed to the campaign.",
+            "expiration": "Until the browser tab is closed"
           }
         ]
       },
@@ -81,9 +100,52 @@
         "items": [
           {
             "name": "_fbp",
+            "type": "Cookie",
             "provider": "Meta",
             "purpose": "Helps identify browsers for advertising measurement.",
             "expiration": "90 days"
+          },
+          {
+            "name": "_fbc",
+            "type": "Cookie",
+            "provider": "Meta",
+            "purpose": "Stores the Meta ad click ID, only when you arrive from a Meta ad.",
+            "expiration": "90 days"
+          },
+          {
+            "name": "lastExternalReferrer",
+            "type": "Local storage",
+            "provider": "Meta",
+            "purpose": "Records the last external website that referred you, for advertising measurement.",
+            "expiration": "Until deleted; removed when you withdraw consent"
+          },
+          {
+            "name": "lastExternalReferrerTime",
+            "type": "Local storage",
+            "provider": "Meta",
+            "purpose": "Records when that last external referral happened.",
+            "expiration": "Until deleted; removed when you withdraw consent"
+          },
+          {
+            "name": "_gcl_aw",
+            "type": "Cookie",
+            "provider": "Google Ads via Google Analytics",
+            "purpose": "Stores the Google Ads click ID to measure ad conversions, only when you arrive from a Google ad and both Analytics and Marketing are allowed.",
+            "expiration": "90 days"
+          },
+          {
+            "name": "_gcl_gs",
+            "type": "Cookie",
+            "provider": "Google Ads via Google Analytics",
+            "purpose": "Stores related Google Ads click information, only when you arrive from a Google ad and both Analytics and Marketing are allowed.",
+            "expiration": "90 days"
+          },
+          {
+            "name": "_gcl_ls",
+            "type": "Local storage",
+            "provider": "Google Ads via Google Analytics",
+            "purpose": "Keeps Google Ads click information for conversion measurement, only when you arrive from a Google ad and both Analytics and Marketing are allowed.",
+            "expiration": "Until deleted; removed when you withdraw Analytics or Marketing consent"
           }
         ]
       }
