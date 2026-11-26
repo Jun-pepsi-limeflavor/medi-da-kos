@@ -1,7 +1,8 @@
-// Terms of Service 본문 정적 데이터(Figma 'Terms of Service — Final Design (1440 · desktop)' 549:1057 › Sections 원문 그대로).
+// Terms of Service 본문 정적 데이터(Figma 'Terms of Service — Final Design (1440 · desktop)' 549:1057 › Sections).
 // - 12개 조항, 조항 id는 Figma 섹션 이름의 앵커(#terms-…)
-// - 문구를 바꾸지 않는다. 추가한 것은 링크뿐: 웹사이트 주소 → Home, 이메일 → mailto, 'Privacy Policy'(3·8조) → Privacy Policy 페이지
-// - 시행일·최종 수정일: 2026년 11월 18일(Figma 영문 프레임도 같은 표기로 갱신)
+// - 2026-11-26 팀 검토본 반영: 미구현 고객 대시보드 문구 제외(1·3·9), 3조 계정 삭제는 support@medidakos.com 이메일 요청
+// - 추가한 것은 링크뿐: 웹사이트 주소 → Home, 이메일 → mailto, 'Privacy Policy'(3·8조) → Privacy Policy 페이지
+// - 시행일·최종 수정일: 2026년 11월 26일
 import type { LegalDocumentData } from "@/components/legal/LegalDocument";
 import { ROUTES } from "@/lib/config/routes";
 
@@ -11,16 +12,16 @@ const PRIVACY_POLICY_LINK = { text: "Privacy Policy", href: ROUTES.privacy };
 
 export const TERMS_OF_SERVICE: LegalDocumentData = {
   title: "Terms of Service",
-  effectiveDate: "November 18, 2026",
+  effectiveDate: "November 26, 2026",
   emailLocation: "terms-of-service",
-  lastUpdated: "November 18, 2026",
+  lastUpdated: "November 26, 2026",
   sections: [
     {
       id: "terms-introduction-and-acceptance-of-terms",
       title: "1. Introduction and Acceptance of Terms",
       blocks: [
         { type: "p", text: "Medidakos, a service operated by Korea Technology Asset Co., Ltd. (hereinafter referred to as “we,” “us,” or “our”), provides cosmetic product development and manufacturing-related services." },
-        { type: "p", text: "These Terms of Service (hereinafter referred to as the “Terms”) apply to the use of our website, user registration and login, the customer dashboard, consultations, quotations, and project-related services." },
+        { type: "p", text: "These Terms of Service (hereinafter referred to as the “Terms”) apply to the use of our website, user registration and login, consultations, quotations, and project-related services." },
         { type: "field", label: "Legal Entity Name:", value: "Korea Technology Asset Co., Ltd." },
         { type: "field", label: "Website:", value: [WEBSITE] },
         { type: "p", text: "Users may access and use the relevant services by agreeing to these Terms. If users access or use the services on behalf of a company or other organization, they confirm that they have the authority to agree to these Terms on behalf of that organization." },
@@ -58,11 +59,12 @@ export const TERMS_OF_SERVICE: LegalDocumentData = {
         { type: "p", text: "When signing up by email, users are required to provide their name, phone number, country, email address, and password. A company or brand name may be provided optionally." },
         { type: "p", text: "Users must provide accurate information and must not use another person's information without authorization." },
         { type: "p", text: "Members are responsible for keeping their login credentials secure and must notify us if unauthorized account use or security issues occur." },
-        { type: "p", text: "Depending on their account permissions and the scope of services provided, members may access project progress, production, and shipping-related information through the customer dashboard." },
         {
           type: "p",
           text: [
-            "Members may log out or request account deletion through the customer dashboard. The processing of accounts and personal information upon account deletion is governed by our ",
+            "Members may log out of their accounts at any time. Members who wish to delete their accounts may send a request to ",
+            EMAIL,
+            ", and we will review the request, verify the member's identity, and process it. The processing of accounts and personal information upon account deletion is governed by our ",
             PRIVACY_POLICY_LINK,
             " and applicable laws and regulations.",
           ],
@@ -145,7 +147,7 @@ export const TERMS_OF_SERVICE: LegalDocumentData = {
       title: "9. Service Operations and Liability",
       blocks: [
         { type: "p", text: "We strive to maintain stable website operations and provide our services smoothly." },
-        { type: "p", text: "However, access to our website and customer dashboard may be temporarily restricted due to system maintenance, technical issues, communication failures, or other unavoidable circumstances." },
+        { type: "p", text: "However, access to our website may be temporarily restricted due to system maintenance, technical issues, communication failures, or other unavoidable circumstances." },
         { type: "p", text: "Product development and manufacturing schedules may change depending on raw material availability, manufacturing partners' production capacity, customer approvals, regulatory requirements, and logistics conditions." },
         { type: "p", text: "Specific matters concerning product quality standards, inspections, delivery conditions, manufacturing partners' responsibilities, and project execution are governed by the relevant project agreement." },
         { type: "p", text: "Certifications, registrations, and regulatory approvals are subject to the standards and reviews of the relevant authorities, and we do not guarantee that a particular product will obtain any specific certification or approval." },

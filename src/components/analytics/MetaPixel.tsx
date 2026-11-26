@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { isAnalyticsHost, type AnalyticsTier } from "@/lib/analytics/analytics-env";
+import { useEffectiveConsent } from "@/lib/cookie-consent/consent";
 import { isQaVisit } from "@/lib/utils/env-flags";
 
 type MetaPixelProps = {
@@ -15,17 +16,20 @@ type MetaPixelProps = {
 const subscribe = () => () => {};
 
 /**
- * 빌드 환경과 접속 호스트가 맞고 `?qa=1`이 아닐 때만 픽셀을 로드한다(analytics-env.ts).
+ * 빌드 환경과 접속 호스트가 맞고 `?qa=1`이 아니며 Marketing 동의가 있을 때만 픽셀을 로드한다(analytics-env.ts, consent.ts).
+ * 동의 전에는 fbevents.js도 받지 않는다. 동의 축소·철회는 ConsentEnforcer가 처리한다(revoke·쿠키 정리·새로고침).
  * 서버 렌더에서는 호스트를 알 수 없어 항상 꺼 둔다.
  * JS가 꺼진 방문자용 noscript 이미지는 테스트 환경을 가를 수 없어 넣지 않는다.
  */
 export function MetaPixel({ pixelId, tier }: MetaPixelProps) {
   const pathname = usePathname();
-  const enabled = useSyncExternalStore(
+  const hostOk = useSyncExternalStore(
     subscribe,
     () => isAnalyticsHost(tier, window.location.hostname) && !isQaVisit(),
     () => false,
   );
+  const consent = useEffectiveConsent();
+  const enabled = hostOk && consent?.marketing === true;
   // 첫 PageView는 기본 코드가 보낸다. 이후 클라이언트 이동만 여기서 보낸다.
   const lastPath = useRef(pathname);
 

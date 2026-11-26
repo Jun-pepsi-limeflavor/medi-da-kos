@@ -35,10 +35,12 @@ test("All lists every product exactly once", () => {
   assert.deepEqual([...all].sort(), [...allSource].sort());
 });
 
-test("current data: Cleansing 3→1 then Facial care 15→1", () => {
+test("current data: Hair care 9→1, then Cleansing 3→1, then Facial care 15→1", () => {
   const all = portfolioProducts("all");
-  assert.deepEqual(ids(all.slice(0, 3)), ["heartleaf-cleansing-oil", "pore-deep-cleansing-oil", "centella-cleansing-oil"]);
-  assert.equal(all[3].id, "rice-moisture-multi-balm-stick");
+  assert.equal(all[0].id, "silk-hair-oil-serum");
+  assert.equal(all[8].id, "beer-yeast-shampoo");
+  assert.deepEqual(ids(all.slice(9, 12)), ["heartleaf-cleansing-oil", "pore-deep-cleansing-oil", "centella-cleansing-oil"]);
+  assert.equal(all[12].id, "rice-moisture-multi-balm-stick");
   assert.equal(all.at(-1)?.id, "ghk-cu-copper-peptide-serum");
 });
 
