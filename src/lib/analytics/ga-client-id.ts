@@ -1,4 +1,5 @@
 import { getActiveGaId } from "@/lib/analytics/analytics-env";
+import { hasCookieConsent } from "@/lib/cookie-consent/consent";
 
 const GA_CLIENT_ID_STORAGE_KEY = "medidakos_ga_client_id";
 
@@ -66,10 +67,12 @@ export function getGaClientId(gaId?: string): Promise<string | null> {
 }
 
 /**
- * GA client id for the GA4 ID this page actually loaded (analytics-env.ts). GA off — no ID, invalid ID or
- * environment/host mismatch — resolves null without any lookup.
+ * GA client id for the GA4 ID this page actually loaded (analytics-env.ts). GA off — no Analytics consent, no ID,
+ * invalid ID or environment/host mismatch — resolves null without any lookup.
  */
 export function getActiveGaClientId(): Promise<string | null> {
+  // No Analytics consent: never read the _ga cookie or the cached id (GA is not loaded then either).
+  if (!hasCookieConsent("analytics")) return Promise.resolve(null);
   const gaId = getActiveGaId();
   return gaId ? getGaClientId(gaId) : Promise.resolve(null);
 }

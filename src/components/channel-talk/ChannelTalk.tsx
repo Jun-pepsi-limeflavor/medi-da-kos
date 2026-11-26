@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { getFirebaseAuth, useMockAuth as isMockAuth } from "@/lib/firebase/client";
 import { getGaClientId } from "@/lib/analytics/ga-client-id";
+import { hasCookieConsent } from "@/lib/cookie-consent/consent";
 import {
   bootChannelTalkAsAnonymous,
   bootChannelTalkAsMember,
@@ -42,7 +43,8 @@ export function ChannelTalk({ pluginKey, gaId }: ChannelTalkProps) {
       bootingRef.current = true;
 
       try {
-        const gaClientId = await getGaClientId(gaId);
+        // GA client id goes to the Channel profile only with Analytics consent (no _ga lookup otherwise).
+        const gaClientId = hasCookieConsent("analytics") ? await getGaClientId(gaId) : null;
         if (cancelled) return;
 
         if (user) {

@@ -1,7 +1,9 @@
-// Privacy Policy 본문 정적 데이터(Figma 'Privacy Policy — Final Design (1440 · desktop)' 548:1012 › Sections 548:1038 원문 그대로).
+// Privacy Policy 본문 정적 데이터(Figma 'Privacy Policy — Final Design (1440 · desktop)' 548:1012 › Sections 548:1038).
 // - 14개 조항, 조항 id는 Figma 섹션 이름의 앵커(#privacy-…)
-// - 문구를 바꾸지 않는다. 추가한 것은 링크뿐: 웹사이트 주소 → Home, 이메일 → mailto, 'Section 2.3'·'Section 5' → 해당 위치
-// - 시행일·최종 수정일: 2026년 11월 18일(Figma 영문 프레임도 같은 표기로 갱신)
+// - 2026-11-26 팀 검토본 반영: 2.2·5(5.1~5.5)·6·7·8 개정, 미구현 대시보드·자동 탈퇴 문구 제외(1·2.1·3·8·10), 14에 개인정보 보호책임자 추가.
+//   원문은 Notion 작업본(Medidakos_개인정보처리방침 영문). 6·7은 법률 검토 미완료 상태의 팀 확정 문구
+// - 추가한 것은 링크뿐: 웹사이트 주소 → Home, Medidakos 이메일 → mailto, 'Section 2.3'·'Section 5' → 해당 위치, 7의 Google 문의 URL
+// - 시행일·최종 수정일: 2026년 11월 26일
 import type { LegalDocumentData } from "@/components/legal/LegalDocument";
 
 const WEBSITE = { text: "https://www.medidakos.com/", href: "/" };
@@ -9,9 +11,9 @@ const EMAIL = { text: "support@medidakos.com", href: "mailto:support@medidakos.c
 
 export const PRIVACY_POLICY: LegalDocumentData = {
   title: "Privacy Policy",
-  effectiveDate: "November 18, 2026",
+  effectiveDate: "November 26, 2026",
   emailLocation: "privacy-policy",
-  lastUpdated: "November 18, 2026",
+  lastUpdated: "November 26, 2026",
   sections: [
     {
       id: "privacy-introduction",
@@ -21,7 +23,7 @@ export const PRIVACY_POLICY: LegalDocumentData = {
         { type: "p", text: "This Privacy Policy explains how we collect, use, disclose, retain, and protect personal information when users visit our website, use our sign-up and login features, contact us, or communicate with us regarding cosmetic product development and manufacturing services." },
         { type: "field", label: "Legal Entity Name:", value: "Korea Technology Asset Co., Ltd." },
         { type: "field", label: "Website:", value: [WEBSITE] },
-        { type: "p", text: "This Privacy Policy also applies to the user accounts, customer dashboard, project management features, and related customer communications that we provide." },
+        { type: "p", text: "This Privacy Policy also applies to the user accounts, project-related services, and related customer communications that we provide." },
       ],
     },
     {
@@ -67,8 +69,8 @@ export const PRIVACY_POLICY: LegalDocumentData = {
           ],
         },
         { type: "p", text: "Uploaded documents may contain product specifications, business information, or other information voluntarily provided by users." },
-        { type: "subheading", text: "③ Customer Dashboard and Project Management Information" },
-        { type: "p", text: "When users access the customer dashboard or use manufacturing project-related services, the following additional information may be processed." },
+        { type: "subheading", text: "③ Project Management Information" },
+        { type: "p", text: "When users use manufacturing project-related services, the following additional information may be processed." },
         {
           type: "list",
           items: [
@@ -88,13 +90,13 @@ export const PRIVACY_POLICY: LegalDocumentData = {
             "IP address",
             "Browser type, device information, and operating system",
             "Website usage and interaction records, such as pages visited, access dates and times, and clicks",
-            "Referral sources and campaign parameters (UTM)",
+            "Referral sources and campaign parameters (UTM), where users consent to the relevant analytics or marketing technologies",
             "Cookie identifiers and similar online identifiers",
             "Login status information and account registration and most recent login timestamps",
-            "Page URLs, browser information, referral sources, and analytics identifiers collected when inquiries or consultation requests are submitted",
+            "Page URLs and browser information collected when inquiries or consultation requests are submitted, and the Google Analytics identifier where users consent to analytics technologies; page URLs include query parameters, such as campaign parameters, only where users consent to analytics technologies",
           ],
         },
-        { type: "p", text: "We may use technologies such as Google Analytics and Meta Pixel to measure website usage and advertising performance and support personalized advertising activities depending on the relevant settings." },
+        { type: "p", text: "We may use technologies such as Google Analytics, Google Ads conversion measurement through Google Analytics, and Meta Pixel to measure website usage and advertising performance and support personalized advertising activities depending on the relevant settings." },
         { type: "p", text: "Cookies and similar technologies used for analytics and marketing purposes are processed in accordance with user consent and privacy settings as required by applicable laws and regulations." },
         {
           type: "p",
@@ -125,7 +127,6 @@ export const PRIVACY_POLICY: LegalDocumentData = {
             "Support for login using Google accounts",
             "Account access and security management",
             "Account-related notifications and customer support",
-            "Access to and use of the customer dashboard",
             "Processing requests to update account information and manage accounts",
             "Processing account deletion requests",
             "Processing requests to exercise user rights, including access to, correction of, and deletion of personal information",
@@ -180,29 +181,50 @@ export const PRIVACY_POLICY: LegalDocumentData = {
       title: "5. Cookies and Similar Technologies",
       blocks: [
         { type: "p", text: "We may use cookies, browser storage, pixels, and similar technologies to support website functionality, authenticate users and maintain services, understand how visitors use our website, and measure advertising performance." },
-        { type: "p", text: "The cookies and similar technologies we use are categorized according to their purposes as essential, analytics, marketing, and functional technologies." },
-        { type: "p", text: "Analytics and marketing technologies that require consent under applicable laws and regulations are activated when users provide the relevant consent." },
-        { type: "p", text: "Users may manage or withdraw their consent to the use of optional cookies through the Cookie Settings feature on our website." },
+        { type: "h3", text: "5.1 Types of Technologies" },
+        { type: "p", text: "We use cookies, browser storage technologies (local storage, session storage, and IndexedDB), and pixels. Information in session storage is deleted when the browser tab is closed. The expiration periods described in this Privacy Policy and in Cookie Details may be shortened by browser settings or limits." },
+        { type: "h3", text: "5.2 Categories of Technologies" },
+        { type: "p", text: "Essential technologies are necessary for essential website functions, such as authentication, security, consent management, and live chat support, including monitoring of the chat service. They are always active and include the following:" },
+        {
+          type: "list",
+          items: [
+            "Login status stored in browser storage (IndexedDB) by Firebase Authentication while users are logged in, which is deleted when users log out",
+            "Diagnostic information about the use of the Firebase software development kit, stored in browser storage (IndexedDB)",
+            "Records of users' cookie choices, stored in local storage",
+            "Cookies and browser storage used by Channel Talk to maintain live chat sessions, recognize returning chat visitors, keep previous conversations and chat settings available, and support the operation of the live chat service",
+            "A cookie set through the Channel Talk chat widget by Datadog, a monitoring service used by Channel Talk, to monitor errors and performance of the chat widget. The cookie may remain in the browser for up to one year, while each monitoring session recorded in it ends after 15 minutes of inactivity or after a maximum of four hours.",
+          ],
+        },
+        { type: "p", text: "Live chat remains available regardless of users' choices regarding optional technologies." },
+        { type: "p", text: "Analytics technologies, such as Google Analytics, help us understand how visitors use our website and measure website performance. Google Analytics is loaded only after users consent to analytics technologies. With this consent, the Google Analytics identifier and the campaign parameters (UTM) of the landing page may be kept in the browser tab and attached to inquiries submitted through our website, and the submission of an inquiry may be recorded in Google Analytics as a conversion." },
+        { type: "p", text: "Marketing technologies help measure advertising performance and support personalized advertising activities depending on the relevant settings. They include Meta Pixel, which is loaded only after users consent to marketing technologies, and Google Ads conversion measurement. Because Google Ads conversion measurement on our website operates through Google Analytics, it requires consent to both analytics and marketing technologies. We allow Google to use Google Analytics data for advertising measurement only when users consent to marketing technologies, and Google Ads click information is stored in the browser only when users consent to both analytics and marketing technologies and arrive from a Google ad." },
+        { type: "h3", text: "5.3 Consent and Cookie Settings" },
+        { type: "p", text: "Analytics and marketing technologies are activated only after users provide the relevant consent." },
+        { type: "p", text: "Users may accept or reject all optional technologies, or choose analytics and marketing technologies separately, through the Cookie Settings feature on our website, and may change or withdraw their consent at any time. When users withdraw consent, we stop the related technologies and delete the related cookies and browser storage from their browser. Google Ads-related browser storage is deleted when users withdraw consent to either analytics or marketing technologies." },
+        { type: "p", text: "If a user's browser sends a Global Privacy Control (GPC) signal, we treat it as a refusal of marketing technologies, and marketing technologies remain disabled." },
+        { type: "p", text: "Users' choices remain valid for six months, after which we ask again. We may also ask users again when the technologies or purposes described in our cookie notice change." },
+        { type: "h3", text: "5.4 Consent Records" },
+        { type: "p", text: "To keep a record of cookie choices, we generate a random consent identifier and store it in the user's browser. Each time a user makes or changes a choice, we record on our server the consent identifier, the choices made, the type of action, the version of the cookie notice shown, whether the choice was made in the cookie banner or in Cookie Settings, whether a GPC signal was sent, and the time of the choice. Consent records do not include users' names, email addresses, account identifiers, or analytics identifiers, and we do not attach the consent identifier to inquiries, user accounts, or analytics data. Consent records are retained for 18 months from the date of each record." },
+        { type: "h3", text: "5.5 Cookie Details" },
+        { type: "p", text: "The names, types, providers, purposes, and expiration periods of the cookies used on our website, and of the browser storage used for analytics and marketing purposes, are listed in Cookie Details within Cookie Settings." },
       ],
     },
     {
       id: "privacy-sharing-and-disclosure-of-personal-information",
       title: "6. Sharing and Disclosure of Personal Information",
       blocks: [
-        { type: "p", text: "We may share personal information with or entrust its processing to the following parties." },
+        { type: "p", text: "We entrust the processing of personal information to the following service providers to operate our website and services." },
         {
           type: "list",
           items: [
-            "Manufacturing and development partners involved in reviewing or carrying out users' projects",
-            "Technology and hosting providers supporting our website and customer services",
-            "Service providers supporting user registration, login, and account authentication",
-            "Email and customer communication service providers",
-            "Analytics or advertising providers, where applicable and subject to relevant consent requirements",
-            "Professional advisors and public authorities where legally required",
+            "Google (Firebase, Google Cloud, Google Workspace): user authentication, data storage, server operations, service-related emails, and file storage",
+            "Google (Google Analytics): website analytics, where users consent to analytics technologies",
+            "Channel Corp. (Channel Talk): live chat, customer consultation, and customer relationship management",
+            "Vercel Inc.: website hosting and server functions",
           ],
         },
-        { type: "p", text: "When users choose to log in with Google, services providing the relevant authentication functionality may be used." },
-        { type: "p", text: "We distinguish between the outsourcing of personal information processing and the provision of personal information to third parties in accordance with applicable laws and regulations, and we fulfill any required notification or consent procedures." },
+        { type: "p", text: "Where users consent to marketing technologies, website usage information and cookie identifiers are shared with Meta (Meta Pixel) and Google (Google Ads) to measure advertising performance. These companies may also use this information for their own purposes in accordance with their own privacy policies." },
+        { type: "p", text: "We may also share personal information with manufacturing and development partners involved in users' projects, and with professional advisors or public authorities where required by law." },
       ],
     },
     {
@@ -210,7 +232,18 @@ export const PRIVACY_POLICY: LegalDocumentData = {
       title: "7. International Data Transfers",
       blocks: [
         { type: "p", text: "Medidakos is based in the Republic of Korea and provides cosmetic product development and manufacturing-related services to customers in the United States, Europe, and other regions. In the course of providing these services, personal information of overseas customers may be transferred to and processed in the Republic of Korea." },
-        { type: "p", text: "Additionally, personal information may be processed or stored outside the Republic of Korea through overseas service providers used for user registration, login, customer management, and website operations." },
+        { type: "p", text: "Our main database and file storage are located in the Republic of Korea. Personal information is also processed by the service providers listed in Section 6, some of which process it outside the Republic of Korea, including the following. This information is transmitted over the network when users use the relevant features." },
+        {
+          type: "list",
+          items: [
+            [
+              "Google (Firebase Authentication), United States: name, email address, password (stored in hashed form), and Google account identifiers, for user authentication. Retained until the user's account is deleted, after which it is removed from Google's systems within 180 days. Contact: ",
+              { text: "https://support.google.com/policies/troubleshooter/2990837", href: "https://support.google.com/policies/troubleshooter/2990837" },
+            ],
+            "Vercel Inc., United States: IP address, browser information, access records, and login authentication information, for website hosting and server functions. Retained only as long as necessary to provide the service and deleted when our agreement with Vercel ends. Contact: privacy@vercel.com",
+          ],
+        },
+        { type: "p", text: "Where users consent to analytics or marketing technologies, Google and Meta may process the related information in the countries where they operate." },
         { type: "p", text: "We comply with applicable laws and regulations regarding international transfers of personal information and implement the necessary safeguards." },
       ],
     },
@@ -228,9 +261,10 @@ export const PRIVACY_POLICY: LegalDocumentData = {
             "Account information associated with Google login",
             "General inquiries and communications",
             "Uploaded project briefs and related files",
-            "Customer dashboard and project information",
+            "Project information",
             "Contract and transaction records",
-            "Website analytics and consent records",
+            "Website analytics records",
+            "Cookie consent records, which are retained for 18 months from the date of each record",
           ],
         },
         { type: "p", text: "When users request account deletion, we delete their user accounts after verifying their identity and completing the necessary procedures. Personal information for which the processing purpose has been fulfilled is destroyed in accordance with applicable laws and regulations and our internal retention policies." },
@@ -265,7 +299,14 @@ export const PRIVACY_POLICY: LegalDocumentData = {
             "Request data portability, where applicable",
           ],
         },
-        { type: "p", text: "Registered users may request account deletion through the account deletion feature in the customer dashboard." },
+        {
+          type: "p",
+          text: [
+            "Registered users may request deletion of their accounts by contacting us at ",
+            EMAIL,
+            ". We will review the request, verify the requester's identity, and process it.",
+          ],
+        },
         { type: "p", text: "Requests concerning access to, correction of, or deletion of personal information, as well as the exercise of other rights, may be submitted through the privacy contact information provided below." },
         { type: "p", text: "We review and process user requests in accordance with applicable laws and regulations and our internal procedures." },
       ],
@@ -305,6 +346,10 @@ export const PRIVACY_POLICY: LegalDocumentData = {
         { type: "field", label: "Legal Entity Name:", value: "Korea Technology Asset Co., Ltd." },
         { type: "field", label: "Business Address:", value: "6 Jong-ro, Jongno-gu, Seoul, Republic of Korea" },
         { type: "field", label: "Privacy Inquiries:", value: [EMAIL] },
+        { type: "h3", text: "Personal Information Protection Officer" },
+        { type: "field", label: "Name:", value: "Park JunYoung" },
+        { type: "field", label: "Phone:", value: "+82 10 3593 9747" },
+        { type: "field", label: "Email:", value: [EMAIL] },
       ],
     },
   ],

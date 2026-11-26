@@ -270,3 +270,167 @@ test("boot은 SDK 기본 버튼을 숨기고 customLauncherSelector는 넘기지
   assert.equal(option.hideChannelButtonOnBoot, true);
   assert.ok(!("customLauncherSelector" in option));
 });
+
+// ---- 쿠키 동의(2026-11-23): 상담·식별은 그대로, 추적 옵션만 Marketing 동의 ----
+
+function consentStorage(choices: { analytics: boolean; marketing: boolean } | null) {
+  const raw = choices
+    ? JSON.stringify({ version: 2, consentId: "0b6f2d64-3f1a-4c5e-9d2b-7a1e5c3b9f00", ...choices, confirmed: choices, savedAt: "2026-11-23T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z" })
+    : null;
+  return { getItem: (key: string) => (key === "mdk:cookie-consent" ? raw : null), setItem() {}, removeItem() {} };
+}
+
+test("Marketing 동의가 없으면 boot는 그대로 하되 PageView·UTM 추적과 라우트 PageView를 끈다", async () => {
+  const channel = fakeChannel();
+  (globalThis as { window: Record<string, unknown> }).window.localStorage = consentStorage(null);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const option = channel.of("boot")[0].args[0] as Record<string, unknown>;
+  assert.equal(option.pluginKey, "plugin-key");
+  assert.equal(option.trackDefaultEvent, false);
+  assert.equal(option.trackUtmSource, false);
+  assert.ok(!("hidePopup" in option), "상담 알림 팝업은 숨기지 않는다");
+  ct.syncChannelTalkRoute("/contact");
+  assert.equal(channel.of("setPage").length, 1);
+  assert.equal(channel.of("track").length, 0);
+});
+
+test("Marketing 동의가 있으면 Channel Talk 추적 옵션과 라우트 PageView를 켠다", async () => {
+  const channel = fakeChannel();
+  (globalThis as { window: Record<string, unknown> }).window.localStorage = consentStorage({ analytics: false, marketing: true });
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const option = channel.of("boot")[0].args[0] as Record<string, unknown>;
+  assert.equal(option.trackDefaultEvent, true);
+  assert.equal(option.trackUtmSource, true);
+  ct.syncChannelTalkRoute("/contact");
+  assert.deepEqual(channel.of("track").map((c) => c.args[0]), ["PageView"]);
+});
+
+// ---- 로그아웃 세션 초기화(2026-11-24): 회원 → 비회원일 때만 ch-session-* 삭제 ----
+
+/** document.cookie 가짜. 쓰기는 Channel 호출과 같은 기록(calls)에 남겨 shutdown → 삭제 → boot 순서를 확인한다. */
+function fakeCookies(calls: Call[], initial: string[], hostname = "localhost") {
+  const jar = new Map(initial.map((pair) => [pair.split("=")[0], pair] as const));
+  (globalThis as { document?: unknown }).document = {
+    get cookie() {
+      return [...jar.values()].join("; ");
+    },
+    set cookie(value: string) {
+      calls.push({ method: "cookie", args: [value] });
+      const name = value.split("=")[0];
+      if (/Max-Age=0/.test(value)) jar.delete(name);
+      else jar.set(name, value.split(";")[0]);
+    },
+  };
+  (globalThis as { location?: unknown }).location = { hostname };
+  return { names: () => [...jar.keys()] };
+}
+
+const CHANNEL_COOKIES = ["ch-veil-id=veil", "ch-session-248070=session", "_dd_s_v2=dd", "mdk_other=1"];
+
+test("회원 → 비회원(로그아웃): shutdown 뒤 ch-session-*만 지우고 그다음 비회원 boot", async () => {
+  const channel = fakeChannel();
+  stubFetch();
+  const cookies = fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  assert.equal(channel.of("cookie").length, 0, "회원 boot는 쿠키를 건드리지 않는다");
+
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const order = channel.calls.map((c) => c.method).filter((m) => ["shutdown", "cookie", "boot"].includes(m));
+  assert.deepEqual(order, ["boot", "shutdown", "cookie", "boot"], "shutdown → 세션 쿠키 삭제 → 비회원 boot (localhost는 호스트 전용 1번)");
+  assert.match(String(channel.of("cookie")[0].args[0]), /^ch-session-248070=; Max-Age=0; Path=\/$/);
+  assert.deepEqual(cookies.names(), ["ch-veil-id", "_dd_s_v2", "mdk_other"], "ch-veil-id와 다른 쿠키는 남는다");
+  assert.ok(!("memberId" in (channel.of("boot")[1].args[0] as object)), "두 번째 boot는 비회원");
+});
+
+test("처음 비회원 boot·비회원 재실행·회원 → 회원 전환은 세션 쿠키를 지우지 않는다", async () => {
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null); // 이미 비회원 boot → 그대로
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1"); // 비회원 → 회원(자동 통합 유지)
+  await ct.bootChannelTalkAsMember("plugin-key", { ...member, uid: "uid-2" } as never, null, "id-token-2"); // 회원 → 회원
+  assert.equal(channel.of("cookie").length, 0);
+  assert.equal(channel.of("boot").length, 3);
+});
+
+test("운영 호스트에서는 호스트 전용·www·상위 도메인으로 모두 만료시킨다", async () => {
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES, "www.medidakos.com");
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  const writes = channel.of("cookie").map((c) => String(c.args[0]));
+  assert.ok(writes.every((w) => w.startsWith("ch-session-248070=; Max-Age=0; Path=/")), "ch-session만");
+  assert.deepEqual(writes.map((w) => /Domain=([^;]+)/.exec(w)?.[1] ?? "(host-only)"), ["(host-only)", "www.medidakos.com", ".www.medidakos.com", ".medidakos.com"]);
+});
+
+test("다른 탭 로그아웃도 같은 경로: 탭마다 한 번만 지우고 한 번만 비회원 boot한다", async () => {
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null); // onAuthStateChanged(null)
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null); // 같은 알림이 한 번 더 와도
+  assert.equal(channel.of("cookie").length, 1);
+  assert.equal(channel.of("shutdown").length, 1);
+  assert.equal(channel.of("boot").length, 2);
+  // 이미 지워졌거나 없으면 아무것도 쓰지 않는다
+  assert.deepEqual(ct.clearChannelSessionCookies(), []);
+});
+
+// ---- 런처 열림 상태(2026-11-24): 메신저를 연 채 로그인·로그아웃해도 재시작 뒤 런처가 다시 보인다 ----
+
+/** SDK가 boot 때 등록한 onShowMessenger 콜백을 불러 "메신저 열림"을 흉내 낸다. */
+function openMessengerViaSdk(channel: ReturnType<typeof fakeChannel>) {
+  const show = channel.of("onShowMessenger").at(-1)?.args[0] as (() => void) | undefined;
+  assert.ok(show, "boot 성공 때 onShowMessenger를 등록한다");
+  show();
+}
+
+test("메신저를 연 채 로그아웃(회원 → 비회원): shutdown 직후 열림 상태를 닫힘으로 되돌리고 런처가 다시 보인다", async () => {
+  const { isMessengerOpen, isChannelReady, setMessengerOpen } = await import("../../src/lib/channel-talk/launcher.ts");
+  setMessengerOpen(false);
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  openMessengerViaSdk(channel);
+  assert.equal(isMessengerOpen(), true);
+
+  const atBoot: boolean[] = [];
+  const { ChannelIO } = (globalThis as unknown as { window: { ChannelIO: (m: string, ...a: unknown[]) => void } }).window;
+  (globalThis as unknown as { window: { ChannelIO: unknown } }).window.ChannelIO = (method: string, ...args: unknown[]) => {
+    if (method === "boot") atBoot.push(isMessengerOpen());
+    ChannelIO(method, ...args);
+  };
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  assert.deepEqual(atBoot, [false], "비회원 boot 전에 이미 닫힘");
+  assert.equal(isMessengerOpen(), false);
+  assert.equal(isChannelReady(), true, "런처 표시 조건(ready && !open) 충족");
+  assert.equal(channel.of("cookie").length, 1, "세션 쿠키 초기화는 그대로");
+});
+
+test("비회원 메신저를 연 채 로그인(비회원 → 회원): 회원 boot 뒤 런처가 다시 보인다", async () => {
+  const { isMessengerOpen, isChannelReady, setMessengerOpen } = await import("../../src/lib/channel-talk/launcher.ts");
+  setMessengerOpen(false);
+  const channel = fakeChannel();
+  stubFetch();
+  fakeCookies(channel.calls, CHANNEL_COOKIES);
+  const ct = await freshChannelTalk();
+  await ct.bootChannelTalkAsAnonymous("plugin-key", null);
+  openMessengerViaSdk(channel);
+  assert.equal(isMessengerOpen(), true);
+
+  await ct.bootChannelTalkAsMember("plugin-key", member as never, null, "id-token-1");
+  assert.equal(isMessengerOpen(), false);
+  assert.equal(isChannelReady(), true);
+  assert.equal(channel.of("cookie").length, 0, "로그인은 세션 쿠키를 지우지 않는다(자동 통합 유지)");
+});
